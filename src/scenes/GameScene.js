@@ -94,12 +94,25 @@ export class GameScene extends Phaser.Scene {
     // World-themed background
     this.add.rectangle(200, 350, 400, 700, this.world.color);
 
-    // Stars
+    // Stars with twinkling effect
     for (let i = 0; i < 30; i++) {
       const x = Phaser.Math.Between(0, 400);
       const y = Phaser.Math.Between(0, 700);
-      this.add.circle(x, y, Phaser.Math.Between(1, 2), 0xffffff, 0.3);
+      const star = this.add.circle(x, y, Phaser.Math.Between(1, 2), 0xffffff, Phaser.Math.FloatBetween(0.2, 0.5));
+
+      // Subtle twinkle animation
+      this.tweens.add({
+        targets: star,
+        alpha: { from: star.alpha, to: Phaser.Math.FloatBetween(0.1, 0.6) },
+        duration: Phaser.Math.Between(1500, 3000),
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
     }
+
+    // Create board background panel
+    this.createBoardBackground();
 
     // Create the game board
     this.createBoard();
@@ -161,6 +174,48 @@ export class GameScene extends Phaser.Scene {
     this.boardOffsetX = offsetX;
   }
 
+  createBoardBackground() {
+    // Calculate board dimensions
+    const boardWidth = this.boardSize * TILE_SIZE + 24;
+    const boardHeight = this.boardSize * TILE_SIZE + 24;
+    const boardCenterX = 200;
+    const boardCenterY = BOARD_OFFSET_Y + (this.boardSize * TILE_SIZE) / 2;
+
+    // Drop shadow
+    this.add.rectangle(boardCenterX + 4, boardCenterY + 4, boardWidth, boardHeight, 0x000000, 0.35)
+      .setOrigin(0.5);
+
+    // Main board background
+    const boardBg = this.add.rectangle(boardCenterX, boardCenterY, boardWidth, boardHeight, 0x1a1a2e, 0.85)
+      .setOrigin(0.5);
+
+    // Border with world accent color
+    boardBg.setStrokeStyle(2, this.world.accentColor, 0.6);
+
+    // Inner panel (slightly darker)
+    this.add.rectangle(boardCenterX, boardCenterY, boardWidth - 12, boardHeight - 12, 0x0f0f1e, 0.5)
+      .setOrigin(0.5);
+
+    // Top highlight strip
+    this.add.rectangle(boardCenterX, boardCenterY - boardHeight / 2 + 6, boardWidth - 20, 3, this.world.accentColor, 0.3)
+      .setOrigin(0.5);
+
+    // Subtle grid lines (very faint)
+    const gridGraphics = this.add.graphics();
+    gridGraphics.lineStyle(1, this.world.accentColor, 0.08);
+
+    const startX = (400 - this.boardSize * TILE_SIZE) / 2;
+    for (let i = 1; i < this.boardSize; i++) {
+      // Vertical lines
+      const vx = startX + i * TILE_SIZE;
+      gridGraphics.lineBetween(vx, BOARD_OFFSET_Y, vx, BOARD_OFFSET_Y + this.boardSize * TILE_SIZE);
+
+      // Horizontal lines
+      const hy = BOARD_OFFSET_Y + i * TILE_SIZE;
+      gridGraphics.lineBetween(startX, hy, startX + this.boardSize * TILE_SIZE, hy);
+    }
+  }
+
   createTile(x, y, num, row, col) {
     // Create a container with background and text
     const container = this.add.container(x, y);
@@ -209,15 +264,50 @@ export class GameScene extends Phaser.Scene {
   }
 
   createParticles() {
-    // Create simple particle effect for matches
-    const particles = this.add.particles(0, 0, 'star', {
-      speed: { min: 100, max: 200 },
-      scale: { start: 0.5, end: 0 },
-      lifespan: 500,
-      gravityY: 200,
+    // Main match particles (stars with multi-color tints)
+    this.matchParticles = this.add.particles(0, 0, 'star', {
+      speed: { min: 80, max: 180 },
+      scale: { start: 0.6, end: 0 },
+      alpha: { start: 1, end: 0 },
+      rotate: { min: 0, max: 360 },
+      lifespan: { min: 400, max: 650 },
+      gravityY: 180,
+      tint: [0xf7dc6f, 0xff6b9d, 0x4ecdc4, 0xa29bfe],
       emitting: false
     });
-    this.matchParticles = particles;
+
+    // Glow particles (soft ambient effect)
+    this.glowParticles = this.add.particles(0, 0, 'particle_glow', {
+      speed: { min: 30, max: 80 },
+      scale: { start: 0.8, end: 0 },
+      alpha: { start: 0.7, end: 0 },
+      lifespan: 400,
+      gravityY: -30,
+      emitting: false
+    });
+
+    // Spark particles (for combos)
+    this.sparkParticles = this.add.particles(0, 0, 'particle_spark', {
+      speed: { min: 150, max: 280 },
+      scale: { start: 0.7, end: 0.1 },
+      alpha: { start: 1, end: 0 },
+      rotate: { min: 0, max: 360 },
+      lifespan: 450,
+      gravityY: 50,
+      tint: this.world.accentColor,
+      emitting: false
+    });
+
+    // Diamond particles (for special effects)
+    this.diamondParticles = this.add.particles(0, 0, 'particle_diamond', {
+      speed: { min: 100, max: 200 },
+      scale: { start: 0.5, end: 0 },
+      alpha: { start: 1, end: 0 },
+      rotate: { min: 0, max: 360 },
+      lifespan: 500,
+      gravityY: 100,
+      emitting: false
+    });
   }
 
   setNewTarget() {
@@ -281,11 +371,35 @@ export class GameScene extends Phaser.Scene {
     const selection = this.add.image(x, y, 'tile_selected');
     tile.selectionSprite = selection;
 
-    // Pulse animation
+    // Scale entrance
+    selection.setScale(0.8);
+    selection.setAlpha(0.5);
+
     this.tweens.add({
       targets: selection,
-      scale: 1.1,
-      duration: 500,
+      scale: 1,
+      alpha: 1,
+      duration: 150,
+      ease: 'Back.easeOut'
+    });
+
+    // Pulse animation with scale
+    this.tweens.add({
+      targets: selection,
+      scale: { from: 0.95, to: 1.08 },
+      alpha: { from: 0.85, to: 1 },
+      duration: 450,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      delay: 150
+    });
+
+    // Subtle rotation wobble
+    this.tweens.add({
+      targets: selection,
+      angle: { from: -2, to: 2 },
+      duration: 600,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
@@ -445,22 +559,43 @@ export class GameScene extends Phaser.Scene {
     return new Promise(resolve => {
       const x1 = tile1.x, y1 = tile1.y;
       const x2 = tile2.x, y2 = tile2.y;
+      const duration = 180;
 
+      // Tile 1 animation with arc and scale
       this.tweens.add({
         targets: tile1,
         x: x2,
         y: y2,
-        duration: 150,
-        ease: 'Quad.easeInOut'
+        duration: duration,
+        ease: 'Power2.easeInOut'
       });
 
+      // Scale pop for tile 1
+      this.tweens.add({
+        targets: tile1,
+        scale: 1.15,
+        duration: duration / 2,
+        yoyo: true,
+        ease: 'Quad.easeOut'
+      });
+
+      // Tile 2 animation with arc and scale
       this.tweens.add({
         targets: tile2,
         x: x1,
         y: y1,
-        duration: 150,
-        ease: 'Quad.easeInOut',
+        duration: duration,
+        ease: 'Power2.easeInOut',
         onComplete: resolve
+      });
+
+      // Scale pop for tile 2
+      this.tweens.add({
+        targets: tile2,
+        scale: 1.15,
+        duration: duration / 2,
+        yoyo: true,
+        ease: 'Quad.easeOut'
       });
     });
   }
@@ -504,7 +639,19 @@ export class GameScene extends Phaser.Scene {
     // Particle effects
     for (const m of uniqueMatches) {
       const tile = this.tileSprites[m.row][m.col];
-      this.matchParticles.emitParticleAt(tile.x, tile.y, 10);
+      this.matchParticles.emitParticleAt(tile.x, tile.y, 8);
+      this.glowParticles.emitParticleAt(tile.x, tile.y, 4);
+    }
+
+    // Combo burst for 3+ matches
+    if (uniqueMatches.length >= 3) {
+      // Calculate center of matched tiles
+      const cx = uniqueMatches.reduce((sum, m) => sum + this.tileSprites[m.row][m.col].x, 0) / uniqueMatches.length;
+      const cy = uniqueMatches.reduce((sum, m) => sum + this.tileSprites[m.row][m.col].y, 0) / uniqueMatches.length;
+
+      // Burst of spark particles
+      this.sparkParticles.emitParticleAt(cx, cy, uniqueMatches.length * 4);
+      this.diamondParticles.emitParticleAt(cx, cy, uniqueMatches.length * 2);
     }
 
     // Animate matched tiles out
@@ -551,21 +698,32 @@ export class GameScene extends Phaser.Scene {
     cy /= matches.length;
 
     const popup = this.add.text(cx, cy, `+${score}`, {
-      fontSize: '32px',
+      fontSize: '36px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 4
-    }).setOrigin(0.5);
+      strokeThickness: 5
+    }).setOrigin(0.5).setScale(0);
 
+    // Pop-in animation
     this.tweens.add({
       targets: popup,
-      y: cy - 50,
-      alpha: 0,
-      duration: 800,
-      ease: 'Quad.easeOut',
-      onComplete: () => popup.destroy()
+      scale: 1.3,
+      duration: 150,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Float up and fade out
+        this.tweens.add({
+          targets: popup,
+          y: cy - 60,
+          scale: 0.9,
+          alpha: 0,
+          duration: 650,
+          ease: 'Quad.easeOut',
+          onComplete: () => popup.destroy()
+        });
+      }
     });
   }
 

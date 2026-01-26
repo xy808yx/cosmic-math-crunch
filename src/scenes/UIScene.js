@@ -85,30 +85,67 @@ export class UIScene extends Phaser.Scene {
   }
 
   createTargetDisplay() {
-    // Background panel
-    this.add.rectangle(200, 115, 320, 60, 0x2d2d44, 0.8)
-      .setStrokeStyle(2, 0x4ecdc4);
+    // Get world for theming
+    const gameScene = this.scene.get('GameScene');
+    const worldId = gameScene?.worldId || this.registry.get('currentWorldId') || 1;
+    const world = WORLDS[worldId - 1];
+    const accentColor = world?.accentColor || 0x4ecdc4;
 
-    this.add.text(200, 95, 'Find two numbers that multiply to:', {
-      fontSize: '14px',
-      fill: '#fff',
+    // Outer glow
+    this.add.rectangle(200, 115, 326, 66, accentColor, 0.15);
+
+    // Shadow
+    this.add.rectangle(202, 117, 320, 60, 0x000000, 0.3);
+
+    // Main background panel
+    const panel = this.add.rectangle(200, 115, 320, 60, 0x2d2d44, 0.9);
+    panel.setStrokeStyle(2, accentColor, 0.8);
+
+    // Top highlight strip
+    this.add.rectangle(200, 88, 316, 3, accentColor, 0.4);
+
+    // Label text (muted)
+    this.add.text(200, 92, 'Find two numbers that multiply to:', {
+      fontSize: '13px',
+      fill: '#aaaaaa',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    this.targetText = this.add.text(200, 125, '?', {
-      fontSize: '36px',
+    // Target glow behind (will animate)
+    this.targetGlow = this.add.text(200, 122, '?', {
+      fontSize: '42px',
+      fill: '#f7dc6f',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setAlpha(0.25).setScale(1.1);
+
+    // Main target number
+    this.targetText = this.add.text(200, 122, '?', {
+      fontSize: '42px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 4
+      strokeThickness: 5
     }).setOrigin(0.5);
 
-    this.factorsText = this.add.text(200, 155, '', {
-      fontSize: '12px',
+    // Factors hint text
+    this.factorsText = this.add.text(200, 150, '', {
+      fontSize: '11px',
       fill: '#81ecec',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
+
+    // Subtle glow pulse animation
+    this.tweens.add({
+      targets: this.targetGlow,
+      alpha: { from: 0.2, to: 0.4 },
+      scale: { from: 1.05, to: 1.15 },
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
   }
 
   createScoreDisplay() {
@@ -116,29 +153,45 @@ export class UIScene extends Phaser.Scene {
     const initialScore = gameScene?.score || 0;
     const initialTargetScore = gameScene?.targetScore || 500;
 
-    // Score background
-    this.add.rectangle(70, 600, 120, 50, 0x2d2d44, 0.8)
-      .setStrokeStyle(2, 0xff6b9d);
+    // Shadow
+    this.add.rectangle(72, 603, 120, 55, 0x000000, 0.3);
 
-    this.add.text(70, 585, 'SCORE', {
-      fontSize: '12px',
+    // Main background
+    const scoreBg = this.add.rectangle(70, 600, 120, 55, 0x2d2d44, 0.9);
+    scoreBg.setStrokeStyle(2, 0xff6b9d, 0.8);
+
+    // Top highlight
+    this.add.rectangle(70, 575, 116, 3, 0xff6b9d, 0.4);
+
+    // Label
+    this.add.text(70, 580, 'SCORE', {
+      fontSize: '11px',
       fill: '#ff6b9d',
-      fontFamily: 'Arial'
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.scoreText = this.add.text(70, 610, initialScore.toString(), {
-      fontSize: '24px',
+    // Score value
+    this.scoreText = this.add.text(70, 600, initialScore.toString(), {
+      fontSize: '26px',
       fill: '#fff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Target score - use actual value from GameScene
-    this.targetScoreText = this.add.text(70, 635, `/ ${initialTargetScore}`, {
-      fontSize: '12px',
-      fill: '#888',
+    // Target score
+    this.targetScoreText = this.add.text(70, 620, `/ ${initialTargetScore}`, {
+      fontSize: '11px',
+      fill: '#666',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
+
+    // Progress bar background
+    this.add.rectangle(70, 635, 100, 6, 0x1a1a2e);
+
+    // Progress bar fill
+    this.scoreProgressBar = this.add.rectangle(21, 635, 0, 4, 0xff6b9d);
+    this.scoreProgressBar.setOrigin(0, 0.5);
   }
 
   createMovesDisplay() {
@@ -146,18 +199,27 @@ export class UIScene extends Phaser.Scene {
     const initialMoves = gameScene?.movesLeft || 15;
     const movesColor = initialMoves <= 3 ? '#ff6b6b' : '#fff';
 
-    // Moves background
-    this.add.rectangle(330, 600, 120, 50, 0x2d2d44, 0.8)
-      .setStrokeStyle(2, 0x4ecdc4);
+    // Shadow
+    this.add.rectangle(332, 603, 120, 55, 0x000000, 0.3);
 
-    this.add.text(330, 585, 'MOVES', {
-      fontSize: '12px',
+    // Main background
+    const movesBg = this.add.rectangle(330, 600, 120, 55, 0x2d2d44, 0.9);
+    movesBg.setStrokeStyle(2, 0x4ecdc4, 0.8);
+
+    // Top highlight
+    this.add.rectangle(330, 575, 116, 3, 0x4ecdc4, 0.4);
+
+    // Label
+    this.add.text(330, 580, 'MOVES', {
+      fontSize: '11px',
       fill: '#4ecdc4',
-      fontFamily: 'Arial'
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.movesText = this.add.text(330, 610, initialMoves.toString(), {
-      fontSize: '24px',
+    // Moves value
+    this.movesText = this.add.text(330, 605, initialMoves.toString(), {
+      fontSize: '28px',
       fill: movesColor,
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -175,16 +237,49 @@ export class UIScene extends Phaser.Scene {
     this.movesText.setText(data.movesLeft.toString());
     this.levelText.setText(`Level ${data.level}`);
 
-    // Color moves red when low
+    // Color moves red when low with pulse effect
     if (data.movesLeft <= 3) {
       this.movesText.setFill('#ff6b6b');
+      // Pulse effect for low moves warning
+      if (!this.movesWarningPulsing) {
+        this.movesWarningPulsing = true;
+        this.tweens.add({
+          targets: this.movesText,
+          scale: { from: 1, to: 1.1 },
+          duration: 400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
     } else {
       this.movesText.setFill('#fff');
+      if (this.movesWarningPulsing) {
+        this.movesWarningPulsing = false;
+        this.tweens.killTweensOf(this.movesText);
+        this.movesText.setScale(1);
+      }
     }
 
-    // Progress bar effect on score
+    // Update progress bar
     const progress = Math.min(data.score / data.targetScore, 1);
-    // Could add visual progress bar here
+    if (this.scoreProgressBar) {
+      this.tweens.add({
+        targets: this.scoreProgressBar,
+        width: progress * 98,
+        duration: 300,
+        ease: 'Quad.easeOut'
+      });
+
+      // Change color when near completion
+      if (progress >= 0.9) {
+        this.scoreProgressBar.setFillStyle(0x58d68d);
+      } else if (progress >= 0.7) {
+        this.scoreProgressBar.setFillStyle(0xf7dc6f);
+      } else {
+        this.scoreProgressBar.setFillStyle(0xff6b9d);
+      }
+    }
   }
 
   updateTarget(product, factors) {
@@ -193,16 +288,29 @@ export class UIScene extends Phaser.Scene {
       return;
     }
 
-    // Animate target change
+    // Animate target change with pop effect
     this.tweens.add({
-      targets: this.targetText,
-      scale: 1.3,
-      duration: 100,
-      yoyo: true,
-      ease: 'Quad.easeOut'
+      targets: [this.targetText, this.targetGlow],
+      scale: { from: 0.8, to: 1 },
+      duration: 200,
+      ease: 'Back.easeOut'
     });
 
+    // Flash effect on change
+    if (this.targetGlow) {
+      this.tweens.add({
+        targets: this.targetGlow,
+        alpha: 0.6,
+        duration: 150,
+        yoyo: true,
+        ease: 'Quad.easeOut'
+      });
+    }
+
     this.targetText.setText(product.toString());
+    if (this.targetGlow) {
+      this.targetGlow.setText(product.toString());
+    }
 
     // Show helpful factors (early game scaffolding)
     const factorPairs = [];
@@ -326,56 +434,138 @@ export class UIScene extends Phaser.Scene {
     // Check for achievements (delayed to not overlap with confetti)
     this.time.delayedCall(1000, () => this.checkAchievements());
 
-    // Overlay
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0.7);
+    // Animated overlay fade in
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0);
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0.75,
+      duration: 300,
+      ease: 'Quad.easeOut'
+    });
 
     // Calculate stars (3 for lots of moves left, 2 for some, 1 for barely)
     let stars = 1;
     if (data.movesLeft >= 10) stars = 3;
     else if (data.movesLeft >= 5) stars = 2;
 
-    // Victory panel
-    const panel = this.add.rectangle(200, 300, 280, 250, 0x2d2d44)
-      .setStrokeStyle(3, 0xf7dc6f);
+    // Create panel container (starts below screen)
+    const panelContainer = this.add.container(200, 800);
 
-    this.add.text(200, 210, '🎉 Level Complete! 🎉', {
-      fontSize: '22px',
+    // Panel shadow
+    panelContainer.add(this.add.rectangle(4, 4, 280, 260, 0x000000, 0.4));
+
+    // Victory panel
+    panelContainer.add(this.add.rectangle(0, 0, 280, 260, 0x2d2d44)
+      .setStrokeStyle(3, 0xf7dc6f));
+
+    // Corner accents
+    panelContainer.add(this.add.rectangle(-136, -126, 20, 3, 0xf7dc6f));
+    panelContainer.add(this.add.rectangle(-136, -126, 3, 20, 0xf7dc6f));
+    panelContainer.add(this.add.rectangle(136, 126, 20, 3, 0xf7dc6f));
+    panelContainer.add(this.add.rectangle(136, 126, 3, 20, 0xf7dc6f));
+
+    // Title
+    panelContainer.add(this.add.text(0, -100, 'Level Complete!', {
+      fontSize: '24px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5));
 
-    this.add.text(200, 250, `Score: ${data.score}`, {
-      fontSize: '18px',
-      fill: '#fff',
+    // Score label
+    panelContainer.add(this.add.text(0, -60, 'Score', {
+      fontSize: '14px',
+      fill: '#888',
       fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5));
 
-    // Stars
+    // Score value (will animate)
+    const scoreValue = this.add.text(0, -35, '0', {
+      fontSize: '28px',
+      fill: '#fff',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0.5);
+    panelContainer.add(scoreValue);
+
+    // Stars (will pop in sequentially)
+    const starSprites = [];
     for (let i = 0; i < 3; i++) {
-      const starX = 150 + i * 50;
+      const starX = -40 + i * 40;
       const filled = i < stars;
-      this.add.image(starX, 300, filled ? 'star' : 'star_empty')
-        .setScale(1.5);
+      const star = this.add.image(starX, 10, filled ? 'star' : 'star_empty')
+        .setScale(0);
+      panelContainer.add(star);
+      starSprites.push({ star, filled, index: i });
     }
 
     // Next level button
-    const nextBtn = this.add.rectangle(200, 380, 150, 45, 0x4ecdc4)
-      .setInteractive()
-      .on('pointerover', () => nextBtn.setFillStyle(0x5dade2))
-      .on('pointerout', () => nextBtn.setFillStyle(0x4ecdc4))
-      .on('pointerdown', () => {
-        audio.playClick();
-        const gameScene = this.scene.get('GameScene');
-        gameScene.nextLevel();
-      });
+    const nextBtn = this.add.rectangle(0, 90, 160, 48, 0x4ecdc4)
+      .setInteractive();
+    panelContainer.add(nextBtn);
 
-    this.add.text(200, 380, 'Next Level →', {
+    const nextBtnText = this.add.text(0, 90, 'Continue', {
       fontSize: '18px',
       fill: '#fff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
+    panelContainer.add(nextBtnText);
+
+    // Button hover animations
+    nextBtn.on('pointerover', () => {
+      nextBtn.setFillStyle(0x5dade2);
+      this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1.05, duration: 100 });
+    });
+    nextBtn.on('pointerout', () => {
+      nextBtn.setFillStyle(0x4ecdc4);
+      this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1, duration: 100 });
+    });
+    nextBtn.on('pointerdown', () => {
+      audio.playClick();
+      const gameScene = this.scene.get('GameScene');
+      gameScene.nextLevel();
+    });
+
+    // Animate panel entrance
+    this.tweens.add({
+      targets: panelContainer,
+      y: 300,
+      duration: 500,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Animate score count-up
+        this.tweens.addCounter({
+          from: 0,
+          to: data.score,
+          duration: 800,
+          ease: 'Quad.easeOut',
+          onUpdate: (tween) => {
+            scoreValue.setText(Math.floor(tween.getValue()).toString());
+          }
+        });
+
+        // Animate stars sequentially
+        starSprites.forEach(({ star, filled, index }) => {
+          this.time.delayedCall(600 + index * 200, () => {
+            if (filled) audio.playStar();
+            this.tweens.add({
+              targets: star,
+              scale: 1.6,
+              duration: 200,
+              ease: 'Back.easeOut',
+              onComplete: () => {
+                this.tweens.add({
+                  targets: star,
+                  scale: 1.3,
+                  duration: 100
+                });
+              }
+            });
+          });
+        });
+      }
+    });
   }
 
   createConfetti() {
@@ -407,25 +597,45 @@ export class UIScene extends Phaser.Scene {
     // Play failure sound
     audio.playLevelFailed();
 
-    // Overlay
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0.7);
+    // Animated overlay fade in
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0);
+    this.tweens.add({
+      targets: overlay,
+      alpha: 0.75,
+      duration: 300,
+      ease: 'Quad.easeOut'
+    });
 
-    // Failed panel
-    const panel = this.add.rectangle(200, 300, 280, 220, 0x2d2d44)
-      .setStrokeStyle(3, 0xff6b9d);
+    // Create panel container (starts below screen)
+    const panelContainer = this.add.container(200, 800);
 
-    this.add.text(200, 220, 'Out of Moves!', {
+    // Panel shadow
+    panelContainer.add(this.add.rectangle(4, 4, 280, 230, 0x000000, 0.4));
+
+    // Failed panel (softer coral color)
+    panelContainer.add(this.add.rectangle(0, 0, 280, 230, 0x2d2d44)
+      .setStrokeStyle(3, 0xff8fab));
+
+    // Corner accents
+    panelContainer.add(this.add.rectangle(-136, -111, 20, 3, 0xff8fab));
+    panelContainer.add(this.add.rectangle(-136, -111, 3, 20, 0xff8fab));
+    panelContainer.add(this.add.rectangle(136, 111, 20, 3, 0xff8fab));
+    panelContainer.add(this.add.rectangle(136, 111, 3, 20, 0xff8fab));
+
+    // Title
+    panelContainer.add(this.add.text(0, -85, 'Out of Moves!', {
       fontSize: '22px',
-      fill: '#ff6b9d',
+      fill: '#ff8fab',
       fontFamily: 'Arial',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5));
 
-    this.add.text(200, 260, `Score: ${data.score} / ${data.targetScore}`, {
+    // Score display
+    panelContainer.add(this.add.text(0, -45, `Score: ${data.score} / ${data.targetScore}`, {
       fontSize: '16px',
       fill: '#fff',
       fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5));
 
     // Progressive encouragement messages based on failure count
     const failures = data.failures || 1;
@@ -438,30 +648,48 @@ export class UIScene extends Phaser.Scene {
       message = 'We made it easier - you\'ve got this!';
     }
 
-    this.add.text(200, 290, message, {
+    panelContainer.add(this.add.text(0, -10, message, {
       fontSize: '14px',
       fill: '#81ecec',
       fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5));
 
     // Retry button
-    const retryBtn = this.add.rectangle(200, 360, 150, 45, 0xff6b9d)
-      .setInteractive()
-      .on('pointerover', () => retryBtn.setFillStyle(0xff8fab))
-      .on('pointerout', () => retryBtn.setFillStyle(0xff6b9d))
-      .on('pointerdown', () => {
-        audio.playClick();
-        const gameScene = this.scene.get('GameScene');
-        gameScene.restartLevel();
-        this.scene.restart();
-      });
+    const retryBtn = this.add.rectangle(0, 60, 160, 48, 0xff8fab)
+      .setInteractive();
+    panelContainer.add(retryBtn);
 
-    this.add.text(200, 360, 'Try Again', {
+    const retryBtnText = this.add.text(0, 60, 'Try Again', {
       fontSize: '18px',
       fill: '#fff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
+    panelContainer.add(retryBtnText);
+
+    // Button hover animations
+    retryBtn.on('pointerover', () => {
+      retryBtn.setFillStyle(0xffb3c6);
+      this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1.05, duration: 100 });
+    });
+    retryBtn.on('pointerout', () => {
+      retryBtn.setFillStyle(0xff8fab);
+      this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1, duration: 100 });
+    });
+    retryBtn.on('pointerdown', () => {
+      audio.playClick();
+      const gameScene = this.scene.get('GameScene');
+      gameScene.restartLevel();
+      this.scene.restart();
+    });
+
+    // Animate panel entrance
+    this.tweens.add({
+      targets: panelContainer,
+      y: 300,
+      duration: 500,
+      ease: 'Back.easeOut'
+    });
   }
 
   createMusicToggle() {
