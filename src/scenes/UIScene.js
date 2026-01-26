@@ -55,8 +55,8 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Hint text
-    this.hintText = this.add.text(200, 560, '', {
+    // Hint text (below board - 6x6 board ends at y=564)
+    this.hintText = this.add.text(200, 580, '', {
       fontSize: '14px',
       fill: '#81ecec',
       fontFamily: 'Arial',
@@ -153,18 +153,19 @@ export class UIScene extends Phaser.Scene {
     const initialScore = gameScene?.score || 0;
     const initialTargetScore = gameScene?.targetScore || 500;
 
+    // Positioned at bottom left (y=640, aligned with power-up row)
     // Shadow
-    this.add.rectangle(72, 603, 120, 55, 0x000000, 0.3);
+    this.add.rectangle(72, 643, 120, 50, 0x000000, 0.3);
 
     // Main background
-    const scoreBg = this.add.rectangle(70, 600, 120, 55, 0x2d2d44, 0.9);
+    const scoreBg = this.add.rectangle(70, 640, 120, 50, 0x2d2d44, 0.9);
     scoreBg.setStrokeStyle(2, 0xff6b9d, 0.8);
 
     // Top highlight
-    this.add.rectangle(70, 575, 116, 3, 0xff6b9d, 0.4);
+    this.add.rectangle(70, 617, 116, 3, 0xff6b9d, 0.4);
 
     // Label
-    this.add.text(70, 580, 'SCORE', {
+    this.add.text(70, 622, 'SCORE', {
       fontSize: '11px',
       fill: '#ff6b9d',
       fontFamily: 'Arial',
@@ -172,25 +173,25 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Score value
-    this.scoreText = this.add.text(70, 600, initialScore.toString(), {
-      fontSize: '26px',
+    this.scoreText = this.add.text(70, 642, initialScore.toString(), {
+      fontSize: '24px',
       fill: '#fff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Target score
-    this.targetScoreText = this.add.text(70, 620, `/ ${initialTargetScore}`, {
+    this.targetScoreText = this.add.text(70, 660, `/ ${initialTargetScore}`, {
       fontSize: '11px',
       fill: '#666',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
     // Progress bar background
-    this.add.rectangle(70, 635, 100, 6, 0x1a1a2e);
+    this.add.rectangle(70, 675, 100, 6, 0x1a1a2e);
 
     // Progress bar fill
-    this.scoreProgressBar = this.add.rectangle(21, 635, 0, 4, 0xff6b9d);
+    this.scoreProgressBar = this.add.rectangle(21, 675, 0, 4, 0xff6b9d);
     this.scoreProgressBar.setOrigin(0, 0.5);
   }
 
@@ -199,18 +200,19 @@ export class UIScene extends Phaser.Scene {
     const initialMoves = gameScene?.movesLeft || 15;
     const movesColor = initialMoves <= 3 ? '#ff6b6b' : '#fff';
 
+    // Positioned at bottom right (y=640, aligned with score and power-up)
     // Shadow
-    this.add.rectangle(332, 603, 120, 55, 0x000000, 0.3);
+    this.add.rectangle(332, 643, 120, 50, 0x000000, 0.3);
 
     // Main background
-    const movesBg = this.add.rectangle(330, 600, 120, 55, 0x2d2d44, 0.9);
+    const movesBg = this.add.rectangle(330, 640, 120, 50, 0x2d2d44, 0.9);
     movesBg.setStrokeStyle(2, 0x4ecdc4, 0.8);
 
     // Top highlight
-    this.add.rectangle(330, 575, 116, 3, 0x4ecdc4, 0.4);
+    this.add.rectangle(330, 617, 116, 3, 0x4ecdc4, 0.4);
 
     // Label
-    this.add.text(330, 580, 'MOVES', {
+    this.add.text(330, 622, 'MOVES', {
       fontSize: '11px',
       fill: '#4ecdc4',
       fontFamily: 'Arial',
@@ -218,8 +220,8 @@ export class UIScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     // Moves value
-    this.movesText = this.add.text(330, 605, initialMoves.toString(), {
-      fontSize: '28px',
+    this.movesText = this.add.text(330, 645, initialMoves.toString(), {
+      fontSize: '26px',
       fill: movesColor,
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -719,8 +721,8 @@ export class UIScene extends Phaser.Scene {
     const equipped = powerUps.getEquippedPowerUp();
     if (!equipped) return;
 
-    // Power-up container at bottom center
-    this.powerUpContainer = this.add.container(200, 660);
+    // Power-up container at bottom center (y=640, aligned with score/moves)
+    this.powerUpContainer = this.add.container(200, 640);
 
     // Background
     const bg = this.add.rectangle(0, 0, 140, 35, 0x2d2d44, 0.9)
@@ -785,9 +787,9 @@ export class UIScene extends Phaser.Scene {
       this.activatePowerUp();
     });
 
-    // Streak indicator
-    this.streakText = this.add.text(200, 640, '', {
-      fontSize: '12px',
+    // Streak indicator (below power-up bar)
+    this.streakText = this.add.text(200, 665, '', {
+      fontSize: '11px',
       fill: '#f7dc6f',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
