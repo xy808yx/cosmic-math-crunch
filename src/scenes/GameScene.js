@@ -320,6 +320,9 @@ export class GameScene extends Phaser.Scene {
 
     // Update UI
     this.events.emit('targetChanged', this.targetProduct, this.currentFactors);
+
+    // Ensure at least one valid move exists
+    this.ensureValidMove();
   }
 
   findFactors(n) {
@@ -807,6 +810,9 @@ export class GameScene extends Phaser.Scene {
 
     // Wait for animations
     await new Promise(resolve => this.time.delayedCall(400, resolve));
+
+    // Ensure there's still a valid move after new tiles dropped
+    this.ensureValidMove();
   }
 
   updateUI() {
@@ -923,6 +929,44 @@ export class GameScene extends Phaser.Scene {
       }
     }
     return null;
+  }
+
+  // Ensure at least one valid move exists on the board
+  ensureValidMove() {
+    if (this.findValidMove()) return; // Already have a valid move
+
+    // No valid move - place factors of target on two adjacent tiles
+    const target = this.targetProduct;
+
+    // Find a good factor pair (not 1 x n)
+    let factor1 = 1, factor2 = target;
+    for (let i = 2; i <= Math.sqrt(target); i++) {
+      if (target % i === 0) {
+        factor1 = i;
+        factor2 = target / i;
+        break;
+      }
+    }
+
+    // Pick a random position and place factors adjacently
+    const row = Phaser.Math.Between(0, this.boardSize - 1);
+    const col = Phaser.Math.Between(0, this.boardSize - 2); // Leave room for adjacent
+
+    // Update board data
+    this.board[row][col] = factor1;
+    this.board[row][col + 1] = factor2;
+
+    // Update tile visuals
+    if (this.tileSprites[row][col]) {
+      this.tileSprites[row][col].setData('value', factor1);
+      const text1 = this.tileSprites[row][col].getData('text');
+      if (text1) text1.setText(factor1.toString());
+    }
+    if (this.tileSprites[row][col + 1]) {
+      this.tileSprites[row][col + 1].setData('value', factor2);
+      const text2 = this.tileSprites[row][col + 1].getData('text');
+      if (text2) text2.setText(factor2.toString());
+    }
   }
 
   // Record a wrong attempt for spaced repetition (Section 4.3)
