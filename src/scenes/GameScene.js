@@ -465,8 +465,7 @@ export class GameScene extends Phaser.Scene {
       this.movesLeft--;
       this.updateUI();
 
-      // Flash red briefly and play wrong sound
-      this.cameras.main.flash(200, 255, 100, 100);
+      // Play wrong sound
       audio.playWrong();
 
       // Track for spaced repetition (emit event)
@@ -1038,8 +1037,6 @@ export class GameScene extends Phaser.Scene {
       matches.push({ row, col });
     }
 
-    // Flash effect
-    this.cameras.main.flash(300, 247, 220, 111);
     audio.playCombo(3);
 
     // Add score
@@ -1070,8 +1067,6 @@ export class GameScene extends Phaser.Scene {
       { row: validMove.row2, col: validMove.col2 }
     ];
 
-    // Flash effect
-    this.cameras.main.flash(300, 78, 205, 196);
     audio.playMatch();
 
     // Add score
@@ -1105,9 +1100,8 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Screen shake and flash
+    // Screen shake
     this.cameras.main.shake(300, 0.01);
-    this.cameras.main.flash(300, 100, 100, 100);
     audio.playCombo(4);
 
     // Add score
@@ -1143,8 +1137,6 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Flash effect
-    this.cameras.main.flash(300, 255, 107, 107);
     audio.playCombo(Math.min(matches.length, 5));
 
     // Add score
@@ -1191,8 +1183,6 @@ export class GameScene extends Phaser.Scene {
       }
     }
 
-    // Flash effect
-    this.cameras.main.flash(400, 255, 100, 150);
     audio.playCombo(Math.min(matches.length, 5));
 
     // Add score

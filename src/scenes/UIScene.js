@@ -323,9 +323,6 @@ export class UIScene extends Phaser.Scene {
   }
 
   showCorrectFeedback(product) {
-    // Green flash
-    this.cameras.main.flash(200, 100, 255, 150);
-
     // Update hint with encouragement
     const messages = [
       'Great job! 🌟',
