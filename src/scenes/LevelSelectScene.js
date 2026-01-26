@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
+import { TransitionManager } from '../TransitionManager.js';
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -37,8 +38,11 @@ export class LevelSelectScene extends Phaser.Scene {
     backBtn.on('pointerout', () => backBtn.setFill('#ffffff'));
     backBtn.on('pointerdown', () => {
       audio.playClick();
-      this.scene.start('WorldMapScene');
+      new TransitionManager(this).fadeToScene('WorldMapScene');
     });
+
+    // Fade in effect
+    new TransitionManager(this).fadeIn(300);
 
     // World icon (pixel art) - prominent at top
     const icon = this.add.image(200, 55, `world_${this.world.id}`);
@@ -173,9 +177,20 @@ export class LevelSelectScene extends Phaser.Scene {
     };
     this.registry.set('levelDifficulty', difficulty);
 
-    // Start game
-    this.scene.start('GameScene');
-    this.scene.start('UIScene');
+    // Fade transition to game
+    this.input.enabled = false;
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x0a0a1a, 0).setDepth(1000);
+
+    this.tweens.add({
+      targets: overlay,
+      alpha: 1,
+      duration: 350,
+      ease: 'Quad.easeIn',
+      onComplete: () => {
+        this.scene.start('GameScene');
+        this.scene.start('UIScene');
+      }
+    });
   }
 
   onSceneWake() {

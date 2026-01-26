@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { achievements, ACHIEVEMENTS } from '../AchievementManager.js';
+import { TransitionManager } from '../TransitionManager.js';
 
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -30,7 +31,26 @@ export class WorldMapScene extends Phaser.Scene {
       });
     }
 
-    // Title
+    // Title with glow effect
+    const titleGlow = this.add.text(200, 35, 'Cosmic Math Crunch', {
+      fontSize: '22px',
+      fill: '#f7dc6f',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setAlpha(0.3).setScale(1.05);
+
+    // Animate title glow
+    this.tweens.add({
+      targets: titleGlow,
+      alpha: { from: 0.2, to: 0.45 },
+      scale: { from: 1.03, to: 1.08 },
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Main title
     this.add.text(200, 35, 'Cosmic Math Crunch', {
       fontSize: '22px',
       fill: '#f7dc6f',
@@ -64,6 +84,9 @@ export class WorldMapScene extends Phaser.Scene {
     // Update display when scene resumes (after completing a level)
     this.events.on('wake', this.onSceneWake, this);
     this.events.on('resume', this.onSceneWake, this);
+
+    // Fade in effect
+    new TransitionManager(this).fadeIn(300);
 
     // Back to tutorial button (small, bottom)
     const tutorialBtn = this.add.text(200, 670, 'Review Tutorial', {
@@ -104,22 +127,54 @@ export class WorldMapScene extends Phaser.Scene {
     const isUnlocked = progress.isWorldUnlocked(world.id);
     const wp = progress.getWorldProgress(world.id);
 
-    // Card background
+    // Card shadow
+    const shadow = this.add.rectangle(202, y + 3, 360, 75, 0x000000, 0.35);
+    this.worldContainer.add(shadow);
+
+    // Card background darker layer
     const cardColor = isUnlocked ? world.color : 0x2a2a3a;
-    const card = this.add.rectangle(200, y, 360, 75, cardColor, 0.9)
+    const cardDark = this.add.rectangle(200, y + 2, 360, 75,
+      Phaser.Display.Color.ValueToColor(cardColor).darken(15).color, 0.9);
+    this.worldContainer.add(cardDark);
+
+    // Main card
+    const card = this.add.rectangle(200, y, 360, 73, cardColor, 0.95)
       .setStrokeStyle(2, isUnlocked ? world.accentColor : 0x444444);
+    this.worldContainer.add(card);
+
+    // Top accent strip
+    if (isUnlocked) {
+      const accentStrip = this.add.rectangle(200, y - 34, 356, 4, world.accentColor, 0.5);
+      this.worldContainer.add(accentStrip);
+    }
 
     if (isUnlocked) {
       card.setInteractive();
-      card.on('pointerover', () => card.setStrokeStyle(3, 0xffffff));
-      card.on('pointerout', () => card.setStrokeStyle(2, world.accentColor));
+      card.on('pointerover', () => {
+        card.setStrokeStyle(3, 0xffffff);
+        this.tweens.add({
+          targets: [card, cardDark, shadow],
+          scaleX: 1.02,
+          scaleY: 1.02,
+          duration: 100,
+          ease: 'Quad.easeOut'
+        });
+      });
+      card.on('pointerout', () => {
+        card.setStrokeStyle(2, world.accentColor);
+        this.tweens.add({
+          targets: [card, cardDark, shadow],
+          scaleX: 1,
+          scaleY: 1,
+          duration: 100,
+          ease: 'Quad.easeOut'
+        });
+      });
       card.on('pointerdown', () => {
         audio.playClick();
         this.selectWorld(world);
       });
     }
-
-    this.worldContainer.add(card);
 
     // World icon (pixel art)
     const icon = this.add.image(50, y, `world_${world.id}`);
@@ -224,9 +279,9 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   selectWorld(world) {
-    // Store selected world and go to level select
+    // Store selected world and go to level select with transition
     this.registry.set('selectedWorld', world.id);
-    this.scene.start('LevelSelectScene');
+    new TransitionManager(this).fadeToScene('LevelSelectScene');
   }
 
   updateTotalStars() {
