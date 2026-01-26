@@ -496,34 +496,6 @@ export class UIScene extends Phaser.Scene {
       starSprites.push({ star, filled, index: i });
     }
 
-    // Next level button
-    const nextBtn = this.add.rectangle(0, 90, 160, 48, 0x4ecdc4)
-      .setInteractive();
-    panelContainer.add(nextBtn);
-
-    const nextBtnText = this.add.text(0, 90, 'Continue', {
-      fontSize: '18px',
-      fill: '#fff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    panelContainer.add(nextBtnText);
-
-    // Button hover animations
-    nextBtn.on('pointerover', () => {
-      nextBtn.setFillStyle(0x5dade2);
-      this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1.05, duration: 100 });
-    });
-    nextBtn.on('pointerout', () => {
-      nextBtn.setFillStyle(0x4ecdc4);
-      this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1, duration: 100 });
-    });
-    nextBtn.on('pointerdown', () => {
-      audio.playClick();
-      const gameScene = this.scene.get('GameScene');
-      gameScene.nextLevel();
-    });
-
     // Animate panel entrance
     this.tweens.add({
       targets: panelContainer,
@@ -531,6 +503,34 @@ export class UIScene extends Phaser.Scene {
       duration: 500,
       ease: 'Back.easeOut',
       onComplete: () => {
+        // Create button AFTER animation completes so input area is correct
+        // Button at screen position (200, 390) - panel center + 90
+        const nextBtn = this.add.rectangle(200, 390, 160, 48, 0x4ecdc4)
+          .setInteractive()
+          .setDepth(100);
+
+        const nextBtnText = this.add.text(200, 390, 'Continue', {
+          fontSize: '18px',
+          fill: '#fff',
+          fontFamily: 'Arial',
+          fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(101);
+
+        // Button hover animations
+        nextBtn.on('pointerover', () => {
+          nextBtn.setFillStyle(0x5dade2);
+          this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1.05, duration: 100 });
+        });
+        nextBtn.on('pointerout', () => {
+          nextBtn.setFillStyle(0x4ecdc4);
+          this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1, duration: 100 });
+        });
+        nextBtn.on('pointerdown', () => {
+          audio.playClick();
+          const gameScene = this.scene.get('GameScene');
+          gameScene.nextLevel();
+        });
+
         // Animate score count-up
         this.tweens.addCounter({
           from: 0,
@@ -651,41 +651,42 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Arial'
     }).setOrigin(0.5));
 
-    // Retry button
-    const retryBtn = this.add.rectangle(0, 60, 160, 48, 0xff8fab)
-      .setInteractive();
-    panelContainer.add(retryBtn);
-
-    const retryBtnText = this.add.text(0, 60, 'Try Again', {
-      fontSize: '18px',
-      fill: '#fff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    panelContainer.add(retryBtnText);
-
-    // Button hover animations
-    retryBtn.on('pointerover', () => {
-      retryBtn.setFillStyle(0xffb3c6);
-      this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1.05, duration: 100 });
-    });
-    retryBtn.on('pointerout', () => {
-      retryBtn.setFillStyle(0xff8fab);
-      this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1, duration: 100 });
-    });
-    retryBtn.on('pointerdown', () => {
-      audio.playClick();
-      const gameScene = this.scene.get('GameScene');
-      gameScene.restartLevel();
-      this.scene.restart();
-    });
-
     // Animate panel entrance
     this.tweens.add({
       targets: panelContainer,
       y: 300,
       duration: 500,
-      ease: 'Back.easeOut'
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Create button AFTER animation completes so input area is correct
+        // Button at screen position (200, 360) - panel center + 60
+        const retryBtn = this.add.rectangle(200, 360, 160, 48, 0xff8fab)
+          .setInteractive()
+          .setDepth(100);
+
+        const retryBtnText = this.add.text(200, 360, 'Try Again', {
+          fontSize: '18px',
+          fill: '#fff',
+          fontFamily: 'Arial',
+          fontStyle: 'bold'
+        }).setOrigin(0.5).setDepth(101);
+
+        // Button hover animations
+        retryBtn.on('pointerover', () => {
+          retryBtn.setFillStyle(0xffb3c6);
+          this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1.05, duration: 100 });
+        });
+        retryBtn.on('pointerout', () => {
+          retryBtn.setFillStyle(0xff8fab);
+          this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1, duration: 100 });
+        });
+        retryBtn.on('pointerdown', () => {
+          audio.playClick();
+          const gameScene = this.scene.get('GameScene');
+          gameScene.restartLevel();
+          this.scene.restart();
+        });
+      }
     });
   }
 
