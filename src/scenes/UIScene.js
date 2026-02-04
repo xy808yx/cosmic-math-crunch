@@ -75,7 +75,6 @@ export class UIScene extends Phaser.Scene {
     gameScene.events.on('levelFailed', this.showLevelFailed, this);
     gameScene.events.on('correctAnswer', this.showCorrectFeedback, this);
     gameScene.events.on('wrongAnswer', this.showWrongFeedback, this);
-    gameScene.events.on('powerUpUpdate', this.updatePowerUp, this);
 
     this.events.on('shutdown', this.cleanup, this);
 
@@ -92,7 +91,6 @@ export class UIScene extends Phaser.Scene {
       this.gameScene.events.off('levelFailed', this.showLevelFailed, this);
       this.gameScene.events.off('correctAnswer', this.showCorrectFeedback, this);
       this.gameScene.events.off('wrongAnswer', this.showWrongFeedback, this);
-      this.gameScene.events.off('powerUpUpdate', this.updatePowerUp, this);
     }
   }
 
@@ -449,7 +447,4 @@ export class UIScene extends Phaser.Scene {
     });
   }
 
-  updatePowerUp(data) {
-    // Power-up display simplified for now
-  }
 }

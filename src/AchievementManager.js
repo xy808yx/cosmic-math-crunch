@@ -145,50 +145,6 @@ export const ACHIEVEMENTS = [
     description: 'Unlock 3 different worlds',
     icon: '🗺️',
     condition: { type: 'worlds_unlocked', value: 3 }
-  },
-
-  // Speed Challenge achievements
-  {
-    id: 'speed_starter',
-    name: 'Speed Starter',
-    description: 'Answer 25 problems in Speed Challenge',
-    icon: '🏃',
-    condition: { type: 'speed_problems', value: 25 }
-  },
-  {
-    id: 'speed_zone_2',
-    name: 'Warp Speed',
-    description: 'Reach Zone 2 in Speed Challenge',
-    icon: '🚀',
-    condition: { type: 'speed_zone', value: 2 }
-  },
-  {
-    id: 'speed_zone_3',
-    name: 'Lightspeed',
-    description: 'Reach Zone 3 in Speed Challenge',
-    icon: '💨',
-    condition: { type: 'speed_zone', value: 3 }
-  },
-  {
-    id: 'speed_zone_4',
-    name: 'Hyperdrive',
-    description: 'Reach Zone 4 in Speed Challenge',
-    icon: '🌀',
-    condition: { type: 'speed_zone', value: 4 }
-  },
-  {
-    id: 'speed_100',
-    name: 'Century',
-    description: 'Answer 100 problems in one Speed run',
-    icon: '💯',
-    condition: { type: 'speed_problems', value: 100 }
-  },
-  {
-    id: 'speed_streak_10',
-    name: 'Speed Streak',
-    description: '10 correct in a row during Speed Challenge',
-    icon: '🔥',
-    condition: { type: 'speed_streak', value: 10 }
   }
 ];
 
@@ -338,9 +294,9 @@ class AchievementManager {
     if (totalStars >= 25) this.unlock('star_collector_25');
     if (totalStars >= 50) this.unlock('star_collector_50');
 
-    // Check world completion
+    // Check world completion (each world has 4 levels)
     const worldProgress = progress?.getWorldProgress(worldId);
-    if (worldProgress && worldProgress.levelsCompleted >= 12) {
+    if (worldProgress && worldProgress.levelsCompleted >= 4) {
       if (worldId === 1) this.unlock('moon_master');
       if (worldId === 2) this.unlock('asteroid_ace');
       if (worldId === 3) this.unlock('crystal_champion');
@@ -364,23 +320,6 @@ class AchievementManager {
       if (table === 5) this.unlock('mastery_5s');
       if (table === 10) this.unlock('mastery_10s');
     }
-  }
-
-  // Record speed challenge progress
-  recordSpeedChallenge(problemsAnswered, zone, streak) {
-    // Problem count achievements
-    if (problemsAnswered >= 25) this.unlock('speed_starter');
-    if (problemsAnswered >= 100) this.unlock('speed_100');
-
-    // Zone achievements
-    if (zone >= 2) this.unlock('speed_zone_2');
-    if (zone >= 3) this.unlock('speed_zone_3');
-    if (zone >= 4) this.unlock('speed_zone_4');
-
-    // Streak achievement
-    if (streak >= 10) this.unlock('speed_streak_10');
-
-    this.save();
   }
 
   // Get achievement count
