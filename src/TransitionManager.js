@@ -8,7 +8,7 @@ export class TransitionManager {
   fadeToScene(targetScene, data = {}, duration = 400) {
     this.scene.input.enabled = false;
 
-    const overlay = this.scene.add.rectangle(200, 350, 400, 700, 0x0a0a1a, 0);
+    const overlay = this.scene.add.rectangle(400, 700, 800, 1400, 0x0a0a1a, 0);
     overlay.setDepth(1000);
 
     this.scene.tweens.add({
@@ -24,7 +24,7 @@ export class TransitionManager {
 
   // Call in scene's create() for fade-in effect
   fadeIn(duration = 300) {
-    const overlay = this.scene.add.rectangle(200, 350, 400, 700, 0x0a0a1a, 1);
+    const overlay = this.scene.add.rectangle(400, 700, 800, 1400, 0x0a0a1a, 1);
     overlay.setDepth(1000);
 
     this.scene.tweens.add({

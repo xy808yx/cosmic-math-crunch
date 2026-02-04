@@ -4,9 +4,9 @@ import { WORLDS, getNumbersForWorld, getTargetsForWorld, progress } from '../Gam
 import { achievements } from '../AchievementManager.js';
 import { PowerUpChargeTracker } from '../PowerUpManager.js';
 
-const TILE_SIZE = 64;
-const BOARD_OFFSET_X = 40;
-const BOARD_OFFSET_Y = 180;
+const TILE_SIZE = 128;
+const BOARD_OFFSET_X = 80;
+const BOARD_OFFSET_Y = 360;
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -92,13 +92,13 @@ export class GameScene extends Phaser.Scene {
     audio.startMusic();
 
     // World-themed background
-    this.add.rectangle(200, 350, 400, 700, this.world.color);
+    this.add.rectangle(400, 700, 800, 1400, this.world.color);
 
     // Stars with twinkling effect
-    for (let i = 0; i < 30; i++) {
-      const x = Phaser.Math.Between(0, 400);
-      const y = Phaser.Math.Between(0, 700);
-      const star = this.add.circle(x, y, Phaser.Math.Between(1, 2), 0xffffff, Phaser.Math.FloatBetween(0.2, 0.5));
+    for (let i = 0; i < 50; i++) {
+      const x = Phaser.Math.Between(0, 800);
+      const y = Phaser.Math.Between(0, 1400);
+      const star = this.add.circle(x, y, Phaser.Math.Between(2, 4), 0xffffff, Phaser.Math.FloatBetween(0.2, 0.5));
 
       // Subtle twinkle animation
       this.tweens.add({
@@ -141,7 +141,7 @@ export class GameScene extends Phaser.Scene {
 
     // Center the board based on size
     const boardWidth = this.boardSize * TILE_SIZE;
-    const offsetX = (400 - boardWidth) / 2;
+    const offsetX = (800 - boardWidth) / 2;
 
     for (let row = 0; row < this.boardSize; row++) {
       this.board[row] = [];
@@ -176,13 +176,13 @@ export class GameScene extends Phaser.Scene {
 
   createBoardBackground() {
     // Calculate board dimensions
-    const boardWidth = this.boardSize * TILE_SIZE + 24;
-    const boardHeight = this.boardSize * TILE_SIZE + 24;
-    const boardCenterX = 200;
+    const boardWidth = this.boardSize * TILE_SIZE + 48;
+    const boardHeight = this.boardSize * TILE_SIZE + 48;
+    const boardCenterX = 400;
     const boardCenterY = BOARD_OFFSET_Y + (this.boardSize * TILE_SIZE) / 2;
 
     // Drop shadow
-    this.add.rectangle(boardCenterX + 3, boardCenterY + 3, boardWidth, boardHeight, 0x000000, 0.4)
+    this.add.rectangle(boardCenterX + 6, boardCenterY + 6, boardWidth, boardHeight, 0x000000, 0.4)
       .setOrigin(0.5);
 
     // Single panel with clean border
@@ -190,7 +190,7 @@ export class GameScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     // Clean border with world accent color
-    boardBg.setStrokeStyle(2, this.world.accentColor, 0.8);
+    boardBg.setStrokeStyle(4, this.world.accentColor, 0.8);
   }
 
   createTile(x, y, num, row, col) {
@@ -201,14 +201,14 @@ export class GameScene extends Phaser.Scene {
     const bg = this.add.image(0, 0, `tile_bg_${num}`);
     container.add(bg);
 
-    // Add number text on top (standardized 28px, cleaner stroke)
+    // Add number text on top (standardized 56px, cleaner stroke)
     const text = this.add.text(0, 0, num.toString(), {
-      fontSize: '28px',
+      fontSize: '56px',
       fill: '#ffffff',
       fontFamily: 'Arial, sans-serif',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 3
+      strokeThickness: 6
     }).setOrigin(0.5);
     container.add(text);
 
@@ -245,46 +245,46 @@ export class GameScene extends Phaser.Scene {
   createParticles() {
     // Main match particles (stars with multi-color tints)
     this.matchParticles = this.add.particles(0, 0, 'star', {
-      speed: { min: 80, max: 180 },
+      speed: { min: 160, max: 360 },
       scale: { start: 0.6, end: 0 },
       alpha: { start: 1, end: 0 },
       rotate: { min: 0, max: 360 },
       lifespan: { min: 400, max: 650 },
-      gravityY: 180,
+      gravityY: 360,
       tint: [0xf7dc6f, 0xff6b9d, 0x4ecdc4, 0xa29bfe],
       emitting: false
     });
 
     // Glow particles (soft ambient effect)
     this.glowParticles = this.add.particles(0, 0, 'particle_glow', {
-      speed: { min: 30, max: 80 },
+      speed: { min: 60, max: 160 },
       scale: { start: 0.8, end: 0 },
       alpha: { start: 0.7, end: 0 },
       lifespan: 400,
-      gravityY: -30,
+      gravityY: -60,
       emitting: false
     });
 
     // Spark particles (for combos)
     this.sparkParticles = this.add.particles(0, 0, 'particle_spark', {
-      speed: { min: 150, max: 280 },
+      speed: { min: 300, max: 560 },
       scale: { start: 0.7, end: 0.1 },
       alpha: { start: 1, end: 0 },
       rotate: { min: 0, max: 360 },
       lifespan: 450,
-      gravityY: 50,
+      gravityY: 100,
       tint: this.world.accentColor,
       emitting: false
     });
 
     // Diamond particles (for special effects)
     this.diamondParticles = this.add.particles(0, 0, 'particle_diamond', {
-      speed: { min: 100, max: 200 },
+      speed: { min: 200, max: 400 },
       scale: { start: 0.5, end: 0 },
       alpha: { start: 1, end: 0 },
       rotate: { min: 0, max: 360 },
       lifespan: 500,
-      gravityY: 100,
+      gravityY: 200,
       emitting: false
     });
   }
@@ -682,12 +682,12 @@ export class GameScene extends Phaser.Scene {
     cy /= matches.length;
 
     const popup = this.add.text(cx, cy, `+${score}`, {
-      fontSize: '36px',
+      fontSize: '72px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 5
+      strokeThickness: 10
     }).setOrigin(0.5).setScale(0);
 
     // Pop-in animation
@@ -700,7 +700,7 @@ export class GameScene extends Phaser.Scene {
         // Float up and fade out
         this.tweens.add({
           targets: popup,
-          y: cy - 60,
+          y: cy - 120,
           scale: 0.9,
           alpha: 0,
           duration: 650,
@@ -1088,18 +1088,18 @@ export class GameScene extends Phaser.Scene {
   }
 
   showPowerUpMessage(message) {
-    const popup = this.add.text(200, 350, message, {
-      fontSize: '24px',
+    const popup = this.add.text(400, 700, message, {
+      fontSize: '48px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 4
+      strokeThickness: 8
     }).setOrigin(0.5);
 
     this.tweens.add({
       targets: popup,
-      y: 300,
+      y: 600,
       alpha: 0,
       scale: 1.5,
       duration: 1000,

@@ -17,54 +17,54 @@ export class TutorialScene extends Phaser.Scene {
     audio.init();
 
     // Solid background
-    this.add.rectangle(200, 350, 400, 700, 0x1a1a2e);
+    this.add.rectangle(400, 700, 800, 1400, 0x1a1a2e);
 
     // Add some stars
-    for (let i = 0; i < 30; i++) {
-      const x = Phaser.Math.Between(10, 390);
-      const y = Phaser.Math.Between(10, 690);
-      this.add.circle(x, y, Phaser.Math.Between(1, 2), 0xffffff, 0.5);
+    for (let i = 0; i < 50; i++) {
+      const x = Phaser.Math.Between(20, 780);
+      const y = Phaser.Math.Between(20, 1380);
+      this.add.circle(x, y, Phaser.Math.Between(2, 4), 0xffffff, 0.5);
     }
 
     // Title area (top)
-    this.titleText = this.add.text(200, 40, 'Learn to Multiply!', {
-      fontSize: '22px',
+    this.titleText = this.add.text(400, 80, 'Learn to Multiply!', {
+      fontSize: '44px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Instruction area (below title)
-    this.instructionText = this.add.text(200, 90, '', {
-      fontSize: '16px',
+    this.instructionText = this.add.text(400, 180, '', {
+      fontSize: '32px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       align: 'center',
-      wordWrap: { width: 340 }
+      wordWrap: { width: 680 }
     }).setOrigin(0.5, 0);
 
     // Main content container (middle of screen)
-    this.contentContainer = this.add.container(200, 320);
+    this.contentContainer = this.add.container(400, 640);
 
     // Equation display (lower area)
-    this.equationText = this.add.text(200, 540, '', {
-      fontSize: '24px',
+    this.equationText = this.add.text(400, 1080, '', {
+      fontSize: '48px',
       fill: '#4ecdc4',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Continue button (bottom)
-    this.continueBtn = this.createButton(200, 600, 'Continue', () => this.nextStep());
+    this.continueBtn = this.createButton(400, 1200, 'Continue', () => this.nextStep());
     this.continueBtn.setVisible(false);
 
     // Skip button (top right) - clear and easy to find
-    const skipBtn = this.add.text(380, 20, 'Skip →', {
-      fontSize: '18px',
+    const skipBtn = this.add.text(760, 40, 'Skip →', {
+      fontSize: '36px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       backgroundColor: '#3d3d5c',
-      padding: { x: 12, y: 6 }
+      padding: { x: 24, y: 12 }
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
     skipBtn.on('pointerdown', () => this.startGame());
     skipBtn.on('pointerover', () => skipBtn.setStyle({ backgroundColor: '#5d5d7c' }));
@@ -77,7 +77,7 @@ export class TutorialScene extends Phaser.Scene {
   createButton(x, y, text, callback) {
     const container = this.add.container(x, y);
 
-    const bg = this.add.rectangle(0, 0, 160, 44, 0x4ecdc4)
+    const bg = this.add.rectangle(0, 0, 320, 88, 0x4ecdc4)
       .setInteractive()
       .on('pointerover', () => bg.setFillStyle(0x5dade2))
       .on('pointerout', () => bg.setFillStyle(0x4ecdc4))
@@ -87,7 +87,7 @@ export class TutorialScene extends Phaser.Scene {
       });
 
     const label = this.add.text(0, 0, text, {
-      fontSize: '18px',
+      fontSize: '36px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -128,34 +128,34 @@ export class TutorialScene extends Phaser.Scene {
 
     // Create 3 groups of 4 stars, spaced horizontally
     for (let g = 0; g < 3; g++) {
-      const gx = -100 + g * 100;
+      const gx = -200 + g * 200;
       const groupContainer = this.add.container(gx, 0);
       this.contentContainer.add(groupContainer);
 
       // Group circle background
-      const bg = this.add.circle(0, 0, 40, 0x2d2d44, 0.9)
-        .setStrokeStyle(2, 0x4ecdc4)
+      const bg = this.add.circle(0, 0, 80, 0x2d2d44, 0.9)
+        .setStrokeStyle(4, 0x4ecdc4)
         .setInteractive();
       groupContainer.add(bg);
 
       // 4 stars in 2x2 pattern
-      const positions = [[-12, -12], [12, -12], [-12, 12], [12, 12]];
+      const positions = [[-24, -24], [24, -24], [-24, 24], [24, 24]];
       for (const [sx, sy] of positions) {
-        const star = this.add.star(sx, sy, 5, 6, 12, 0xf7dc6f);
+        const star = this.add.star(sx, sy, 5, 12, 24, 0xf7dc6f);
         groupContainer.add(star);
       }
 
       // Label below
-      const label = this.add.text(0, 55, `Group ${g + 1}`, {
-        fontSize: '12px',
+      const label = this.add.text(0, 110, `Group ${g + 1}`, {
+        fontSize: '24px',
         fill: '#81ecec',
         fontFamily: 'Arial'
       }).setOrigin(0.5);
       groupContainer.add(label);
 
       // Count display above
-      const countText = this.add.text(0, -55, '', {
-        fontSize: '18px',
+      const countText = this.add.text(0, -110, '', {
+        fontSize: '36px',
         fill: '#f7dc6f',
         fontFamily: 'Arial',
         fontStyle: 'bold'
@@ -197,8 +197,8 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     // Tap hint
-    const hint = this.add.text(0, 100, 'Tap each circle!', {
-      fontSize: '14px',
+    const hint = this.add.text(0, 200, 'Tap each circle!', {
+      fontSize: '28px',
       fill: '#ff6b9d',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
@@ -215,9 +215,9 @@ export class TutorialScene extends Phaser.Scene {
     this.rocketGrid = [];
 
     // 3 rows x 4 columns of rockets
-    const cellSize = 45;
-    const startX = -67;
-    const startY = -50;
+    const cellSize = 90;
+    const startX = -134;
+    const startY = -100;
 
     for (let r = 0; r < 3; r++) {
       this.rocketGrid[r] = [];
@@ -226,7 +226,7 @@ export class TutorialScene extends Phaser.Scene {
           startX + c * cellSize,
           startY + r * cellSize,
           '🚀',
-          { fontSize: '24px' }
+          { fontSize: '48px' }
         ).setOrigin(0.5).setAlpha(0.3);
         this.contentContainer.add(rocket);
         this.rocketGrid[r][c] = rocket;
@@ -234,7 +234,7 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     // Count button
-    const countBtn = this.createButton(0, 90, 'Count Row', () => {
+    const countBtn = this.createButton(0, 180, 'Count Row', () => {
       if (this.rowsCounted >= 3) return;
 
       const row = this.rocketGrid[this.rowsCounted];
@@ -278,24 +278,24 @@ export class TutorialScene extends Phaser.Scene {
     this.jumpCount = 0;
 
     // Number line
-    const lineY = 20;
-    const line = this.add.rectangle(0, lineY, 280, 3, 0x4ecdc4);
+    const lineY = 40;
+    const line = this.add.rectangle(0, lineY, 560, 6, 0x4ecdc4);
     this.contentContainer.add(line);
 
     // Tick marks and labels at 0, 4, 8, 12
     const positions = [
-      { val: 0, x: -130 },
-      { val: 4, x: -43 },
-      { val: 8, x: 43 },
-      { val: 12, x: 130 }
+      { val: 0, x: -260 },
+      { val: 4, x: -86 },
+      { val: 8, x: 86 },
+      { val: 12, x: 260 }
     ];
 
     for (const p of positions) {
-      const tick = this.add.rectangle(p.x, lineY, 2, 16, 0x4ecdc4);
+      const tick = this.add.rectangle(p.x, lineY, 4, 32, 0x4ecdc4);
       this.contentContainer.add(tick);
 
-      const label = this.add.text(p.x, lineY + 20, p.val.toString(), {
-        fontSize: '14px',
+      const label = this.add.text(p.x, lineY + 40, p.val.toString(), {
+        fontSize: '28px',
         fill: '#ffffff',
         fontFamily: 'Arial'
       }).setOrigin(0.5);
@@ -303,14 +303,14 @@ export class TutorialScene extends Phaser.Scene {
     }
 
     // Rocket starting at 0
-    this.jumpRocket = this.add.text(-130, lineY - 30, '🚀', {
-      fontSize: '28px'
+    this.jumpRocket = this.add.text(-260, lineY - 60, '🚀', {
+      fontSize: '56px'
     }).setOrigin(0.5);
     this.contentContainer.add(this.jumpRocket);
 
     // Jump counter
-    this.jumpCountText = this.add.text(0, -60, 'Jumps: 0', {
-      fontSize: '16px',
+    this.jumpCountText = this.add.text(0, -120, 'Jumps: 0', {
+      fontSize: '32px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -318,16 +318,16 @@ export class TutorialScene extends Phaser.Scene {
     this.contentContainer.add(this.jumpCountText);
 
     // Jump button
-    const jumpBtn = this.createButton(0, 90, 'Jump +4!', () => {
+    const jumpBtn = this.createButton(0, 180, 'Jump +4!', () => {
       if (this.jumpCount >= 3) return;
 
       this.jumpCount++;
-      const targetX = -130 + this.jumpCount * 87;
+      const targetX = -260 + this.jumpCount * 174;
 
       this.tweens.add({
         targets: this.jumpRocket,
         x: targetX,
-        y: { value: lineY - 60, duration: 150, ease: 'Quad.easeOut', yoyo: true },
+        y: { value: lineY - 120, duration: 150, ease: 'Quad.easeOut', yoyo: true },
         duration: 300,
         ease: 'Quad.easeInOut'
       });
@@ -358,26 +358,26 @@ export class TutorialScene extends Phaser.Scene {
     this.equationText.setText('');
 
     // Summary text
-    const summary = this.add.text(0, -60,
+    const summary = this.add.text(0, -120,
       'You learned 3 ways to multiply!\n\n' +
       '• Groups: 3 groups of 4\n' +
       '• Grid: 3 rows x 4 columns\n' +
       '• Jumps: Skip count by 4s\n\n' +
       'All equal 3 x 4 = 12!', {
-      fontSize: '15px',
+      fontSize: '30px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       align: 'center',
-      lineSpacing: 6
+      lineSpacing: 12
     }).setOrigin(0.5);
     this.contentContainer.add(summary);
 
     // How to play
-    const howTo = this.add.text(0, 60,
+    const howTo = this.add.text(0, 120,
       'Now practice! Find two numbers\n' +
       'next to each other that multiply\n' +
       'to the target number.', {
-      fontSize: '14px',
+      fontSize: '28px',
       fill: '#81ecec',
       fontFamily: 'Arial',
       align: 'center'
@@ -385,7 +385,7 @@ export class TutorialScene extends Phaser.Scene {
     this.contentContainer.add(howTo);
 
     // Start button
-    const startBtn = this.createButton(0, 140, 'Start Game!', () => this.startGame());
+    const startBtn = this.createButton(0, 280, 'Start Game!', () => this.startGame());
     startBtn.list[0].setFillStyle(0xff6b9d); // Pink button
     this.contentContainer.add(startBtn);
   }
