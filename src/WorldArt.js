@@ -357,10 +357,10 @@ function generateGalaxy(scene, size) {
 
   // Spiral arms
   g.lineStyle(4, 0xf7dc6f, 0.5);
-  drawSpiral(g, cx, cy, 3, 18, 1.5);
+  drawSpiral(g, cx, cy, 3, 18);
 
   g.lineStyle(3, 0xffeaa7, 0.6);
-  drawSpiral(g, cx, cy, 3, 15, 1.5, Math.PI);
+  drawSpiral(g, cx, cy, 3, 15, Math.PI);
 
   // Core glow
   g.fillStyle(0xffeaa7, 0.6);
@@ -485,7 +485,7 @@ function drawStar(g, cx, cy, points, outerR, innerR) {
 }
 
 // Helper: Draw a spiral
-function drawSpiral(g, cx, cy, turns, maxR, width, startAngle = 0) {
+function drawSpiral(g, cx, cy, turns, maxR, startAngle = 0) {
   const steps = turns * 20;
   g.beginPath();
   for (let i = 0; i < steps; i++) {
