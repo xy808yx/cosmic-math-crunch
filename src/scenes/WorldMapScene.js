@@ -239,21 +239,14 @@ export class WorldMapScene extends Phaser.Scene {
       this.scene.start('ParentDashboardScene');
     });
 
-    // Sound toggle (top-right)
-    this.soundBtn = this.createIconButton(740, 150, audio.musicEnabled ? 'sound_on' : 'sound_off', () => {
-      audio.playClick();
-      const enabled = audio.toggleMusic();
-      this.updateSoundIcon(enabled);
-    });
+    // Star counter (center)
+    this.createStarCounter();
 
-    // Trophy button (bottom-left of header area)
-    this.createIconButton(60, 220, 'trophy', () => {
+    // Trophy button (top-right)
+    this.createIconButton(740, 150, 'trophy', () => {
       audio.playClick();
       this.showAchievements();
     });
-
-    // Star counter (center)
-    this.createStarCounter();
   }
 
   createIconButton(x, y, iconType, callback) {
@@ -410,17 +403,8 @@ export class WorldMapScene extends Phaser.Scene {
     return g;
   }
 
-  updateSoundIcon(enabled) {
-    if (this.soundBtn && this.soundBtn.soundIcon) {
-      this.soundBtn.soundIcon.destroy();
-      const newIcon = this.createSoundIcon(0, 0, 18, enabled);
-      this.soundBtn.add(newIcon);
-      this.soundBtn.soundIcon = newIcon;
-    }
-  }
-
   createStarCounter() {
-    const container = this.add.container(400, 220).setDepth(15);
+    const container = this.add.container(400, 150).setDepth(15);
 
     // Background pill
     const bg = this.add.graphics();
@@ -477,7 +461,7 @@ export class WorldMapScene extends Phaser.Scene {
   // PHASES 5-9: WORLD LIST WITH CARDS
   // ============================================
   createWorldList() {
-    const startY = 320;
+    const startY = 260;
     const cardHeight = 180;
     const gap = 20;
 
@@ -805,7 +789,7 @@ export class WorldMapScene extends Phaser.Scene {
       let lastTime = 0;
 
       this.input.on('pointerdown', p => {
-        if (p.y > 280 && p.y < 1280) {
+        if (p.y > 220 && p.y < 1280) {
           dragStart = p.y;
           containerStart = this.worldContainer.y;
           lastY = p.y;

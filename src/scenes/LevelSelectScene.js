@@ -56,6 +56,9 @@ export class LevelSelectScene extends Phaser.Scene {
       new TransitionManager(this).fadeToScene('WorldMapScene');
     });
 
+    // Sound toggle (top-right)
+    this.createSoundToggle();
+
     // World icon
     const icon = this.add.image(400, 140, `world_${this.world.id}`).setScale(2.6);
     this.tweens.add({
@@ -256,6 +259,82 @@ export class LevelSelectScene extends Phaser.Scene {
         this.scene.start('UIScene');
       }
     });
+  }
+
+  createSoundToggle() {
+    const container = this.add.container(740, 50);
+
+    // Button background
+    const bgGlow = this.add.circle(0, 0, 32, 0x4ecdc4, 0.2);
+    container.add(bgGlow);
+
+    const bg = this.add.circle(0, 0, 28, 0x1a1a2e, 0.8);
+    bg.setStrokeStyle(2, 0x4ecdc4, 0.6);
+    container.add(bg);
+
+    // Sound icon
+    this.soundIcon = this.createSoundIcon(audio.musicEnabled);
+    container.add(this.soundIcon);
+
+    // Interactive
+    bg.setInteractive({ useHandCursor: true });
+    bg.on('pointerover', () => {
+      container.setScale(1.15);
+      bgGlow.setAlpha(0.4);
+    });
+    bg.on('pointerout', () => {
+      container.setScale(1);
+      bgGlow.setAlpha(0.2);
+    });
+    bg.on('pointerdown', () => {
+      audio.playClick();
+      const enabled = audio.toggleMusic();
+      this.soundIcon.destroy();
+      this.soundIcon = this.createSoundIcon(enabled);
+      container.add(this.soundIcon);
+    });
+  }
+
+  createSoundIcon(isOn) {
+    const g = this.add.graphics();
+    const size = 18;
+
+    // Speaker body
+    g.fillStyle(0x81ecec, 1);
+    g.fillRect(-size * 0.4, -size * 0.25, size * 0.3, size * 0.5);
+
+    // Speaker cone
+    g.beginPath();
+    g.moveTo(-size * 0.1, -size * 0.25);
+    g.lineTo(size * 0.2, -size * 0.5);
+    g.lineTo(size * 0.2, size * 0.5);
+    g.lineTo(-size * 0.1, size * 0.25);
+    g.closePath();
+    g.fillPath();
+
+    if (isOn) {
+      // Sound waves
+      g.lineStyle(2, 0x81ecec, 0.8);
+      g.beginPath();
+      g.arc(size * 0.3, 0, size * 0.3, -Math.PI / 4, Math.PI / 4);
+      g.strokePath();
+
+      g.lineStyle(2, 0x81ecec, 0.5);
+      g.beginPath();
+      g.arc(size * 0.3, 0, size * 0.5, -Math.PI / 4, Math.PI / 4);
+      g.strokePath();
+    } else {
+      // X mark
+      g.lineStyle(3, 0xff6b6b, 1);
+      g.beginPath();
+      g.moveTo(size * 0.3, -size * 0.3);
+      g.lineTo(size * 0.7, size * 0.3);
+      g.moveTo(size * 0.7, -size * 0.3);
+      g.lineTo(size * 0.3, size * 0.3);
+      g.strokePath();
+    }
+
+    return g;
   }
 
   onSceneWake() {
