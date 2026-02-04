@@ -232,8 +232,8 @@ export class UIScene extends Phaser.Scene {
         duration: 300
       });
 
-      if (progress >= 0.9) this.scoreProgressBar.setFillStyle(0x58d68d);
-      else if (progress >= 0.7) this.scoreProgressBar.setFillStyle(0xf7dc6f);
+      if (progressPct >= 0.9) this.scoreProgressBar.setFillStyle(0x58d68d);
+      else if (progressPct >= 0.7) this.scoreProgressBar.setFillStyle(0xf7dc6f);
       else this.scoreProgressBar.setFillStyle(0xff6b9d);
     }
   }
