@@ -182,38 +182,15 @@ export class GameScene extends Phaser.Scene {
     const boardCenterY = BOARD_OFFSET_Y + (this.boardSize * TILE_SIZE) / 2;
 
     // Drop shadow
-    this.add.rectangle(boardCenterX + 4, boardCenterY + 4, boardWidth, boardHeight, 0x000000, 0.35)
+    this.add.rectangle(boardCenterX + 3, boardCenterY + 3, boardWidth, boardHeight, 0x000000, 0.4)
       .setOrigin(0.5);
 
-    // Main board background
-    const boardBg = this.add.rectangle(boardCenterX, boardCenterY, boardWidth, boardHeight, 0x1a1a2e, 0.85)
+    // Single panel with clean border
+    const boardBg = this.add.rectangle(boardCenterX, boardCenterY, boardWidth, boardHeight, 0x0a0a18, 0.9)
       .setOrigin(0.5);
 
-    // Border with world accent color
-    boardBg.setStrokeStyle(2, this.world.accentColor, 0.6);
-
-    // Inner panel (slightly darker)
-    this.add.rectangle(boardCenterX, boardCenterY, boardWidth - 12, boardHeight - 12, 0x0f0f1e, 0.5)
-      .setOrigin(0.5);
-
-    // Top highlight strip
-    this.add.rectangle(boardCenterX, boardCenterY - boardHeight / 2 + 6, boardWidth - 20, 3, this.world.accentColor, 0.3)
-      .setOrigin(0.5);
-
-    // Subtle grid lines (very faint)
-    const gridGraphics = this.add.graphics();
-    gridGraphics.lineStyle(1, this.world.accentColor, 0.08);
-
-    const startX = (400 - this.boardSize * TILE_SIZE) / 2;
-    for (let i = 1; i < this.boardSize; i++) {
-      // Vertical lines
-      const vx = startX + i * TILE_SIZE;
-      gridGraphics.lineBetween(vx, BOARD_OFFSET_Y, vx, BOARD_OFFSET_Y + this.boardSize * TILE_SIZE);
-
-      // Horizontal lines
-      const hy = BOARD_OFFSET_Y + i * TILE_SIZE;
-      gridGraphics.lineBetween(startX, hy, startX + this.boardSize * TILE_SIZE, hy);
-    }
+    // Clean border with world accent color
+    boardBg.setStrokeStyle(2, this.world.accentColor, 0.8);
   }
 
   createTile(x, y, num, row, col) {
@@ -224,14 +201,14 @@ export class GameScene extends Phaser.Scene {
     const bg = this.add.image(0, 0, `tile_bg_${num}`);
     container.add(bg);
 
-    // Add number text on top
+    // Add number text on top (standardized 28px, cleaner stroke)
     const text = this.add.text(0, 0, num.toString(), {
-      fontSize: num >= 10 ? '26px' : '30px',
+      fontSize: '28px',
       fill: '#ffffff',
       fontFamily: 'Arial, sans-serif',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 3
     }).setOrigin(0.5);
     container.add(text);
 
@@ -1009,7 +986,6 @@ export class GameScene extends Phaser.Scene {
     const text = tile.getData('text');
     if (text) {
       text.setText(numValue.toString());
-      text.setFontSize(numValue >= 10 ? '26px' : '30px');
     }
 
     // Update background texture
