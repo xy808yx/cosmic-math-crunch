@@ -13,46 +13,29 @@ export class WorldMapScene extends Phaser.Scene {
     audio.init();
 
     // Simple dark background
-    this.add.rectangle(200, 350, 400, 700, 0x1a1a2e);
+    this.add.rectangle(400, 700, 800, 1400, 0x1a1a2e);
 
-    // === HEADER: y = 0 to 80 ===
-    this.add.rectangle(200, 40, 400, 80, 0x12121f).setDepth(10);
+    // === HEADER: y = 0 to 180 ===
+    this.add.rectangle(400, 90, 800, 180, 0x12121f).setDepth(10);
 
-    this.add.text(200, 25, 'Cosmic Math Crunch', {
-      fontSize: '24px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(11);
-
-    this.totalStarsText = this.add.text(200, 55, `${progress.totalStars} Stars`, {
-      fontSize: '18px',
-      fill: '#81ecec',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(11);
-
-    // Settings button (top left)
-    const settingsBtn = this.add.text(20, 55, '⚙️', {
-      fontSize: '22px'
+    // Top row: Settings, Title, Sound
+    const settingsBtn = this.add.text(50, 50, '⚙️', {
+      fontSize: '48px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
     settingsBtn.on('pointerdown', () => {
       audio.playClick();
       this.scene.start('ParentDashboardScene');
     });
 
-    // Achievements button (top left, next to settings)
-    const achBtn = this.add.text(60, 55, '🏆', {
-      fontSize: '22px'
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
-    achBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.showAchievements();
-    });
+    this.add.text(400, 50, 'Cosmic Math Crunch', {
+      fontSize: '44px',
+      fill: '#f7dc6f',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(11);
 
-    // Sound toggle (top right)
-    this.soundBtn = this.add.text(380, 55, audio.musicEnabled ? '🔊' : '🔇', {
-      fontSize: '22px'
+    this.soundBtn = this.add.text(750, 50, audio.musicEnabled ? '🔊' : '🔇', {
+      fontSize: '48px'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
     this.soundBtn.on('pointerdown', () => {
       audio.playClick();
@@ -60,14 +43,30 @@ export class WorldMapScene extends Phaser.Scene {
       this.soundBtn.setText(enabled ? '🔊' : '🔇');
     });
 
-    // === WORLD LIST: y = 90 to 650 ===
+    // Bottom row: Trophy, Stars
+    const achBtn = this.add.text(50, 130, '🏆', {
+      fontSize: '48px'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
+    achBtn.on('pointerdown', () => {
+      audio.playClick();
+      this.showAchievements();
+    });
+
+    this.totalStarsText = this.add.text(400, 130, `⭐ ${progress.totalStars} Stars`, {
+      fontSize: '36px',
+      fill: '#81ecec',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setDepth(11);
+
+    // === WORLD LIST: y = 180 to 1300 ===
     this.createWorldList();
 
-    // === FOOTER: y = 650 to 700 ===
-    this.add.rectangle(200, 675, 400, 50, 0x12121f).setDepth(10);
+    // === FOOTER: y = 1300 to 1400 ===
+    this.add.rectangle(400, 1350, 800, 100, 0x12121f).setDepth(10);
 
-    const tutorialBtn = this.add.text(200, 675, 'Review Tutorial', {
-      fontSize: '16px',
+    const tutorialBtn = this.add.text(400, 1350, 'Review Tutorial', {
+      fontSize: '32px',
       fill: '#888888',
       fontFamily: 'Arial'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
@@ -87,9 +86,9 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   createWorldList() {
-    const startY = 125;
-    const cardHeight = 65;
-    const gap = 6;
+    const startY = 270;
+    const cardHeight = 130;
+    const gap = 12;
 
     this.worldContainer = this.add.container(0, 0).setDepth(5);
 
@@ -100,7 +99,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Scrolling
     const totalHeight = WORLDS.length * (cardHeight + gap);
-    const viewHeight = 550;
+    const viewHeight = 1020;
     const maxScroll = Math.max(0, totalHeight - viewHeight);
 
     if (maxScroll > 0) {
@@ -110,7 +109,7 @@ export class WorldMapScene extends Phaser.Scene {
 
       let dragStart = 0, containerStart = 0;
       this.input.on('pointerdown', p => {
-        if (p.y > 90 && p.y < 650) {
+        if (p.y > 200 && p.y < 1300) {
           dragStart = p.y;
           containerStart = this.worldContainer.y;
         }
@@ -130,14 +129,14 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Card background
     const cardColor = isUnlocked ? world.color : 0x2a2a3a;
-    const card = this.add.rectangle(200, y, 380, height, cardColor)
-      .setStrokeStyle(2, isUnlocked ? world.accentColor : 0x444444);
+    const card = this.add.rectangle(400, y, 760, height, cardColor)
+      .setStrokeStyle(4, isUnlocked ? world.accentColor : 0x444444);
     this.worldContainer.add(card);
 
     if (isUnlocked) {
       card.setInteractive({ useHandCursor: true });
-      card.on('pointerover', () => card.setStrokeStyle(3, 0xffffff));
-      card.on('pointerout', () => card.setStrokeStyle(2, world.accentColor));
+      card.on('pointerover', () => card.setStrokeStyle(6, 0xffffff));
+      card.on('pointerout', () => card.setStrokeStyle(4, world.accentColor));
       card.on('pointerdown', () => {
         audio.playClick();
         this.selectWorld(world);
@@ -145,14 +144,14 @@ export class WorldMapScene extends Phaser.Scene {
     }
 
     // World icon
-    const icon = this.add.image(40, y, `world_${world.id}`).setScale(0.8);
+    const icon = this.add.image(80, y, `world_${world.id}`).setScale(1.6);
     if (!isUnlocked) icon.setAlpha(0.4);
     this.worldContainer.add(icon);
 
     // World name
     this.worldContainer.add(
-      this.add.text(80, y - 10, world.name, {
-        fontSize: '20px',
+      this.add.text(160, y - 20, world.name, {
+        fontSize: '40px',
         fill: isUnlocked ? '#ffffff' : '#666666',
         fontFamily: 'Arial',
         fontStyle: 'bold'
@@ -164,8 +163,8 @@ export class WorldMapScene extends Phaser.Scene {
       ? `${world.tables[0]}x and ${world.tables[1]}x tables`
       : `${world.tables[0]}x table`;
     this.worldContainer.add(
-      this.add.text(80, y + 14, tableText, {
-        fontSize: '16px',
+      this.add.text(160, y + 28, tableText, {
+        fontSize: '32px',
         fill: isUnlocked ? '#aaaaaa' : '#555555',
         fontFamily: 'Arial'
       }).setOrigin(0, 0.5)
@@ -174,23 +173,23 @@ export class WorldMapScene extends Phaser.Scene {
     // Right side - stars/progress or lock
     if (isUnlocked) {
       this.worldContainer.add(
-        this.add.text(355, y - 8, `${wp.starsEarned}⭐`, {
-          fontSize: '18px',
+        this.add.text(710, y - 16, `${wp.starsEarned}⭐`, {
+          fontSize: '36px',
           fill: '#f7dc6f',
           fontFamily: 'Arial',
           fontStyle: 'bold'
         }).setOrigin(0.5)
       );
       this.worldContainer.add(
-        this.add.text(355, y + 14, `${wp.levelsCompleted}/${world.levelsRequired}`, {
-          fontSize: '16px',
+        this.add.text(710, y + 28, `${wp.levelsCompleted}/${world.levelsRequired}`, {
+          fontSize: '32px',
           fill: '#81ecec',
           fontFamily: 'Arial'
         }).setOrigin(0.5)
       );
     } else {
       this.worldContainer.add(
-        this.add.text(355, y, '🔒', { fontSize: '28px' }).setOrigin(0.5)
+        this.add.text(710, y, '🔒', { fontSize: '56px' }).setOrigin(0.5)
       );
     }
   }
@@ -201,64 +200,64 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   onSceneWake() {
-    this.totalStarsText.setText(`${progress.totalStars} Stars`);
+    this.totalStarsText.setText(`⭐ ${progress.totalStars} Stars`);
     this.worldContainer.removeAll(true);
-    const startY = 125;
-    const cardHeight = 65;
-    const gap = 6;
+    const startY = 270;
+    const cardHeight = 130;
+    const gap = 12;
     WORLDS.forEach((world, i) => {
       this.createWorldCard(world, startY + i * (cardHeight + gap), cardHeight);
     });
   }
 
   showAchievements() {
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0.9)
+    const overlay = this.add.rectangle(400, 700, 800, 1400, 0x000000, 0.9)
       .setInteractive().setDepth(100);
 
-    const panel = this.add.rectangle(200, 350, 360, 550, 0x1a1a2e)
-      .setStrokeStyle(2, 0xf7dc6f).setDepth(101);
+    const panel = this.add.rectangle(400, 700, 720, 1100, 0x1a1a2e)
+      .setStrokeStyle(4, 0xf7dc6f).setDepth(101);
 
-    const title = this.add.text(200, 95, 'Achievements', {
-      fontSize: '22px',
+    const title = this.add.text(400, 190, 'Achievements', {
+      fontSize: '44px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(101);
 
-    const closeBtn = this.add.text(360, 90, '✕', {
-      fontSize: '28px',
+    const closeBtn = this.add.text(720, 180, '✕', {
+      fontSize: '56px',
       fill: '#ff6b6b'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(101);
 
     const elements = [overlay, panel, title, closeBtn];
 
     const allAch = achievements.getAllAchievements();
-    let yPos = 140;
+    let yPos = 280;
 
     allAch.forEach(ach => {
-      if (yPos > 580) return;
+      if (yPos > 1160) return;
 
-      const row = this.add.rectangle(200, yPos, 340, 50, ach.earned ? 0x2a4a2a : 0x252535)
-        .setStrokeStyle(1, ach.earned ? 0x58d68d : 0x3a3a4a).setDepth(101);
+      const row = this.add.rectangle(400, yPos, 680, 100, ach.earned ? 0x2a4a2a : 0x252535)
+        .setStrokeStyle(2, ach.earned ? 0x58d68d : 0x3a3a4a).setDepth(101);
       elements.push(row);
 
-      elements.push(this.add.text(45, yPos, ach.icon, { fontSize: '24px' })
+      elements.push(this.add.text(90, yPos, ach.icon, { fontSize: '48px' })
         .setOrigin(0.5).setAlpha(ach.earned ? 1 : 0.4).setDepth(101));
 
-      elements.push(this.add.text(75, yPos - 8, ach.name, {
-        fontSize: '14px',
+      elements.push(this.add.text(150, yPos - 16, ach.name, {
+        fontSize: '28px',
         fill: ach.earned ? '#ffffff' : '#888888',
         fontFamily: 'Arial',
         fontStyle: 'bold'
       }).setOrigin(0, 0.5).setDepth(101));
 
-      elements.push(this.add.text(75, yPos + 10, ach.description, {
-        fontSize: '11px',
+      elements.push(this.add.text(150, yPos + 20, ach.description, {
+        fontSize: '22px',
         fill: ach.earned ? '#81ecec' : '#666666',
         fontFamily: 'Arial'
       }).setOrigin(0, 0.5).setDepth(101));
 
-      yPos += 55;
+      yPos += 110;
     });
 
     closeBtn.on('pointerdown', () => {

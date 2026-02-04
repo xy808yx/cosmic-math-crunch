@@ -17,22 +17,22 @@ export class LevelSelectScene extends Phaser.Scene {
     this.events.on('resume', this.onSceneWake, this);
 
     // Background
-    this.add.rectangle(200, 350, 400, 700, this.world.color);
+    this.add.rectangle(400, 700, 800, 1400, this.world.color);
 
     // Stars
-    for (let i = 0; i < 30; i++) {
-      const x = Phaser.Math.Between(0, 400);
-      const y = Phaser.Math.Between(0, 700);
-      this.add.circle(x, y, Phaser.Math.Between(1, 2), 0xffffff, 0.3);
+    for (let i = 0; i < 50; i++) {
+      const x = Phaser.Math.Between(0, 800);
+      const y = Phaser.Math.Between(0, 1400);
+      this.add.circle(x, y, Phaser.Math.Between(2, 4), 0xffffff, 0.3);
     }
 
-    // === HEADER (y: 0-200) ===
+    // === HEADER (y: 0-400) ===
     this.createHeader();
 
-    // === LEVEL BUTTONS (y: 200-500) ===
+    // === LEVEL BUTTONS (y: 400-1000) ===
     this.createLevelGrid();
 
-    // === INFO SECTION (y: 500-700) ===
+    // === INFO SECTION (y: 1000-1400) ===
     this.createInfoSection();
 
     new TransitionManager(this).fadeIn(300);
@@ -40,11 +40,11 @@ export class LevelSelectScene extends Phaser.Scene {
 
   createHeader() {
     // Header background
-    this.add.rectangle(200, 100, 400, 200, 0x000000, 0.3);
+    this.add.rectangle(400, 200, 800, 400, 0x000000, 0.3);
 
     // Back button - large and clear
-    const backBtn = this.add.text(20, 25, '← Back', {
-      fontSize: '18px',
+    const backBtn = this.add.text(40, 50, '← Back', {
+      fontSize: '36px',
       fill: '#ffffff',
       fontFamily: 'Arial'
     }).setInteractive({ useHandCursor: true });
@@ -57,10 +57,10 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     // World icon
-    const icon = this.add.image(200, 70, `world_${this.world.id}`).setScale(1.3);
+    const icon = this.add.image(400, 140, `world_${this.world.id}`).setScale(2.6);
     this.tweens.add({
       targets: icon,
-      y: 65,
+      y: 130,
       duration: 2000,
       yoyo: true,
       repeat: -1,
@@ -68,13 +68,13 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     // World name - BIG
-    this.add.text(200, 130, this.world.name, {
-      fontSize: '28px',
+    this.add.text(400, 260, this.world.name, {
+      fontSize: '56px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 4
+      strokeThickness: 8
     }).setOrigin(0.5);
 
     // Tables info
@@ -82,8 +82,8 @@ export class LevelSelectScene extends Phaser.Scene {
       ? `${this.world.tables[0]}× and ${this.world.tables[1]}× tables`
       : `${this.world.tables[0]}× table`;
 
-    this.add.text(200, 165, tablesStr, {
-      fontSize: '18px',
+    this.add.text(400, 330, tablesStr, {
+      fontSize: '36px',
       fill: '#' + this.world.accentColor.toString(16).padStart(6, '0'),
       fontFamily: 'Arial'
     }).setOrigin(0.5);
@@ -91,18 +91,18 @@ export class LevelSelectScene extends Phaser.Scene {
 
   createLevelGrid() {
     // Section title
-    this.add.text(200, 220, 'Select a Level', {
-      fontSize: '20px',
+    this.add.text(400, 440, 'Select a Level', {
+      fontSize: '40px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // 4 levels in a 2x2 grid for better sizing
-    const startY = 280;
-    const startX = 100;
-    const spacingX = 200;
-    const spacingY = 120;
+    const startY = 560;
+    const startX = 200;
+    const spacingX = 400;
+    const spacingY = 240;
 
     for (let i = 0; i < 4; i++) {
       const levelNum = i + 1;
@@ -120,24 +120,24 @@ export class LevelSelectScene extends Phaser.Scene {
     const isUnlocked = levelNum === 1 || this.worldProgress.levelStars[levelNum - 1] > 0;
 
     // Button shadow
-    this.add.rectangle(x + 3, y + 3, 150, 90, 0x000000, 0.4);
+    this.add.rectangle(x + 6, y + 6, 300, 180, 0x000000, 0.4);
 
     // Button background
     const bgColor = isUnlocked
       ? (isCompleted ? this.world.accentColor : 0x3a3a5a)
       : 0x2a2a3a;
 
-    const btn = this.add.rectangle(x, y, 150, 90, bgColor)
-      .setStrokeStyle(3, isUnlocked ? this.world.accentColor : 0x444444);
+    const btn = this.add.rectangle(x, y, 300, 180, bgColor)
+      .setStrokeStyle(6, isUnlocked ? this.world.accentColor : 0x444444);
 
     if (isUnlocked) {
       btn.setInteractive({ useHandCursor: true });
       btn.on('pointerover', () => {
-        btn.setStrokeStyle(4, 0xffffff);
+        btn.setStrokeStyle(8, 0xffffff);
         this.tweens.add({ targets: btn, scaleX: 1.05, scaleY: 1.05, duration: 100 });
       });
       btn.on('pointerout', () => {
-        btn.setStrokeStyle(3, this.world.accentColor);
+        btn.setStrokeStyle(6, this.world.accentColor);
         this.tweens.add({ targets: btn, scaleX: 1, scaleY: 1, duration: 100 });
       });
       btn.on('pointerdown', () => {
@@ -147,8 +147,8 @@ export class LevelSelectScene extends Phaser.Scene {
     }
 
     // Level number - LARGE
-    this.add.text(x, y - 15, `Level ${levelNum}`, {
-      fontSize: '24px',
+    this.add.text(x, y - 30, `Level ${levelNum}`, {
+      fontSize: '48px',
       fill: isUnlocked ? '#ffffff' : '#666666',
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -157,18 +157,18 @@ export class LevelSelectScene extends Phaser.Scene {
     // Stars or lock indicator
     if (isUnlocked) {
       // Stars display
-      const starY = y + 20;
+      const starY = y + 40;
       for (let s = 0; s < 3; s++) {
-        const starX = x - 30 + s * 30;
+        const starX = x - 60 + s * 60;
         const filled = s < stars;
         this.add.text(starX, starY, filled ? '⭐' : '☆', {
-          fontSize: '20px',
+          fontSize: '40px',
           fill: filled ? '#f7dc6f' : '#555555'
         }).setOrigin(0.5);
       }
     } else {
-      this.add.text(x, y + 18, '🔒 Locked', {
-        fontSize: '16px',
+      this.add.text(x, y + 36, '🔒 Locked', {
+        fontSize: '32px',
         fill: '#666666',
         fontFamily: 'Arial'
       }).setOrigin(0.5);
@@ -177,30 +177,30 @@ export class LevelSelectScene extends Phaser.Scene {
 
   createInfoSection() {
     // Info panel background
-    this.add.rectangle(200, 590, 380, 180, 0x000000, 0.4);
+    this.add.rectangle(400, 1180, 760, 360, 0x000000, 0.4);
 
     // Mastery section
     const mastery = this.world.tables.map(t => progress.getTableMastery(t));
     const avgMastery = Math.round(mastery.reduce((a, b) => a + b, 0) / mastery.length);
 
-    this.add.text(200, 520, 'Your Mastery', {
-      fontSize: '18px',
+    this.add.text(400, 1040, 'Your Mastery', {
+      fontSize: '36px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
     // Mastery bar background
-    this.add.rectangle(200, 555, 300, 25, 0x2a2a3a);
+    this.add.rectangle(400, 1110, 600, 50, 0x2a2a3a);
 
     // Mastery bar fill
-    const masteryWidth = (avgMastery / 100) * 296;
+    const masteryWidth = (avgMastery / 100) * 592;
     const masteryColor = avgMastery >= 70 ? 0x58d68d : avgMastery >= 40 ? 0xf39c12 : 0xff6b6b;
-    this.add.rectangle(52 + masteryWidth / 2, 555, masteryWidth, 21, masteryColor);
+    this.add.rectangle(104 + masteryWidth / 2, 1110, masteryWidth, 42, masteryColor);
 
     // Mastery percentage
-    this.add.text(200, 555, `${avgMastery}%`, {
-      fontSize: '16px',
+    this.add.text(400, 1110, `${avgMastery}%`, {
+      fontSize: '32px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -211,21 +211,21 @@ export class LevelSelectScene extends Phaser.Scene {
     const required = this.world.levelsRequired;
     const starsEarned = this.worldProgress.starsEarned;
 
-    this.add.text(110, 600, `Levels: ${completed}/${required}`, {
-      fontSize: '16px',
+    this.add.text(220, 1200, `Levels: ${completed}/${required}`, {
+      fontSize: '32px',
       fill: '#81ecec',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    this.add.text(290, 600, `Stars: ⭐ ${starsEarned}`, {
-      fontSize: '16px',
+    this.add.text(580, 1200, `Stars: ⭐ ${starsEarned}`, {
+      fontSize: '32px',
       fill: '#f7dc6f',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
     // Tip text
-    this.add.text(200, 650, 'Tip: Get 3 stars by finishing with moves to spare!', {
-      fontSize: '14px',
+    this.add.text(400, 1300, 'Tip: Get 3 stars by finishing with moves to spare!', {
+      fontSize: '28px',
       fill: '#aaaaaa',
       fontFamily: 'Arial',
       fontStyle: 'italic'
@@ -244,7 +244,7 @@ export class LevelSelectScene extends Phaser.Scene {
     this.registry.set('levelDifficulty', difficulty);
 
     this.input.enabled = false;
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0).setDepth(1000);
+    const overlay = this.add.rectangle(400, 700, 800, 1400, 0x000000, 0).setDepth(1000);
 
     this.tweens.add({
       targets: overlay,

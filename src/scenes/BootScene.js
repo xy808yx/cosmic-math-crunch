@@ -36,8 +36,8 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     // Show loading text
-    const loadingText = this.add.text(200, 350, 'Loading...', {
-      fontSize: '24px',
+    const loadingText = this.add.text(400, 700, 'Loading...', {
+      fontSize: '48px',
       fill: '#fff',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
@@ -66,10 +66,10 @@ export class BootScene extends Phaser.Scene {
   }
 
   generateNumberTiles() {
-    const tileSize = 64;
-    const padding = 4;
+    const tileSize = 128;
+    const padding = 8;
     const innerSize = tileSize - padding * 2;
-    const cornerRadius = 10;
+    const cornerRadius = 20;
 
     for (let num = 1; num <= 12; num++) {
       const colorIndex = (num - 1) % TILE_COLORS.length;
@@ -131,15 +131,15 @@ export class BootScene extends Phaser.Scene {
     // Star icon
     const starGraphics = this.make.graphics({ x: 0, y: 0, add: false });
     starGraphics.fillStyle(0xf7dc6f);
-    this.drawStar(starGraphics, 16, 16, 5, 14, 7);
-    starGraphics.generateTexture('star', 32, 32);
+    this.drawStar(starGraphics, 32, 32, 5, 28, 14);
+    starGraphics.generateTexture('star', 64, 64);
     starGraphics.destroy();
 
     // Empty star
     const emptyStarGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-    emptyStarGraphics.lineStyle(2, 0xf7dc6f, 0.5);
-    this.drawStarOutline(emptyStarGraphics, 16, 16, 5, 14, 7);
-    emptyStarGraphics.generateTexture('star_empty', 32, 32);
+    emptyStarGraphics.lineStyle(4, 0xf7dc6f, 0.5);
+    this.drawStarOutline(emptyStarGraphics, 32, 32, 5, 28, 14);
+    emptyStarGraphics.generateTexture('star_empty', 64, 64);
     emptyStarGraphics.destroy();
 
     // Generate particle textures
@@ -150,33 +150,33 @@ export class BootScene extends Phaser.Scene {
     // Spark particle (cross/plus shape for combos)
     const sparkGraphics = this.make.graphics({ x: 0, y: 0, add: false });
     sparkGraphics.fillStyle(0xffffff);
-    sparkGraphics.fillRect(6, 2, 4, 12); // Vertical bar
-    sparkGraphics.fillRect(2, 6, 12, 4); // Horizontal bar
-    sparkGraphics.generateTexture('particle_spark', 16, 16);
+    sparkGraphics.fillRect(12, 4, 8, 24); // Vertical bar
+    sparkGraphics.fillRect(4, 12, 24, 8); // Horizontal bar
+    sparkGraphics.generateTexture('particle_spark', 32, 32);
     sparkGraphics.destroy();
 
     // Soft glow particle (for ambient effects)
     const glowGraphics = this.make.graphics({ x: 0, y: 0, add: false });
     glowGraphics.fillStyle(0xffffff, 0.3);
-    glowGraphics.fillCircle(8, 8, 8);
+    glowGraphics.fillCircle(16, 16, 16);
     glowGraphics.fillStyle(0xffffff, 0.6);
-    glowGraphics.fillCircle(8, 8, 5);
+    glowGraphics.fillCircle(16, 16, 10);
     glowGraphics.fillStyle(0xffffff, 0.9);
-    glowGraphics.fillCircle(8, 8, 2);
-    glowGraphics.generateTexture('particle_glow', 16, 16);
+    glowGraphics.fillCircle(16, 16, 4);
+    glowGraphics.generateTexture('particle_glow', 32, 32);
     glowGraphics.destroy();
 
     // Diamond particle (for special effects)
     const diamondGraphics = this.make.graphics({ x: 0, y: 0, add: false });
     diamondGraphics.fillStyle(0xffffff);
     diamondGraphics.beginPath();
-    diamondGraphics.moveTo(8, 0);
-    diamondGraphics.lineTo(16, 8);
-    diamondGraphics.lineTo(8, 16);
-    diamondGraphics.lineTo(0, 8);
+    diamondGraphics.moveTo(16, 0);
+    diamondGraphics.lineTo(32, 16);
+    diamondGraphics.lineTo(16, 32);
+    diamondGraphics.lineTo(0, 16);
     diamondGraphics.closePath();
     diamondGraphics.fillPath();
-    diamondGraphics.generateTexture('particle_diamond', 16, 16);
+    diamondGraphics.generateTexture('particle_diamond', 32, 32);
     diamondGraphics.destroy();
   }
 

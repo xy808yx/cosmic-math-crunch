@@ -10,8 +10,8 @@ import { ParentDashboardScene } from './scenes/ParentDashboardScene.js';
 const config = {
   type: Phaser.AUTO,
   parent: 'game-container',
-  width: 400,
-  height: 700,
+  width: 800,
+  height: 1400,
   backgroundColor: '#12121f',
   antialias: true,
   roundPixels: true,
