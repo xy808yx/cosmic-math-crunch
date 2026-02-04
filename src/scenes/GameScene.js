@@ -461,11 +461,6 @@ export class GameScene extends Phaser.Scene {
 
       // Update power-up charge (resets streak)
       this.powerUpCharge.onWrongAnswer();
-      this.events.emit('powerUpUpdate', {
-        charge: this.powerUpCharge.getChargePercent(),
-        isReady: this.powerUpCharge.isReady,
-        streak: this.powerUpCharge.streakCount
-      });
 
       this.checkLevelState();
     }
@@ -657,12 +652,7 @@ export class GameScene extends Phaser.Scene {
 
     // Update power-up charge based on speed and streak
     const answerTimeMs = Date.now() - this.lastMoveStartTime;
-    const chargeResult = this.powerUpCharge.onCorrectAnswer(answerTimeMs);
-    this.events.emit('powerUpUpdate', {
-      charge: this.powerUpCharge.getChargePercent(),
-      isReady: this.powerUpCharge.isReady,
-      streak: this.powerUpCharge.streakCount
-    });
+    this.powerUpCharge.onCorrectAnswer(answerTimeMs);
 
     // Show hints if hint helper is active
     if (this.powerUpCharge.areHintsActive()) {

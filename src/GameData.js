@@ -125,18 +125,9 @@ export function getProductsForTable(table) {
 // Generate available numbers for a world (factors that make sense)
 export function getNumbersForWorld(worldId) {
   const world = WORLDS[worldId - 1];
-  const numbers = [];
 
-  for (const table of world.tables) {
-    // Add the table number itself
-    numbers.push(table);
-    // Add factors and small multiples
-    for (let i = 1; i <= 10; i++) {
-      if (!numbers.includes(i)) {
-        numbers.push(i);
-      }
-    }
-  }
+  // Numbers 1-10 are always available
+  const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
 
   // Weight toward factors of current tables
   const weighted = [];
