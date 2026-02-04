@@ -71,7 +71,7 @@ export class WorldMapScene extends Phaser.Scene {
       fontFamily: 'Arial'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
     tutorialBtn.on('pointerover', () => tutorialBtn.setFill('#ffffff'));
-    tutorialBtn.on('pointerout', () => tutorialBtn.setFill('#666666'));
+    tutorialBtn.on('pointerout', () => tutorialBtn.setFill('#888888'));
     tutorialBtn.on('pointerdown', () => {
       audio.playClick();
       this.registry.set('tutorialComplete', false);

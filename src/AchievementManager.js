@@ -313,7 +313,7 @@ class AchievementManager {
   }
 
   // Check table mastery
-  checkTableMastery(table, accuracy, progress) {
+  checkTableMastery(table, accuracy) {
     if (accuracy >= 90) {
       if (table === 2) this.unlock('mastery_2s');
       if (table === 3) this.unlock('mastery_3s');

@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
 import { WORLDS } from '../GameData.js';
 import { achievements } from '../AchievementManager.js';
-import { powerUps } from '../PowerUpManager.js';
 
 export class UIScene extends Phaser.Scene {
   constructor() {
@@ -60,8 +59,8 @@ export class UIScene extends Phaser.Scene {
     this.createBottomBar(gameScene);
 
     // Hint text (above bottom bar)
-    this.hintText = this.add.text(400, 1140, '', {
-      fontSize: '36px',
+    this.hintText = this.add.text(400, 1160, '', {
+      fontSize: '32px',
       fill: '#81ecec',
       fontFamily: 'Arial',
       fontStyle: 'bold',
@@ -97,84 +96,84 @@ export class UIScene extends Phaser.Scene {
   createTargetDisplay(world) {
     const accentColor = world?.accentColor || 0x4ecdc4;
 
-    // Large target panel
-    this.add.rectangle(400, 230, 760, 180, 0x1a1a2e, 0.95)
+    // Large target panel - taller to fit all content
+    this.add.rectangle(400, 235, 760, 210, 0x1a1a2e, 0.95)
       .setStrokeStyle(6, accentColor);
 
-    // Instruction text - LARGE and readable
-    this.add.text(400, 164, 'Find two numbers that multiply to:', {
-      fontSize: '32px',
+    // Instruction text
+    this.add.text(400, 150, 'Find two numbers that multiply to:', {
+      fontSize: '28px',
       fill: '#ffffff',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Main target number - BIG (stroke only, no glow)
-    this.targetText = this.add.text(400, 250, '?', {
-      fontSize: '104px',
+    // Main target number - BIG
+    this.targetText = this.add.text(400, 230, '?', {
+      fontSize: '96px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 8
+      strokeThickness: 6
     }).setOrigin(0.5);
 
-    // Factors hint - readable size
-    this.factorsText = this.add.text(400, 310, '', {
-      fontSize: '28px',
+    // Factors hint - with padding from bottom
+    this.factorsText = this.add.text(400, 315, '', {
+      fontSize: '26px',
       fill: '#81ecec',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
   }
 
   createBottomBar(gameScene) {
-    // Bottom panel background
-    this.add.rectangle(400, 1300, 800, 200, 0x0a0a1a, 0.95);
+    // Bottom panel background - positioned to fit within 1400px height
+    this.add.rectangle(400, 1290, 800, 180, 0x0a0a1a, 0.95);
 
     const initialScore = gameScene?.score || 0;
     const initialTargetScore = gameScene?.targetScore || 500;
     const initialMoves = gameScene?.movesLeft || 40;
 
     // === SCORE (left side) ===
-    this.add.rectangle(200, 1280, 320, 140, 0x2d2d44)
+    this.add.rectangle(200, 1290, 320, 150, 0x2d2d44)
       .setStrokeStyle(4, 0xff6b9d);
 
     this.add.text(200, 1230, 'SCORE', {
-      fontSize: '32px',
+      fontSize: '28px',
       fill: '#ff6b9d',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.scoreText = this.add.text(200, 1290, initialScore.toString(), {
-      fontSize: '56px',
+    this.scoreText = this.add.text(200, 1275, initialScore.toString(), {
+      fontSize: '48px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.targetScoreText = this.add.text(200, 1344, `Goal: ${initialTargetScore}`, {
-      fontSize: '28px',
+    this.targetScoreText = this.add.text(200, 1320, `Goal: ${initialTargetScore}`, {
+      fontSize: '24px',
       fill: '#aaaaaa',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Progress bar
-    this.add.rectangle(200, 1380, 280, 16, 0x1a1a2e);
-    this.scoreProgressBar = this.add.rectangle(62, 1380, 0, 12, 0xff6b9d).setOrigin(0, 0.5);
+    // Progress bar - inside the box
+    this.add.rectangle(200, 1352, 260, 14, 0x1a1a2e);
+    this.scoreProgressBar = this.add.rectangle(72, 1352, 0, 10, 0xff6b9d).setOrigin(0, 0.5);
 
     // === MOVES (right side) ===
-    this.add.rectangle(600, 1280, 320, 140, 0x2d2d44)
+    this.add.rectangle(600, 1290, 320, 150, 0x2d2d44)
       .setStrokeStyle(4, 0x4ecdc4);
 
     this.add.text(600, 1230, 'MOVES LEFT', {
-      fontSize: '32px',
+      fontSize: '28px',
       fill: '#4ecdc4',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    this.movesText = this.add.text(600, 1300, initialMoves.toString(), {
-      fontSize: '72px',
+    this.movesText = this.add.text(600, 1295, initialMoves.toString(), {
+      fontSize: '64px',
       fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
@@ -225,11 +224,11 @@ export class UIScene extends Phaser.Scene {
     }
 
     // Update progress bar
-    const progress = Math.min(data.score / data.targetScore, 1);
+    const progressPct = Math.min(data.score / data.targetScore, 1);
     if (this.scoreProgressBar) {
       this.tweens.add({
         targets: this.scoreProgressBar,
-        width: progress * 276,
+        width: progressPct * 256,
         duration: 300
       });
 

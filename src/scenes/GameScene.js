@@ -201,14 +201,23 @@ export class GameScene extends Phaser.Scene {
     const bg = this.add.image(0, 0, `tile_bg_${num}`);
     container.add(bg);
 
-    // Add number text on top (standardized 56px, cleaner stroke)
+    // Add shadow text layer (offset down-right for 3D effect)
+    const shadowText = this.add.text(2, 3, num.toString(), {
+      fontSize: '54px',
+      fill: '#000000',
+      fontFamily: 'Arial Black, Arial, sans-serif',
+      fontStyle: 'bold'
+    }).setOrigin(0.5).setAlpha(0.4);
+    container.add(shadowText);
+
+    // Add number text on top with enhanced styling
     const text = this.add.text(0, 0, num.toString(), {
-      fontSize: '56px',
+      fontSize: '54px',
       fill: '#ffffff',
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Arial Black, Arial, sans-serif',
       fontStyle: 'bold',
       stroke: '#000000',
-      strokeThickness: 6
+      strokeThickness: 4
     }).setOrigin(0.5);
     container.add(text);
 
@@ -320,6 +329,12 @@ export class GameScene extends Phaser.Scene {
     const row = tile.getData('row');
     const col = tile.getData('col');
     const value = tile.getData('value');
+
+    // Handle Wild Card power-up pending state
+    if (this.powerUpPending === 'wild') {
+      this.applyWildCardToTile(row, col);
+      return;
+    }
 
     if (this.selectedTile === null) {
       // First selection - start timing for power-up speed bonus
@@ -825,7 +840,7 @@ export class GameScene extends Phaser.Scene {
       // Check table mastery achievements
       for (const table of this.world.tables) {
         const mastery = progress.getTableMastery(table);
-        achievements.checkTableMastery(table, mastery, progress);
+        achievements.checkTableMastery(table, mastery);
       }
 
       this.time.delayedCall(500, () => {
@@ -983,16 +998,6 @@ export class GameScene extends Phaser.Scene {
     if (bg) {
       bg.setTexture(`tile_bg_${numValue}`);
     }
-  }
-
-  // Helper to update a tile's value and visuals
-  updateTileValue(row, col, newValue) {
-    // Force numeric and update board data
-    const numValue = Number(newValue);
-    this.board[row][col] = numValue;
-
-    // Also update the visual
-    this.updateTileVisual(row, col, numValue);
   }
 
   // Record a wrong attempt for spaced repetition (Section 4.3)
@@ -1268,5 +1273,67 @@ export class GameScene extends Phaser.Scene {
 
     this.updateUI();
     this.checkLevelState();
+  }
+
+  // Apply Wild Card to a tile - change it to a factor of the target
+  applyWildCardToTile(row, col) {
+    this.powerUpPending = null;
+
+    // Find the best factor to change this tile to
+    const target = this.targetProduct;
+    const tile = this.tileSprites[row][col];
+
+    // Find factors of current target that would help make a match
+    // Prefer the factor that pairs with an adjacent tile
+    const adjacentPositions = [
+      { r: row - 1, c: col },
+      { r: row + 1, c: col },
+      { r: row, c: col - 1 },
+      { r: row, c: col + 1 }
+    ];
+
+    let bestFactor = null;
+    for (const pos of adjacentPositions) {
+      if (pos.r >= 0 && pos.r < this.boardSize && pos.c >= 0 && pos.c < this.boardSize) {
+        const adjacentVal = this.board[pos.r][pos.c];
+        if (target % adjacentVal === 0) {
+          const neededFactor = target / adjacentVal;
+          if (neededFactor >= 1 && neededFactor <= 10) {
+            bestFactor = neededFactor;
+            break;
+          }
+        }
+      }
+    }
+
+    // Fallback: pick a reasonable factor
+    if (!bestFactor) {
+      for (let i = 2; i <= 10; i++) {
+        if (target % i === 0 && target / i <= 10) {
+          bestFactor = i;
+          break;
+        }
+      }
+    }
+
+    if (!bestFactor) bestFactor = 1;
+
+    // Update the tile
+    this.board[row][col] = bestFactor;
+    this.updateTileVisual(row, col, bestFactor);
+
+    // Visual feedback
+    audio.playMatch();
+    this.matchParticles.emitParticleAt(tile.x, tile.y, 6);
+
+    this.tweens.add({
+      targets: tile,
+      scale: 1.3,
+      duration: 150,
+      yoyo: true,
+      ease: 'Back.easeOut'
+    });
+
+    this.showPowerUpMessage(`Changed to ${bestFactor}!`);
   }
 }

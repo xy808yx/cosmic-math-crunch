@@ -18,7 +18,16 @@ const config = {
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
-    parent: 'game-container'
+    parent: 'game-container',
+    expandParent: true,
+    min: {
+      width: 320,
+      height: 480
+    },
+    max: {
+      width: 800,
+      height: 1400
+    }
   },
   scene: [BootScene, TutorialScene, WorldMapScene, LevelSelectScene, GameScene, UIScene, ParentDashboardScene]
 };

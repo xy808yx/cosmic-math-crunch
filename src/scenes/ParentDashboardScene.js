@@ -171,7 +171,6 @@ export class ParentDashboardScene extends Phaser.Scene {
 
   showDashboard() {
     this.currentTab = 'summary';
-    this.scrollY = 0;
 
     // Header
     this.add.rectangle(400, 80, 800, 160, 0x2d2d44);

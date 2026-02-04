@@ -122,12 +122,12 @@ class PowerUpManager {
     return null;
   }
 
-  // Check mastery and unlock corresponding power-ups
+  // Check mastery and unlock corresponding power-ups (70% threshold per spec)
   checkMasteryUnlocks(progress) {
     const newUnlocks = [];
     for (let table = 2; table <= 10; table++) {
       const mastery = progress.getTableMastery(table);
-      if (mastery >= 90) {
+      if (mastery >= 70) {
         const unlocked = this.unlockForTable(table);
         if (unlocked) {
           newUnlocks.push(unlocked);
