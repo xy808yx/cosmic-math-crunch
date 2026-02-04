@@ -230,9 +230,17 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // ============================================
-  // PHASE 4 & 10: FLOATING HEADER
+  // PHASE 4 & 10: FIXED HEADER
   // ============================================
   createFloatingHeader() {
+    // Solid header background (prevents cards showing through)
+    const headerBg = this.add.graphics().setDepth(10);
+    headerBg.fillStyle(0x0a0a1a, 1);
+    headerBg.fillRect(0, 0, 800, 200);
+    // Subtle gradient fade at bottom
+    headerBg.fillGradientStyle(0x0a0a1a, 0x0a0a1a, 0x0a0a1a, 0x0a0a1a, 1, 1, 0, 0);
+    headerBg.fillRect(0, 200, 800, 20);
+
     // Settings button (top-left)
     this.createIconButton(60, 150, 'settings', () => {
       audio.playClick();
@@ -461,7 +469,7 @@ export class WorldMapScene extends Phaser.Scene {
   // PHASES 5-9: WORLD LIST WITH CARDS
   // ============================================
   createWorldList() {
-    const startY = 260;
+    const startY = 310;
     const cardHeight = 180;
     const gap = 20;
 
@@ -789,7 +797,7 @@ export class WorldMapScene extends Phaser.Scene {
       let lastTime = 0;
 
       this.input.on('pointerdown', p => {
-        if (p.y > 220 && p.y < 1280) {
+        if (p.y > 210 && p.y < 1280) {
           dragStart = p.y;
           containerStart = this.worldContainer.y;
           lastY = p.y;
