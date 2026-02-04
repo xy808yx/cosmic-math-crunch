@@ -914,22 +914,24 @@ export class GameScene extends Phaser.Scene {
 
   findValidMove() {
     // Search for adjacent pairs that multiply to target
+    const target = Number(this.targetProduct);
+
     for (let row = 0; row < this.boardSize; row++) {
       for (let col = 0; col < this.boardSize; col++) {
-        const val = this.board[row][col];
+        const val = Number(this.board[row][col]);
 
         // Check right neighbor
         if (col < this.boardSize - 1) {
-          const rightVal = this.board[row][col + 1];
-          if (val * rightVal === this.targetProduct) {
+          const rightVal = Number(this.board[row][col + 1]);
+          if (val * rightVal === target) {
             return { row1: row, col1: col, row2: row, col2: col + 1 };
           }
         }
 
         // Check bottom neighbor
         if (row < this.boardSize - 1) {
-          const bottomVal = this.board[row + 1][col];
-          if (val * bottomVal === this.targetProduct) {
+          const bottomVal = Number(this.board[row + 1][col]);
+          if (val * bottomVal === target) {
             return { row1: row, col1: col, row2: row + 1, col2: col };
           }
         }
@@ -938,57 +940,93 @@ export class GameScene extends Phaser.Scene {
     return null;
   }
 
-  // Ensure at least one valid move exists on the board
+  // Ensure at least one valid move exists on the board - GUARANTEED
   ensureValidMove() {
-    if (this.findValidMove()) return; // Already have a valid move
+    // Check if valid move already exists
+    if (this.findValidMove()) return;
 
-    // No valid move - place factors of target on two adjacent tiles
-    const target = this.targetProduct;
+    const target = Number(this.targetProduct);
 
-    // Find a good factor pair (not 1 x n if possible)
-    let factor1 = 1, factor2 = target;
-    for (let i = 2; i <= Math.sqrt(target); i++) {
+    // Find ALL valid factor pairs for this target (within 1-10 range)
+    const factorPairs = [];
+    for (let i = 1; i <= 10; i++) {
       if (target % i === 0) {
-        factor1 = i;
-        factor2 = target / i;
-        break;
+        const j = target / i;
+        if (j >= 1 && j <= 10) {
+          factorPairs.push([i, j]);
+        }
       }
     }
 
-    // Pick a random position and place factors adjacently
-    const row = Phaser.Math.Between(0, this.boardSize - 1);
-    const col = Phaser.Math.Between(0, this.boardSize - 2); // Leave room for adjacent
+    // Prefer pairs that don't use 1 (more interesting)
+    factorPairs.sort((a, b) => {
+      const aHasOne = a[0] === 1 || a[1] === 1;
+      const bHasOne = b[0] === 1 || b[1] === 1;
+      if (aHasOne && !bHasOne) return 1;
+      if (!aHasOne && bHasOne) return -1;
+      return 0;
+    });
 
-    // Update first tile
-    this.updateTileValue(row, col, factor1);
+    const [factor1, factor2] = factorPairs[0] || [1, target];
 
-    // Update second tile
-    this.updateTileValue(row, col + 1, factor2);
+    // Place factors on multiple adjacent pairs to GUARANTEE a valid move
+    // Try horizontal placement first
+    for (let row = 0; row < this.boardSize; row++) {
+      for (let col = 0; col < this.boardSize - 1; col++) {
+        this.board[row][col] = factor1;
+        this.board[row][col + 1] = factor2;
+
+        // Update the visual tiles
+        this.updateTileVisual(row, col, factor1);
+        this.updateTileVisual(row, col + 1, factor2);
+
+        // Verify it worked
+        if (this.findValidMove()) {
+          return;
+        }
+      }
+    }
+
+    // Fallback: force the first two tiles to be the factors
+    this.board[0][0] = factor1;
+    this.board[0][1] = factor2;
+    this.updateTileVisual(0, 0, factor1);
+    this.updateTileVisual(0, 1, factor2);
   }
 
-  // Helper to update a tile's value and visuals
-  updateTileValue(row, col, newValue) {
-    // Update board data
-    this.board[row][col] = newValue;
-
-    const tile = this.tileSprites[row][col];
+  // Update tile visual without any conditions - force the update
+  updateTileVisual(row, col, newValue) {
+    const tile = this.tileSprites[row]?.[col];
     if (!tile) return;
 
-    // Update stored value
-    tile.setData('value', newValue);
+    // Force numeric value
+    const numValue = Number(newValue);
 
-    // Update text
+    // Update stored value
+    tile.setData('value', numValue);
+
+    // Update text - get reference and force update
     const text = tile.getData('text');
     if (text) {
-      text.setText(newValue.toString());
-      text.setFontSize(newValue >= 10 ? '26px' : '30px');
+      text.setText(numValue.toString());
+      text.setFontSize(numValue >= 10 ? '26px' : '30px');
     }
 
     // Update background texture
     const bg = tile.getData('bg');
     if (bg) {
-      bg.setTexture(`tile_bg_${newValue}`);
+      bg.setTexture(`tile_bg_${numValue}`);
     }
+  }
+
+  // Helper to update a tile's value and visuals
+  updateTileValue(row, col, newValue) {
+    // Force numeric and update board data
+    const numValue = Number(newValue);
+    this.board[row][col] = numValue;
+
+    // Also update the visual
+    this.updateTileVisual(row, col, numValue);
   }
 
   // Record a wrong attempt for spaced repetition (Section 4.3)
