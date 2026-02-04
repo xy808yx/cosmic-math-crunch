@@ -6,7 +6,6 @@ import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { UIScene } from './scenes/UIScene.js';
 import { ParentDashboardScene } from './scenes/ParentDashboardScene.js';
-import { SpeedChallengeScene } from './scenes/SpeedChallengeScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -14,11 +13,14 @@ const config = {
   width: 400,
   height: 700,
   backgroundColor: '#1a1a2e',
+  pixelArt: false,
+  antialias: true,
+  roundPixels: true,
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH
   },
-  scene: [BootScene, TutorialScene, WorldMapScene, LevelSelectScene, GameScene, UIScene, ParentDashboardScene, SpeedChallengeScene]
+  scene: [BootScene, TutorialScene, WorldMapScene, LevelSelectScene, GameScene, UIScene, ParentDashboardScene]
 };
 
 const game = new Phaser.Game(config);

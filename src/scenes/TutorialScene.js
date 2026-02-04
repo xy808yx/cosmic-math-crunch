@@ -58,15 +58,17 @@ export class TutorialScene extends Phaser.Scene {
     this.continueBtn = this.createButton(200, 600, 'Continue', () => this.nextStep());
     this.continueBtn.setVisible(false);
 
-    // Skip button (top right, smaller)
-    const skipBtn = this.add.text(370, 15, 'Skip >', {
-      fontSize: '14px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    }).setOrigin(1, 0).setInteractive();
+    // Skip button (top right) - clear and easy to find
+    const skipBtn = this.add.text(380, 20, 'Skip →', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      backgroundColor: '#3d3d5c',
+      padding: { x: 12, y: 6 }
+    }).setOrigin(1, 0).setInteractive({ useHandCursor: true });
     skipBtn.on('pointerdown', () => this.startGame());
-    skipBtn.on('pointerover', () => skipBtn.setFill('#ffffff'));
-    skipBtn.on('pointerout', () => skipBtn.setFill('#888888'));
+    skipBtn.on('pointerover', () => skipBtn.setStyle({ backgroundColor: '#5d5d7c' }));
+    skipBtn.on('pointerout', () => skipBtn.setStyle({ backgroundColor: '#3d3d5c' }));
 
     // Start tutorial
     this.showModel(0);

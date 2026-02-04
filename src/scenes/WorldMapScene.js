@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
-import { achievements, ACHIEVEMENTS } from '../AchievementManager.js';
+import { achievements } from '../AchievementManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 
 export class WorldMapScene extends Phaser.Scene {
@@ -12,89 +12,64 @@ export class WorldMapScene extends Phaser.Scene {
   create() {
     audio.init();
 
-    // Background
-    this.add.rectangle(200, 350, 400, 700, 0x0a0a1a);
+    // Simple dark background
+    this.add.rectangle(200, 350, 400, 700, 0x1a1a2e);
 
-    // Stars background
-    for (let i = 0; i < 60; i++) {
-      const x = Phaser.Math.Between(0, 400);
-      const y = Phaser.Math.Between(0, 700);
-      const size = Phaser.Math.Between(1, 2);
-      const star = this.add.circle(x, y, size, 0xffffff, Phaser.Math.FloatBetween(0.3, 0.8));
+    // === HEADER: y = 0 to 80 ===
+    this.add.rectangle(200, 40, 400, 80, 0x12121f).setDepth(10);
 
-      this.tweens.add({
-        targets: star,
-        alpha: star.alpha * 0.3,
-        duration: Phaser.Math.Between(1000, 2000),
-        yoyo: true,
-        repeat: -1
-      });
-    }
-
-    // Title with glow effect
-    const titleGlow = this.add.text(200, 35, 'Cosmic Math Crunch', {
+    this.add.text(200, 25, 'Cosmic Math Crunch', {
       fontSize: '22px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setAlpha(0.3).setScale(1.05);
+    }).setOrigin(0.5).setDepth(11);
 
-    // Animate title glow
-    this.tweens.add({
-      targets: titleGlow,
-      alpha: { from: 0.2, to: 0.45 },
-      scale: { from: 1.03, to: 1.08 },
-      duration: 1500,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    // Main title
-    this.add.text(200, 35, 'Cosmic Math Crunch', {
-      fontSize: '22px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    // Total stars - stored as reference to update on scene resume
-    this.totalStarsText = this.add.text(200, 60, '', {
-      fontSize: '14px',
+    this.totalStarsText = this.add.text(200, 55, `${progress.totalStars} Stars`, {
+      fontSize: '16px',
       fill: '#81ecec',
       fontFamily: 'Arial'
-    }).setOrigin(0.5);
-    this.updateTotalStars();
+    }).setOrigin(0.5).setDepth(11);
 
-    // Music toggle button (top right)
-    this.createMusicToggle();
+    // Settings button (top left)
+    const settingsBtn = this.add.text(20, 55, '⚙️', {
+      fontSize: '22px'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
+    settingsBtn.on('pointerdown', () => {
+      audio.playClick();
+      this.scene.start('ParentDashboardScene');
+    });
 
-    // Achievements button (top left)
-    this.createAchievementsButton();
+    // Achievements button (top left, next to settings)
+    const achBtn = this.add.text(60, 55, '🏆', {
+      fontSize: '22px'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
+    achBtn.on('pointerdown', () => {
+      audio.playClick();
+      this.showAchievements();
+    });
 
-    // Parent dashboard button (gear icon, below music)
-    this.createParentDashboardButton();
+    // Sound toggle (top right)
+    this.soundBtn = this.add.text(380, 55, audio.musicEnabled ? '🔊' : '🔇', {
+      fontSize: '22px'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
+    this.soundBtn.on('pointerdown', () => {
+      audio.playClick();
+      const enabled = audio.toggleMusic();
+      this.soundBtn.setText(enabled ? '🔊' : '🔇');
+    });
 
-    // Speed Challenge button (unlocks after completing first world)
-    this.createSpeedChallengeButton();
-
-    // Scrollable world list
+    // === WORLD LIST: y = 90 to 650 ===
     this.createWorldList();
 
-    // Update display when scene resumes (after completing a level)
-    this.events.on('wake', this.onSceneWake, this);
-    this.events.on('resume', this.onSceneWake, this);
+    // === FOOTER: y = 650 to 700 ===
+    this.add.rectangle(200, 675, 400, 50, 0x12121f).setDepth(10);
 
-    // Fade in effect
-    new TransitionManager(this).fadeIn(300);
-
-    // Back to tutorial button (small, bottom)
-    const tutorialBtn = this.add.text(200, 670, 'Review Tutorial', {
-      fontSize: '12px',
+    const tutorialBtn = this.add.text(200, 675, 'Review Tutorial', {
+      fontSize: '14px',
       fill: '#666666',
       fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
     tutorialBtn.on('pointerover', () => tutorialBtn.setFill('#ffffff'));
     tutorialBtn.on('pointerout', () => tutorialBtn.setFill('#666666'));
     tutorialBtn.on('pointerdown', () => {
@@ -102,397 +77,188 @@ export class WorldMapScene extends Phaser.Scene {
       this.registry.set('tutorialComplete', false);
       this.scene.start('TutorialScene');
     });
+
+    // Scene events
+    this.events.on('wake', this.onSceneWake, this);
+    this.events.on('resume', this.onSceneWake, this);
+
+    new TransitionManager(this).fadeIn(300);
   }
 
   createWorldList() {
-    const startY = 130;
-    const spacing = 85;
+    const startY = 125;
+    const cardHeight = 65;
+    const gap = 6;
 
-    // Create a container for scrolling
-    this.worldContainer = this.add.container(0, 0);
+    this.worldContainer = this.add.container(0, 0).setDepth(5);
 
-    WORLDS.forEach((world, index) => {
-      const y = startY + index * spacing;
-      this.createWorldCard(world, y);
+    WORLDS.forEach((world, i) => {
+      const y = startY + i * (cardHeight + gap);
+      this.createWorldCard(world, y, cardHeight);
     });
 
-    // Enable scrolling if needed
-    const totalHeight = WORLDS.length * spacing;
-    if (totalHeight > 550) {
-      this.setupScrolling(totalHeight);
+    // Scrolling
+    const totalHeight = WORLDS.length * (cardHeight + gap);
+    const viewHeight = 550;
+    const maxScroll = Math.max(0, totalHeight - viewHeight);
+
+    if (maxScroll > 0) {
+      this.input.on('wheel', (p, g, dx, dy) => {
+        this.worldContainer.y = Phaser.Math.Clamp(this.worldContainer.y - dy * 0.5, -maxScroll, 0);
+      });
+
+      let dragStart = 0, containerStart = 0;
+      this.input.on('pointerdown', p => {
+        if (p.y > 90 && p.y < 650) {
+          dragStart = p.y;
+          containerStart = this.worldContainer.y;
+        }
+      });
+      this.input.on('pointermove', p => {
+        if (p.isDown && dragStart > 0) {
+          this.worldContainer.y = Phaser.Math.Clamp(containerStart + (p.y - dragStart), -maxScroll, 0);
+        }
+      });
+      this.input.on('pointerup', () => dragStart = 0);
     }
   }
 
-  createWorldCard(world, y) {
+  createWorldCard(world, y, height) {
     const isUnlocked = progress.isWorldUnlocked(world.id);
     const wp = progress.getWorldProgress(world.id);
 
-    // Card shadow
-    const shadow = this.add.rectangle(202, y + 3, 360, 75, 0x000000, 0.35);
-    this.worldContainer.add(shadow);
-
-    // Card background darker layer
+    // Card background
     const cardColor = isUnlocked ? world.color : 0x2a2a3a;
-    const cardDark = this.add.rectangle(200, y + 2, 360, 75,
-      Phaser.Display.Color.ValueToColor(cardColor).darken(15).color, 0.9);
-    this.worldContainer.add(cardDark);
-
-    // Main card
-    const card = this.add.rectangle(200, y, 360, 73, cardColor, 0.95)
+    const card = this.add.rectangle(200, y, 380, height, cardColor)
       .setStrokeStyle(2, isUnlocked ? world.accentColor : 0x444444);
     this.worldContainer.add(card);
 
-    // Top accent strip
     if (isUnlocked) {
-      const accentStrip = this.add.rectangle(200, y - 34, 356, 4, world.accentColor, 0.5);
-      this.worldContainer.add(accentStrip);
-    }
-
-    if (isUnlocked) {
-      card.setInteractive();
-      card.on('pointerover', () => {
-        card.setStrokeStyle(3, 0xffffff);
-        this.tweens.add({
-          targets: [card, cardDark, shadow],
-          scaleX: 1.02,
-          scaleY: 1.02,
-          duration: 100,
-          ease: 'Quad.easeOut'
-        });
-      });
-      card.on('pointerout', () => {
-        card.setStrokeStyle(2, world.accentColor);
-        this.tweens.add({
-          targets: [card, cardDark, shadow],
-          scaleX: 1,
-          scaleY: 1,
-          duration: 100,
-          ease: 'Quad.easeOut'
-        });
-      });
+      card.setInteractive({ useHandCursor: true });
+      card.on('pointerover', () => card.setStrokeStyle(3, 0xffffff));
+      card.on('pointerout', () => card.setStrokeStyle(2, world.accentColor));
       card.on('pointerdown', () => {
         audio.playClick();
         this.selectWorld(world);
       });
     }
 
-    // World icon (pixel art)
-    const icon = this.add.image(50, y, `world_${world.id}`);
-    if (!isUnlocked) {
-      icon.setTint(0x444444);
-      icon.setAlpha(0.5);
-    }
+    // World icon
+    const icon = this.add.image(40, y, `world_${world.id}`).setScale(0.8);
+    if (!isUnlocked) icon.setAlpha(0.4);
     this.worldContainer.add(icon);
 
     // World name
-    const nameText = this.add.text(90, y - 15, world.name, {
-      fontSize: '18px',
-      fill: isUnlocked ? '#ffffff' : '#666666',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0, 0.5);
-    this.worldContainer.add(nameText);
-
-    // Tables practiced
-    const tablesStr = world.tables.length > 1
-      ? `${world.tables[0]}s & ${world.tables[1]}s`
-      : `${world.tables[0]}s table`;
-
-    const tablesText = this.add.text(90, y + 8, tablesStr, {
-      fontSize: '13px',
-      fill: isUnlocked ? world.accentColor : '#555555',
-      fontFamily: 'Arial'
-    }).setOrigin(0, 0.5);
-    this.worldContainer.add(tablesText);
-
-    // Progress / Lock indicator
-    if (isUnlocked) {
-      // Stars earned
-      const starsText = this.add.text(340, y - 12, `${wp.starsEarned}`, {
-        fontSize: '16px',
-        fill: '#f7dc6f',
+    this.worldContainer.add(
+      this.add.text(80, y - 12, world.name, {
+        fontSize: '18px',
+        fill: isUnlocked ? '#ffffff' : '#666666',
         fontFamily: 'Arial',
         fontStyle: 'bold'
-      }).setOrigin(0.5);
-      this.worldContainer.add(starsText);
+      }).setOrigin(0, 0.5)
+    );
 
-      // Star icon
-      this.worldContainer.add(
-        this.add.star(358, y - 12, 5, 5, 10, 0xf7dc6f)
-      );
-
-      // Levels completed
-      const levelsText = this.add.text(340, y + 12, `${wp.levelsCompleted}/${world.levelsRequired}`, {
-        fontSize: '12px',
-        fill: '#81ecec',
+    // Table info
+    const tableText = world.tables.length > 1
+      ? `${world.tables[0]}x and ${world.tables[1]}x`
+      : `${world.tables[0]}x table`;
+    this.worldContainer.add(
+      this.add.text(80, y + 12, tableText, {
+        fontSize: '14px',
+        fill: isUnlocked ? '#aaaaaa' : '#555555',
         fontFamily: 'Arial'
-      }).setOrigin(0.5);
-      this.worldContainer.add(levelsText);
-    } else {
-      // Lock icon (text placeholder)
-      const lockText = this.add.text(340, y, '🔒', {
-        fontSize: '24px'
-      }).setOrigin(0.5);
-      this.worldContainer.add(lockText);
+      }).setOrigin(0, 0.5)
+    );
 
-      // Unlock hint
-      const prevWorld = WORLDS[world.id - 2];
-      if (prevWorld) {
-        const hintText = this.add.text(200, y + 28, `Complete ${prevWorld.name} to unlock`, {
-          fontSize: '10px',
-          fill: '#555555',
+    // Right side - stars/progress or lock
+    if (isUnlocked) {
+      this.worldContainer.add(
+        this.add.text(350, y - 10, `${wp.starsEarned}⭐`, {
+          fontSize: '16px',
+          fill: '#f7dc6f',
           fontFamily: 'Arial'
-        }).setOrigin(0.5);
-        this.worldContainer.add(hintText);
-      }
+        }).setOrigin(0.5)
+      );
+      this.worldContainer.add(
+        this.add.text(350, y + 12, `${wp.levelsCompleted}/${world.levelsRequired}`, {
+          fontSize: '14px',
+          fill: '#81ecec',
+          fontFamily: 'Arial'
+        }).setOrigin(0.5)
+      );
+    } else {
+      this.worldContainer.add(
+        this.add.text(350, y, '🔒', { fontSize: '24px' }).setOrigin(0.5)
+      );
     }
   }
 
-  setupScrolling(totalHeight) {
-    const visibleHeight = 550;
-    const maxScroll = totalHeight - visibleHeight + 100;
-
-    this.input.on('wheel', (pointer, gameObjects, deltaX, deltaY) => {
-      this.worldContainer.y -= deltaY * 0.5;
-      this.worldContainer.y = Phaser.Math.Clamp(this.worldContainer.y, -maxScroll, 0);
-    });
-
-    // Touch drag scrolling
-    let dragStartY = 0;
-    let containerStartY = 0;
-
-    this.input.on('pointerdown', (pointer) => {
-      dragStartY = pointer.y;
-      containerStartY = this.worldContainer.y;
-    });
-
-    this.input.on('pointermove', (pointer) => {
-      if (pointer.isDown) {
-        const deltaY = pointer.y - dragStartY;
-        this.worldContainer.y = Phaser.Math.Clamp(
-          containerStartY + deltaY,
-          -maxScroll,
-          0
-        );
-      }
-    });
-  }
-
   selectWorld(world) {
-    // Store selected world and go to level select with transition
     this.registry.set('selectedWorld', world.id);
     new TransitionManager(this).fadeToScene('LevelSelectScene');
   }
 
-  updateTotalStars() {
-    this.totalStarsText.setText(`Total Stars: ${progress.totalStars}`);
-  }
-
   onSceneWake() {
-    // Refresh progress data when returning to this scene
-    this.updateTotalStars();
-    // Rebuild world list to show updated progress
+    this.totalStarsText.setText(`${progress.totalStars} Stars`);
     this.worldContainer.removeAll(true);
-    WORLDS.forEach((world, index) => {
-      const y = 130 + index * 85;
-      this.createWorldCard(world, y);
+    const startY = 125;
+    const cardHeight = 65;
+    const gap = 6;
+    WORLDS.forEach((world, i) => {
+      this.createWorldCard(world, startY + i * (cardHeight + gap), cardHeight);
     });
-  }
-
-  createMusicToggle() {
-    // Music toggle button in top right
-    const musicIcon = audio.musicEnabled ? '♪' : '♪';
-    const musicColor = audio.musicEnabled ? '#4ecdc4' : '#555555';
-
-    this.musicBtn = this.add.text(370, 25, musicIcon, {
-      fontSize: '24px',
-      fill: musicColor,
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    // Strike-through line when muted
-    this.musicStrike = this.add.rectangle(370, 25, 28, 3, 0xff6b6b);
-    this.musicStrike.setAngle(-45);
-    this.musicStrike.setVisible(!audio.musicEnabled);
-
-    this.musicBtn.on('pointerover', () => this.musicBtn.setScale(1.2));
-    this.musicBtn.on('pointerout', () => this.musicBtn.setScale(1));
-    this.musicBtn.on('pointerdown', () => {
-      audio.playClick();
-      const enabled = audio.toggleMusic();
-      this.musicBtn.setFill(enabled ? '#4ecdc4' : '#555555');
-      this.musicStrike.setVisible(!enabled);
-    });
-  }
-
-  createAchievementsButton() {
-    // Trophy button in top left
-    const earned = achievements.getEarnedCount();
-    const total = achievements.getTotalCount();
-
-    this.achieveBtn = this.add.text(30, 25, '🏆', {
-      fontSize: '22px'
-    }).setOrigin(0.5).setInteractive();
-
-    // Count badge
-    this.achieveCount = this.add.text(45, 35, `${earned}/${total}`, {
-      fontSize: '10px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-
-    this.achieveBtn.on('pointerover', () => this.achieveBtn.setScale(1.2));
-    this.achieveBtn.on('pointerout', () => this.achieveBtn.setScale(1));
-    this.achieveBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.showAchievements();
-    });
-  }
-
-  createParentDashboardButton() {
-    // Gear/settings button for parent dashboard (top right, below music)
-    this.settingsBtn = this.add.text(370, 55, '⚙️', {
-      fontSize: '20px'
-    }).setOrigin(0.5).setInteractive();
-
-    // Small label
-    this.add.text(370, 72, 'Parent', {
-      fontSize: '8px',
-      fill: '#555555',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-
-    this.settingsBtn.on('pointerover', () => this.settingsBtn.setScale(1.2));
-    this.settingsBtn.on('pointerout', () => this.settingsBtn.setScale(1));
-    this.settingsBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.scene.start('ParentDashboardScene');
-    });
-  }
-
-  createSpeedChallengeButton() {
-    // Unlocks after completing at least one world (8 levels)
-    const isUnlocked = progress.getWorldProgress(1).levelsCompleted >= 8 ||
-                       progress.totalStars >= 10;
-
-    // Speed challenge button positioned below achievements
-    const btnY = 95;
-
-    if (isUnlocked) {
-      // Use a text button with background for reliable clicks
-      const speedBtnText = this.add.text(85, btnY, '⚡ SPEED', {
-        fontSize: '14px',
-        fill: '#ffffff',
-        fontFamily: 'Arial',
-        fontStyle: 'bold',
-        backgroundColor: '#ff6b9d',
-        padding: { x: 12, y: 8 }
-      }).setOrigin(0.5).setInteractive({ useHandCursor: true });
-
-      speedBtnText.on('pointerover', () => {
-        speedBtnText.setStyle({ backgroundColor: '#ff8fab' });
-      });
-
-      speedBtnText.on('pointerout', () => {
-        speedBtnText.setStyle({ backgroundColor: '#ff6b9d' });
-      });
-
-      speedBtnText.on('pointerdown', () => {
-        audio.playClick();
-        this.scene.start('SpeedChallengeScene');
-      });
-    } else {
-      // Locked state
-      const lockedBtn = this.add.text(85, btnY, '⚡ SPEED 🔒', {
-        fontSize: '12px',
-        fill: '#666666',
-        fontFamily: 'Arial',
-        backgroundColor: '#333333',
-        padding: { x: 10, y: 6 }
-      }).setOrigin(0.5).setAlpha(0.7);
-    }
   }
 
   showAchievements() {
-    // Create achievements overlay
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0.85);
-    overlay.setInteractive(); // Block clicks behind
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0.9)
+      .setInteractive().setDepth(100);
 
-    // Panel
-    const panel = this.add.rectangle(200, 350, 360, 600, 0x2d2d44)
-      .setStrokeStyle(2, 0xf7dc6f);
+    const panel = this.add.rectangle(200, 350, 360, 550, 0x1a1a2e)
+      .setStrokeStyle(2, 0xf7dc6f).setDepth(101);
 
-    // Title
-    const title = this.add.text(200, 80, '🏆 Achievements', {
-      fontSize: '24px',
+    const title = this.add.text(200, 95, 'Achievements', {
+      fontSize: '22px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
-    }).setOrigin(0.5);
+    }).setOrigin(0.5).setDepth(101);
 
-    // Close button
-    const closeBtn = this.add.text(360, 70, '✕', {
-      fontSize: '24px',
-      fill: '#ff6b6b',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
+    const closeBtn = this.add.text(360, 90, '✕', {
+      fontSize: '28px',
+      fill: '#ff6b6b'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(101);
 
-    closeBtn.on('pointerover', () => closeBtn.setScale(1.2));
-    closeBtn.on('pointerout', () => closeBtn.setScale(1));
-
-    // Container for cleanup
     const elements = [overlay, panel, title, closeBtn];
 
-    // List achievements
-    const allAchievements = achievements.getAllAchievements();
-    const startY = 120;
-    const spacing = 55;
+    const allAch = achievements.getAllAchievements();
+    let yPos = 140;
 
-    allAchievements.forEach((ach, index) => {
-      const y = startY + index * spacing;
-      if (y > 620) return; // Don't overflow
+    allAch.forEach(ach => {
+      if (yPos > 580) return;
 
-      // Achievement row background
-      const rowBg = this.add.rectangle(200, y, 340, 50, ach.earned ? 0x3a5a3a : 0x2a2a3a, 0.8)
-        .setStrokeStyle(1, ach.earned ? 0x58d68d : 0x444444);
-      elements.push(rowBg);
+      const row = this.add.rectangle(200, yPos, 340, 50, ach.earned ? 0x2a4a2a : 0x252535)
+        .setStrokeStyle(1, ach.earned ? 0x58d68d : 0x3a3a4a).setDepth(101);
+      elements.push(row);
 
-      // Icon
-      const icon = this.add.text(45, y, ach.icon, {
-        fontSize: '28px'
-      }).setOrigin(0.5);
-      if (!ach.earned) icon.setAlpha(0.4);
-      elements.push(icon);
+      elements.push(this.add.text(45, yPos, ach.icon, { fontSize: '24px' })
+        .setOrigin(0.5).setAlpha(ach.earned ? 1 : 0.4).setDepth(101));
 
-      // Name
-      const name = this.add.text(80, y - 10, ach.name, {
+      elements.push(this.add.text(75, yPos - 8, ach.name, {
         fontSize: '14px',
-        fill: ach.earned ? '#ffffff' : '#666666',
+        fill: ach.earned ? '#ffffff' : '#888888',
         fontFamily: 'Arial',
         fontStyle: 'bold'
-      }).setOrigin(0, 0.5);
-      elements.push(name);
+      }).setOrigin(0, 0.5).setDepth(101));
 
-      // Description
-      const desc = this.add.text(80, y + 10, ach.description, {
+      elements.push(this.add.text(75, yPos + 10, ach.description, {
         fontSize: '11px',
-        fill: ach.earned ? '#81ecec' : '#555555',
+        fill: ach.earned ? '#81ecec' : '#666666',
         fontFamily: 'Arial'
-      }).setOrigin(0, 0.5);
-      elements.push(desc);
+      }).setOrigin(0, 0.5).setDepth(101));
 
-      // Checkmark if earned
-      if (ach.earned) {
-        const check = this.add.text(360, y, '✓', {
-          fontSize: '20px',
-          fill: '#58d68d',
-          fontFamily: 'Arial'
-        }).setOrigin(0.5);
-        elements.push(check);
-      }
+      yPos += 55;
     });
 
-    // Close handler
     closeBtn.on('pointerdown', () => {
       audio.playClick();
       elements.forEach(el => el.destroy());
