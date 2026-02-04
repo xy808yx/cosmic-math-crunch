@@ -13,12 +13,12 @@ const config = {
   width: 400,
   height: 700,
   backgroundColor: '#1a1a2e',
-  pixelArt: false,
-  antialias: true,
+  pixelArt: true,
   roundPixels: true,
   scale: {
     mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH
+    autoCenter: Phaser.Scale.CENTER_BOTH,
+    parent: 'game-container'
   },
   scene: [BootScene, TutorialScene, WorldMapScene, LevelSelectScene, GameScene, UIScene, ParentDashboardScene]
 };
