@@ -11,65 +11,62 @@ export class UIScene extends Phaser.Scene {
 
   create() {
     const gameScene = this.scene.get('GameScene');
-    this.gameScene = gameScene; // Store reference for cleanup
-    this.isTransitioning = false; // Prevent double-clicks during transitions
+    this.gameScene = gameScene;
+    this.isTransitioning = false;
 
-    // Get world info - prefer GameScene values over registry
     const worldId = gameScene?.worldId || this.registry.get('currentWorldId') || 1;
     const world = WORLDS[worldId - 1];
     const level = gameScene?.currentLevel || this.registry.get('currentLevel') || 1;
 
-    // Back button
-    const backBtn = this.add.text(15, 15, '< Back', {
-      fontSize: '14px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    }).setInteractive();
+    // === TOP BAR (y: 0-60) ===
+    this.add.rectangle(200, 30, 400, 60, 0x0a0a1a, 0.9);
 
-    backBtn.on('pointerover', () => backBtn.setFill('#ffffff'));
-    backBtn.on('pointerout', () => backBtn.setFill('#888888'));
+    // Back button - LARGE and visible
+    const backBtn = this.add.text(20, 30, '< Back', {
+      fontSize: '18px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+
+    backBtn.on('pointerover', () => backBtn.setFill('#f7dc6f'));
+    backBtn.on('pointerout', () => backBtn.setFill('#ffffff'));
     backBtn.on('pointerdown', () => {
       audio.playClick();
       gameScene.goToWorldMap();
     });
 
-    // World name and level
+    // World name and level - centered
     this.add.text(200, 20, world.name, {
-      fontSize: '18px',
+      fontSize: '20px',
       fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Target product display
-    this.createTargetDisplay();
-
-    // Score display
-    this.createScoreDisplay();
-
-    // Moves display
-    this.createMovesDisplay();
-
-    // Level display
-    this.levelText = this.add.text(200, 45, `Level ${level}`, {
-      fontSize: '14px',
+    this.levelText = this.add.text(200, 44, `Level ${level}`, {
+      fontSize: '16px',
       fill: '#ffffff',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Hint text (below board - 6x6 board ends at y=564)
-    this.hintText = this.add.text(200, 580, '', {
-      fontSize: '14px',
-      fill: '#81ecec',
-      fontFamily: 'Arial',
-      align: 'center'
-    }).setOrigin(0.5);
-
-    // Music toggle (small, top right)
+    // Music toggle - top right
     this.createMusicToggle();
 
-    // Power-up display
-    this.createPowerUpDisplay();
+    // === TARGET DISPLAY (y: 70-160) ===
+    this.createTargetDisplay(world);
+
+    // === BOTTOM BAR (y: 600-700) ===
+    this.createBottomBar(gameScene);
+
+    // Hint text (above bottom bar)
+    this.hintText = this.add.text(200, 570, '', {
+      fontSize: '18px',
+      fill: '#81ecec',
+      fontFamily: 'Arial',
+      fontStyle: 'bold',
+      align: 'center'
+    }).setOrigin(0.5);
 
     // Listen for game events
     gameScene.events.on('updateUI', this.updateUI, this);
@@ -80,16 +77,13 @@ export class UIScene extends Phaser.Scene {
     gameScene.events.on('wrongAnswer', this.showWrongFeedback, this);
     gameScene.events.on('powerUpUpdate', this.updatePowerUp, this);
 
-    // Clean up event listeners when this scene shuts down
     this.events.on('shutdown', this.cleanup, this);
 
-    // Request initial target from GameScene (in case event was missed)
     if (gameScene.targetProduct) {
       this.updateTarget(gameScene.targetProduct, gameScene.currentFactors);
     }
   }
 
-  // Clean up event listeners to prevent memory leaks and duplicate handlers
   cleanup() {
     if (this.gameScene && this.gameScene.events) {
       this.gameScene.events.off('updateUI', this.updateUI, this);
@@ -102,178 +96,148 @@ export class UIScene extends Phaser.Scene {
     }
   }
 
-  createTargetDisplay() {
-    // Get world for theming
-    const gameScene = this.scene.get('GameScene');
-    const worldId = gameScene?.worldId || this.registry.get('currentWorldId') || 1;
-    const world = WORLDS[worldId - 1];
+  createTargetDisplay(world) {
     const accentColor = world?.accentColor || 0x4ecdc4;
 
-    // Outer glow
-    this.add.rectangle(200, 115, 326, 66, accentColor, 0.15);
+    // Large target panel
+    this.add.rectangle(200, 115, 380, 90, 0x1a1a2e, 0.95)
+      .setStrokeStyle(3, accentColor);
 
-    // Shadow
-    this.add.rectangle(202, 117, 320, 60, 0x000000, 0.3);
-
-    // Main background panel
-    const panel = this.add.rectangle(200, 115, 320, 60, 0x2d2d44, 0.9);
-    panel.setStrokeStyle(2, accentColor, 0.8);
-
-    // Top highlight strip
-    this.add.rectangle(200, 88, 316, 3, accentColor, 0.4);
-
-    // Label text (muted)
-    this.add.text(200, 92, 'Find two numbers that multiply to:', {
-      fontSize: '13px',
-      fill: '#aaaaaa',
+    // Instruction text - LARGE and readable
+    this.add.text(200, 82, 'Find two numbers that multiply to:', {
+      fontSize: '16px',
+      fill: '#ffffff',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Target glow behind (will animate)
-    this.targetGlow = this.add.text(200, 122, '?', {
-      fontSize: '42px',
+    // Target glow
+    this.targetGlow = this.add.text(200, 125, '?', {
+      fontSize: '52px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
-    }).setOrigin(0.5).setAlpha(0.25).setScale(1.1);
+    }).setOrigin(0.5).setAlpha(0.3).setScale(1.1);
 
-    // Main target number
-    this.targetText = this.add.text(200, 122, '?', {
-      fontSize: '42px',
+    // Main target number - BIG
+    this.targetText = this.add.text(200, 125, '?', {
+      fontSize: '52px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 5
+      strokeThickness: 6
     }).setOrigin(0.5);
 
-    // Factors hint text
-    this.factorsText = this.add.text(200, 150, '', {
-      fontSize: '11px',
+    // Factors hint - readable size
+    this.factorsText = this.add.text(200, 155, '', {
+      fontSize: '14px',
       fill: '#81ecec',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Subtle glow pulse animation
+    // Pulse animation
     this.tweens.add({
       targets: this.targetGlow,
-      alpha: { from: 0.2, to: 0.4 },
+      alpha: { from: 0.2, to: 0.5 },
       scale: { from: 1.05, to: 1.15 },
-      duration: 1200,
+      duration: 1000,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
   }
 
-  createScoreDisplay() {
-    const gameScene = this.scene.get('GameScene');
+  createBottomBar(gameScene) {
+    // Bottom panel background
+    this.add.rectangle(200, 650, 400, 100, 0x0a0a1a, 0.95);
+
     const initialScore = gameScene?.score || 0;
     const initialTargetScore = gameScene?.targetScore || 500;
+    const initialMoves = gameScene?.movesLeft || 40;
 
-    // Positioned at bottom left (y=640, aligned with power-up row)
-    // Shadow
-    this.add.rectangle(72, 643, 120, 50, 0x000000, 0.3);
+    // === SCORE (left side) ===
+    this.add.rectangle(100, 640, 160, 70, 0x2d2d44)
+      .setStrokeStyle(2, 0xff6b9d);
 
-    // Main background
-    const scoreBg = this.add.rectangle(70, 640, 120, 50, 0x2d2d44, 0.9);
-    scoreBg.setStrokeStyle(2, 0xff6b9d, 0.8);
-
-    // Top highlight
-    this.add.rectangle(70, 617, 116, 3, 0xff6b9d, 0.4);
-
-    // Label
-    this.add.text(70, 622, 'SCORE', {
-      fontSize: '11px',
+    this.add.text(100, 615, 'SCORE', {
+      fontSize: '16px',
       fill: '#ff6b9d',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Score value
-    this.scoreText = this.add.text(70, 642, initialScore.toString(), {
-      fontSize: '24px',
-      fill: '#fff',
+    this.scoreText = this.add.text(100, 645, initialScore.toString(), {
+      fontSize: '28px',
+      fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Target score
-    this.targetScoreText = this.add.text(70, 660, `/ ${initialTargetScore}`, {
-      fontSize: '11px',
-      fill: '#666',
+    this.targetScoreText = this.add.text(100, 672, `Goal: ${initialTargetScore}`, {
+      fontSize: '14px',
+      fill: '#aaaaaa',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Progress bar background
-    this.add.rectangle(70, 675, 100, 6, 0x1a1a2e);
+    // Progress bar
+    this.add.rectangle(100, 690, 140, 8, 0x1a1a2e);
+    this.scoreProgressBar = this.add.rectangle(31, 690, 0, 6, 0xff6b9d).setOrigin(0, 0.5);
 
-    // Progress bar fill
-    this.scoreProgressBar = this.add.rectangle(21, 675, 0, 4, 0xff6b9d);
-    this.scoreProgressBar.setOrigin(0, 0.5);
-  }
+    // === MOVES (right side) ===
+    this.add.rectangle(300, 640, 160, 70, 0x2d2d44)
+      .setStrokeStyle(2, 0x4ecdc4);
 
-  createMovesDisplay() {
-    const gameScene = this.scene.get('GameScene');
-    const initialMoves = gameScene?.movesLeft || 15;
-    const movesColor = initialMoves <= 3 ? '#ff6b6b' : '#fff';
-
-    // Positioned at bottom right (y=640, aligned with score and power-up)
-    // Shadow
-    this.add.rectangle(332, 643, 120, 50, 0x000000, 0.3);
-
-    // Main background
-    const movesBg = this.add.rectangle(330, 640, 120, 50, 0x2d2d44, 0.9);
-    movesBg.setStrokeStyle(2, 0x4ecdc4, 0.8);
-
-    // Top highlight
-    this.add.rectangle(330, 617, 116, 3, 0x4ecdc4, 0.4);
-
-    // Label
-    this.add.text(330, 622, 'MOVES', {
-      fontSize: '11px',
+    this.add.text(300, 615, 'MOVES LEFT', {
+      fontSize: '16px',
       fill: '#4ecdc4',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    // Moves value
-    this.movesText = this.add.text(330, 645, initialMoves.toString(), {
-      fontSize: '26px',
-      fill: movesColor,
+    this.movesText = this.add.text(300, 650, initialMoves.toString(), {
+      fontSize: '36px',
+      fill: '#ffffff',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5);
   }
 
+  createMusicToggle() {
+    const musicIcon = audio.musicEnabled ? '🔊' : '🔇';
+    this.musicBtn = this.add.text(380, 30, musicIcon, {
+      fontSize: '24px'
+    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+
+    this.musicBtn.on('pointerdown', () => {
+      audio.playClick();
+      const enabled = audio.toggleMusic();
+      this.musicBtn.setText(enabled ? '🔊' : '🔇');
+    });
+  }
+
   updateUI(data) {
-    // Guard against race condition where event fires before UI elements are created
-    if (!this.scoreText || !this.targetScoreText || !this.movesText || !this.levelText) {
-      return;
-    }
+    if (!this.scoreText || !this.targetScoreText || !this.movesText || !this.levelText) return;
 
     this.scoreText.setText(data.score.toString());
-    this.targetScoreText.setText(`/ ${data.targetScore}`);
+    this.targetScoreText.setText(`Goal: ${data.targetScore}`);
     this.movesText.setText(data.movesLeft.toString());
     this.levelText.setText(`Level ${data.level}`);
 
-    // Color moves red when low with pulse effect
-    if (data.movesLeft <= 3) {
+    // Color moves red when low
+    if (data.movesLeft <= 5) {
       this.movesText.setFill('#ff6b6b');
-      // Pulse effect for low moves warning
       if (!this.movesWarningPulsing) {
         this.movesWarningPulsing = true;
         this.tweens.add({
           targets: this.movesText,
-          scale: { from: 1, to: 1.1 },
+          scale: { from: 1, to: 1.15 },
           duration: 400,
           yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut'
+          repeat: -1
         });
       }
     } else {
-      this.movesText.setFill('#fff');
+      this.movesText.setFill('#ffffff');
       if (this.movesWarningPulsing) {
         this.movesWarningPulsing = false;
         this.tweens.killTweensOf(this.movesText);
@@ -286,29 +250,19 @@ export class UIScene extends Phaser.Scene {
     if (this.scoreProgressBar) {
       this.tweens.add({
         targets: this.scoreProgressBar,
-        width: progress * 98,
-        duration: 300,
-        ease: 'Quad.easeOut'
+        width: progress * 138,
+        duration: 300
       });
 
-      // Change color when near completion
-      if (progress >= 0.9) {
-        this.scoreProgressBar.setFillStyle(0x58d68d);
-      } else if (progress >= 0.7) {
-        this.scoreProgressBar.setFillStyle(0xf7dc6f);
-      } else {
-        this.scoreProgressBar.setFillStyle(0xff6b9d);
-      }
+      if (progress >= 0.9) this.scoreProgressBar.setFillStyle(0x58d68d);
+      else if (progress >= 0.7) this.scoreProgressBar.setFillStyle(0xf7dc6f);
+      else this.scoreProgressBar.setFillStyle(0xff6b9d);
     }
   }
 
   updateTarget(product, factors) {
-    // Guard against race condition where event fires before UI elements are created
-    if (!this.targetText || !this.factorsText) {
-      return;
-    }
+    if (!this.targetText || !this.factorsText) return;
 
-    // Animate target change with pop effect
     this.tweens.add({
       targets: [this.targetText, this.targetGlow],
       scale: { from: 0.8, to: 1 },
@@ -316,274 +270,131 @@ export class UIScene extends Phaser.Scene {
       ease: 'Back.easeOut'
     });
 
-    // Flash effect on change
-    if (this.targetGlow) {
-      this.tweens.add({
-        targets: this.targetGlow,
-        alpha: 0.6,
-        duration: 150,
-        yoyo: true,
-        ease: 'Quad.easeOut'
-      });
-    }
-
     this.targetText.setText(product.toString());
-    if (this.targetGlow) {
-      this.targetGlow.setText(product.toString());
-    }
+    if (this.targetGlow) this.targetGlow.setText(product.toString());
 
-    // Show helpful factors (early game scaffolding)
+    // Show factors as hint
     const factorPairs = [];
     for (let i = 1; i <= Math.sqrt(product); i++) {
-      if (product % i === 0) {
-        factorPairs.push(`${i}×${product / i}`);
-      }
+      if (product % i === 0) factorPairs.push(`${i} x ${product / i}`);
     }
-    this.factorsText.setText(`(${factorPairs.join(', ')})`);
+    this.factorsText.setText(factorPairs.join('  or  '));
   }
 
   showCorrectFeedback(product) {
-    // Update hint with encouragement
-    const messages = [
-      'Great job! 🌟',
-      'You got it! ⭐',
-      'Awesome! 🚀',
-      'Perfect! ✨',
-      'Nice work! 🎯'
-    ];
+    const messages = ['Great job!', 'Awesome!', 'Perfect!', 'Nice work!', 'You got it!'];
     this.hintText.setText(Phaser.Utils.Array.GetRandom(messages));
     this.hintText.setFill('#58d68d');
-
-    this.time.delayedCall(1500, () => {
-      this.hintText.setText('');
-    });
-
-    // Check for new achievements
+    this.time.delayedCall(1500, () => this.hintText.setText(''));
     this.checkAchievements();
+  }
+
+  showWrongFeedback(product) {
+    const factors = [];
+    for (let i = 1; i <= Math.sqrt(product); i++) {
+      if (product % i === 0) factors.push(`${i} x ${product / i} = ${product}`);
+    }
+    this.hintText.setText(`Hint: ${factors[0]}`);
+    this.hintText.setFill('#f39c12');
+    this.time.delayedCall(2500, () => this.hintText.setText(''));
   }
 
   checkAchievements() {
     const pending = achievements.getPendingNotifications();
-    if (pending.length > 0) {
-      // Show first achievement (queue others)
-      this.showAchievementPopup(pending[0]);
-    }
+    if (pending.length > 0) this.showAchievementPopup(pending[0]);
   }
 
   showAchievementPopup(achievement) {
-    // Achievement popup at top of screen
     const popup = this.add.container(200, -80);
+    popup.add(this.add.rectangle(0, 0, 320, 70, 0x2d2d44, 0.95).setStrokeStyle(2, 0xf7dc6f));
+    popup.add(this.add.text(-130, 0, achievement.icon, { fontSize: '36px' }).setOrigin(0.5));
+    popup.add(this.add.text(10, -12, 'Achievement Unlocked!', {
+      fontSize: '14px', fill: '#f7dc6f', fontFamily: 'Arial'
+    }).setOrigin(0.5));
+    popup.add(this.add.text(10, 12, achievement.name, {
+      fontSize: '18px', fill: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold'
+    }).setOrigin(0.5));
 
-    // Background
-    const bg = this.add.rectangle(0, 0, 300, 70, 0x2d2d44, 0.95)
-      .setStrokeStyle(2, 0xf7dc6f);
-    popup.add(bg);
-
-    // Icon
-    const icon = this.add.text(-120, 0, achievement.icon, {
-      fontSize: '32px'
-    }).setOrigin(0.5);
-    popup.add(icon);
-
-    // "Achievement Unlocked!" text
-    const title = this.add.text(10, -15, 'Achievement Unlocked!', {
-      fontSize: '12px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-    popup.add(title);
-
-    // Achievement name
-    const name = this.add.text(10, 8, achievement.name, {
-      fontSize: '16px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    popup.add(name);
-
-    // Slide in animation
-    this.tweens.add({
-      targets: popup,
-      y: 50,
-      duration: 500,
-      ease: 'Back.easeOut'
-    });
-
-    // Play achievement sound
+    this.tweens.add({ targets: popup, y: 50, duration: 500, ease: 'Back.easeOut' });
     audio.playStar();
 
-    // Slide out after delay
     this.time.delayedCall(2500, () => {
       this.tweens.add({
-        targets: popup,
-        y: -80,
-        duration: 400,
-        ease: 'Back.easeIn',
+        targets: popup, y: -80, duration: 400, ease: 'Back.easeIn',
         onComplete: () => popup.destroy()
       });
     });
   }
 
-  showWrongFeedback(product) {
-    // Show hint about the target
-    const factors = [];
-    for (let i = 1; i <= Math.sqrt(product); i++) {
-      if (product % i === 0) {
-        factors.push(`${i}×${product / i}=${product}`);
-      }
-    }
-    this.hintText.setText(`Hint: ${factors[0]}`);
-    this.hintText.setFill('#f39c12');
-
-    this.time.delayedCall(2000, () => {
-      this.hintText.setText('');
-    });
-  }
-
   showLevelComplete(data) {
-    // Play victory sound
     audio.playLevelComplete();
-
-    // Confetti burst!
     this.createConfetti();
-
-    // Check for achievements (delayed to not overlap with confetti)
     this.time.delayedCall(1000, () => this.checkAchievements());
 
-    // Animated overlay fade in (blocks input behind it)
     const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0)
-      .setInteractive()
-      .setDepth(50);
-    this.tweens.add({
-      targets: overlay,
-      alpha: 0.75,
-      duration: 300,
-      ease: 'Quad.easeOut'
-    });
+      .setInteractive().setDepth(50);
+    this.tweens.add({ targets: overlay, alpha: 0.8, duration: 300 });
 
-    // Calculate stars based on moves remaining (percentage-based)
     const startingMoves = this.registry.get('levelDifficulty')?.moves || 40;
     const movesUsedPercent = (startingMoves - data.movesLeft) / startingMoves;
     let stars = 1;
-    if (movesUsedPercent <= 0.5) stars = 3;  // Used 50% or less of moves
-    else if (movesUsedPercent <= 0.75) stars = 2;  // Used 75% or less of moves
+    if (movesUsedPercent <= 0.5) stars = 3;
+    else if (movesUsedPercent <= 0.75) stars = 2;
 
-    // Create panel container (starts below screen)
-    const panelContainer = this.add.container(200, 800);
+    const panel = this.add.container(200, 800);
+    panel.add(this.add.rectangle(0, 0, 320, 300, 0x1a1a2e).setStrokeStyle(4, 0xf7dc6f));
 
-    // Panel shadow
-    panelContainer.add(this.add.rectangle(4, 4, 280, 260, 0x000000, 0.4));
-
-    // Victory panel
-    panelContainer.add(this.add.rectangle(0, 0, 280, 260, 0x2d2d44)
-      .setStrokeStyle(3, 0xf7dc6f));
-
-    // Corner accents
-    panelContainer.add(this.add.rectangle(-136, -126, 20, 3, 0xf7dc6f));
-    panelContainer.add(this.add.rectangle(-136, -126, 3, 20, 0xf7dc6f));
-    panelContainer.add(this.add.rectangle(136, 126, 20, 3, 0xf7dc6f));
-    panelContainer.add(this.add.rectangle(136, 126, 3, 20, 0xf7dc6f));
-
-    // Title
-    panelContainer.add(this.add.text(0, -100, 'Level Complete!', {
-      fontSize: '24px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
+    panel.add(this.add.text(0, -110, 'Level Complete!', {
+      fontSize: '28px', fill: '#f7dc6f', fontFamily: 'Arial', fontStyle: 'bold'
     }).setOrigin(0.5));
 
-    // Score label
-    panelContainer.add(this.add.text(0, -60, 'Score', {
-      fontSize: '14px',
-      fill: '#888',
-      fontFamily: 'Arial'
+    panel.add(this.add.text(0, -60, 'Score', {
+      fontSize: '18px', fill: '#aaaaaa', fontFamily: 'Arial'
     }).setOrigin(0.5));
 
-    // Score value (will animate)
-    const scoreValue = this.add.text(0, -35, '0', {
-      fontSize: '28px',
-      fill: '#fff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
+    const scoreValue = this.add.text(0, -30, '0', {
+      fontSize: '36px', fill: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold'
     }).setOrigin(0.5);
-    panelContainer.add(scoreValue);
+    panel.add(scoreValue);
 
-    // Stars (will pop in sequentially)
     const starSprites = [];
     for (let i = 0; i < 3; i++) {
-      const starX = -40 + i * 40;
-      const filled = i < stars;
-      const star = this.add.image(starX, 10, filled ? 'star' : 'star_empty')
-        .setScale(0);
-      panelContainer.add(star);
-      starSprites.push({ star, filled, index: i });
+      const star = this.add.image(-50 + i * 50, 30, i < stars ? 'star' : 'star_empty').setScale(0);
+      panel.add(star);
+      starSprites.push({ star, filled: i < stars, index: i });
     }
 
-    // Animate panel entrance
-    this.tweens.add({
-      targets: panelContainer,
-      y: 300,
-      duration: 500,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        // Create button AFTER animation completes so input area is correct
-        // Button at screen position (200, 390) - panel center + 90
-        const nextBtn = this.add.rectangle(200, 390, 160, 48, 0x4ecdc4)
-          .setInteractive()
-          .setDepth(100);
+    panel.setDepth(60);
 
-        const nextBtnText = this.add.text(200, 390, 'Continue', {
-          fontSize: '18px',
-          fill: '#fff',
-          fontFamily: 'Arial',
-          fontStyle: 'bold'
+    this.tweens.add({
+      targets: panel, y: 320, duration: 500, ease: 'Back.easeOut',
+      onComplete: () => {
+        const nextBtn = this.add.rectangle(200, 430, 200, 60, 0x4ecdc4)
+          .setInteractive({ useHandCursor: true }).setDepth(100);
+        const nextText = this.add.text(200, 430, 'Continue', {
+          fontSize: '22px', fill: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(101);
 
-        // Button hover animations
-        nextBtn.on('pointerover', () => {
-          nextBtn.setFillStyle(0x5dade2);
-          this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1.05, duration: 100 });
-        });
-        nextBtn.on('pointerout', () => {
-          nextBtn.setFillStyle(0x4ecdc4);
-          this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1, duration: 100 });
-        });
+        nextBtn.on('pointerover', () => nextBtn.setFillStyle(0x5dade2));
+        nextBtn.on('pointerout', () => nextBtn.setFillStyle(0x4ecdc4));
         nextBtn.on('pointerdown', () => {
           if (this.isTransitioning) return;
           this.isTransitioning = true;
           audio.playClick();
-          const gameScene = this.scene.get('GameScene');
-          if (gameScene) gameScene.nextLevel();
+          this.gameScene?.nextLevel();
         });
 
-        // Animate score count-up
         this.tweens.addCounter({
-          from: 0,
-          to: data.score,
-          duration: 800,
-          ease: 'Quad.easeOut',
-          onUpdate: (tween) => {
-            scoreValue.setText(Math.floor(tween.getValue()).toString());
-          }
+          from: 0, to: data.score, duration: 800,
+          onUpdate: (t) => scoreValue.setText(Math.floor(t.getValue()).toString())
         });
 
-        // Animate stars sequentially
         starSprites.forEach(({ star, filled, index }) => {
           this.time.delayedCall(600 + index * 200, () => {
             if (filled) audio.playStar();
             this.tweens.add({
-              targets: star,
-              scale: 1.6,
-              duration: 200,
-              ease: 'Back.easeOut',
-              onComplete: () => {
-                this.tweens.add({
-                  targets: star,
-                  scale: 1.3,
-                  duration: 100
-                });
-              }
+              targets: star, scale: 1.5, duration: 200, ease: 'Back.easeOut',
+              onComplete: () => this.tweens.add({ targets: star, scale: 1.2, duration: 100 })
             });
           });
         });
@@ -592,316 +403,73 @@ export class UIScene extends Phaser.Scene {
   }
 
   createConfetti() {
-    // Create colorful confetti particles
-    const colors = [0xf7dc6f, 0xff6b9d, 0x4ecdc4, 0xa29bfe, 0x58d68d, 0xff7675];
-
+    const colors = [0xf7dc6f, 0xff6b9d, 0x4ecdc4, 0xa29bfe, 0x58d68d];
     for (let i = 0; i < 50; i++) {
       const x = Phaser.Math.Between(50, 350);
-      const color = Phaser.Utils.Array.GetRandom(colors);
-      const size = Phaser.Math.Between(4, 8);
-
-      const confetti = this.add.rectangle(x, -10, size, size * 1.5, color);
+      const confetti = this.add.rectangle(x, -10, Phaser.Math.Between(6, 10), Phaser.Math.Between(8, 14), Phaser.Utils.Array.GetRandom(colors));
       confetti.setAngle(Phaser.Math.Between(0, 360));
-
       this.tweens.add({
-        targets: confetti,
-        y: 750,
-        x: x + Phaser.Math.Between(-100, 100),
+        targets: confetti, y: 750, x: x + Phaser.Math.Between(-100, 100),
         angle: confetti.angle + Phaser.Math.Between(-360, 360),
-        duration: Phaser.Math.Between(2000, 3500),
-        delay: Phaser.Math.Between(0, 500),
-        ease: 'Quad.easeIn',
+        duration: Phaser.Math.Between(2000, 3500), delay: Phaser.Math.Between(0, 500),
         onComplete: () => confetti.destroy()
       });
     }
   }
 
   showLevelFailed(data) {
-    // Play failure sound
     audio.playLevelFailed();
 
-    // Animated overlay fade in (blocks input behind it)
     const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0)
-      .setInteractive()
-      .setDepth(50);
-    this.tweens.add({
-      targets: overlay,
-      alpha: 0.75,
-      duration: 300,
-      ease: 'Quad.easeOut'
-    });
+      .setInteractive().setDepth(50);
+    this.tweens.add({ targets: overlay, alpha: 0.8, duration: 300 });
 
-    // Create panel container (starts below screen)
-    const panelContainer = this.add.container(200, 800);
+    const panel = this.add.container(200, 800);
+    panel.add(this.add.rectangle(0, 0, 320, 260, 0x1a1a2e).setStrokeStyle(4, 0xff6b6b));
 
-    // Panel shadow
-    panelContainer.add(this.add.rectangle(4, 4, 280, 230, 0x000000, 0.4));
-
-    // Failed panel (softer coral color)
-    panelContainer.add(this.add.rectangle(0, 0, 280, 230, 0x2d2d44)
-      .setStrokeStyle(3, 0xff8fab));
-
-    // Corner accents
-    panelContainer.add(this.add.rectangle(-136, -111, 20, 3, 0xff8fab));
-    panelContainer.add(this.add.rectangle(-136, -111, 3, 20, 0xff8fab));
-    panelContainer.add(this.add.rectangle(136, 111, 20, 3, 0xff8fab));
-    panelContainer.add(this.add.rectangle(136, 111, 3, 20, 0xff8fab));
-
-    // Title
-    panelContainer.add(this.add.text(0, -85, 'Out of Moves!', {
-      fontSize: '22px',
-      fill: '#ff8fab',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
+    panel.add(this.add.text(0, -90, 'Out of Moves!', {
+      fontSize: '26px', fill: '#ff6b6b', fontFamily: 'Arial', fontStyle: 'bold'
     }).setOrigin(0.5));
 
-    // Score display
-    panelContainer.add(this.add.text(0, -45, `Score: ${data.score} / ${data.targetScore}`, {
-      fontSize: '16px',
-      fill: '#fff',
-      fontFamily: 'Arial'
+    panel.add(this.add.text(0, -40, `Score: ${data.score} / ${data.targetScore}`, {
+      fontSize: '20px', fill: '#ffffff', fontFamily: 'Arial'
     }).setOrigin(0.5));
 
-    // Progressive encouragement messages based on failure count
     const failures = data.failures || 1;
     let message = 'So close! Try again!';
-    if (failures === 2) {
-      message = 'You\'re getting better! Keep going!';
-    } else if (failures === 3) {
-      message = 'Watch for the hint next time!';
-    } else if (failures >= 4) {
-      message = 'We made it easier - you\'ve got this!';
-    }
+    if (failures >= 4) message = 'Made it easier - you got this!';
+    else if (failures >= 3) message = 'Watch for the hints!';
+    else if (failures >= 2) message = 'You\'re getting better!';
 
-    panelContainer.add(this.add.text(0, -10, message, {
-      fontSize: '14px',
-      fill: '#81ecec',
-      fontFamily: 'Arial'
+    panel.add(this.add.text(0, 0, message, {
+      fontSize: '18px', fill: '#81ecec', fontFamily: 'Arial'
     }).setOrigin(0.5));
 
-    // Animate panel entrance
-    this.tweens.add({
-      targets: panelContainer,
-      y: 300,
-      duration: 500,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        // Create button AFTER animation completes so input area is correct
-        // Button at screen position (200, 360) - panel center + 60
-        const retryBtn = this.add.rectangle(200, 360, 160, 48, 0xff8fab)
-          .setInteractive()
-          .setDepth(100);
+    panel.setDepth(60);
 
-        const retryBtnText = this.add.text(200, 360, 'Try Again', {
-          fontSize: '18px',
-          fill: '#fff',
-          fontFamily: 'Arial',
-          fontStyle: 'bold'
+    this.tweens.add({
+      targets: panel, y: 320, duration: 500, ease: 'Back.easeOut',
+      onComplete: () => {
+        const retryBtn = this.add.rectangle(200, 400, 200, 60, 0xff6b6b)
+          .setInteractive({ useHandCursor: true }).setDepth(100);
+        const retryText = this.add.text(200, 400, 'Try Again', {
+          fontSize: '22px', fill: '#ffffff', fontFamily: 'Arial', fontStyle: 'bold'
         }).setOrigin(0.5).setDepth(101);
 
-        // Button hover animations
-        retryBtn.on('pointerover', () => {
-          retryBtn.setFillStyle(0xffb3c6);
-          this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1.05, duration: 100 });
-        });
-        retryBtn.on('pointerout', () => {
-          retryBtn.setFillStyle(0xff8fab);
-          this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1, duration: 100 });
-        });
+        retryBtn.on('pointerover', () => retryBtn.setFillStyle(0xff8fab));
+        retryBtn.on('pointerout', () => retryBtn.setFillStyle(0xff6b6b));
         retryBtn.on('pointerdown', () => {
           if (this.isTransitioning) return;
           this.isTransitioning = true;
           audio.playClick();
-          const gameScene = this.scene.get('GameScene');
-          if (gameScene) {
-            gameScene.restartLevel();
-          }
+          this.gameScene?.restartLevel();
           this.scene.restart();
         });
       }
     });
   }
 
-  createMusicToggle() {
-    // Small music toggle in top right corner
-    const musicColor = audio.musicEnabled ? '#4ecdc4' : '#555555';
-
-    this.musicBtn = this.add.text(385, 15, '♪', {
-      fontSize: '18px',
-      fill: musicColor,
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    // Strike-through line when muted
-    this.musicStrike = this.add.rectangle(385, 15, 20, 2, 0xff6b6b);
-    this.musicStrike.setAngle(-45);
-    this.musicStrike.setVisible(!audio.musicEnabled);
-
-    this.musicBtn.on('pointerover', () => this.musicBtn.setScale(1.2));
-    this.musicBtn.on('pointerout', () => this.musicBtn.setScale(1));
-    this.musicBtn.on('pointerdown', () => {
-      audio.playClick();
-      const enabled = audio.toggleMusic();
-      this.musicBtn.setFill(enabled ? '#4ecdc4' : '#555555');
-      this.musicStrike.setVisible(!enabled);
-    });
-  }
-
-  createPowerUpDisplay() {
-    const equipped = powerUps.getEquippedPowerUp();
-    if (!equipped) return;
-
-    // Power-up container at bottom center (y=640, aligned with score/moves)
-    this.powerUpContainer = this.add.container(200, 640);
-
-    // Background
-    const bg = this.add.rectangle(0, 0, 140, 35, 0x2d2d44, 0.9)
-      .setStrokeStyle(2, 0xa29bfe);
-    this.powerUpContainer.add(bg);
-
-    // Power-up icon
-    this.powerUpIcon = this.add.text(-55, 0, equipped.icon, {
-      fontSize: '20px'
-    }).setOrigin(0.5);
-    this.powerUpContainer.add(this.powerUpIcon);
-
-    // Charge bar background
-    const chargeBarBg = this.add.rectangle(10, 0, 80, 16, 0x1a1a2e);
-    this.powerUpContainer.add(chargeBarBg);
-
-    // Charge bar fill
-    this.chargeBarFill = this.add.rectangle(-29, 0, 0, 12, 0xa29bfe);
-    this.chargeBarFill.setOrigin(0, 0.5);
-    this.powerUpContainer.add(this.chargeBarFill);
-
-    // Charge percentage text
-    this.chargeText = this.add.text(10, 0, '0%', {
-      fontSize: '10px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    this.powerUpContainer.add(this.chargeText);
-
-    // "READY!" indicator (hidden initially)
-    this.readyText = this.add.text(10, 0, 'READY!', {
-      fontSize: '11px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setVisible(false);
-    this.powerUpContainer.add(this.readyText);
-
-    // Activate button (hidden initially)
-    this.activateBtn = this.add.rectangle(55, 0, 24, 24, 0xf7dc6f, 0)
-      .setInteractive()
-      .setVisible(false);
-    this.powerUpContainer.add(this.activateBtn);
-
-    this.activateBtnIcon = this.add.text(55, 0, '!', {
-      fontSize: '16px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setVisible(false);
-    this.powerUpContainer.add(this.activateBtnIcon);
-
-    // Button interactions
-    this.activateBtn.on('pointerover', () => {
-      this.activateBtnIcon.setScale(1.2);
-    });
-    this.activateBtn.on('pointerout', () => {
-      this.activateBtnIcon.setScale(1);
-    });
-    this.activateBtn.on('pointerdown', () => {
-      this.activatePowerUp();
-    });
-
-    // Streak indicator (below power-up bar)
-    this.streakText = this.add.text(200, 665, '', {
-      fontSize: '11px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-  }
-
   updatePowerUp(data) {
-    if (!this.chargeBarFill) return;
-
-    const charge = data.charge;
-    const isReady = data.isReady;
-    const streak = data.streak;
-
-    // Update charge bar (max width is 78px)
-    const fillWidth = (charge / 100) * 78;
-    this.chargeBarFill.width = fillWidth;
-
-    // Update charge text
-    this.chargeText.setText(`${charge}%`);
-    this.chargeText.setVisible(!isReady);
-
-    // Show/hide ready indicator
-    this.readyText.setVisible(isReady);
-
-    // Show/hide activate button
-    this.activateBtn.setVisible(isReady);
-    this.activateBtnIcon.setVisible(isReady);
-
-    // Pulse animation when ready
-    if (isReady && !this.powerUpPulsing) {
-      this.powerUpPulsing = true;
-      this.tweens.add({
-        targets: [this.powerUpIcon, this.readyText],
-        scale: 1.2,
-        duration: 300,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-      });
-
-      // Change bar color when ready
-      this.chargeBarFill.setFillStyle(0xf7dc6f);
-    } else if (!isReady && this.powerUpPulsing) {
-      this.powerUpPulsing = false;
-      this.tweens.killTweensOf([this.powerUpIcon, this.readyText]);
-      this.powerUpIcon.setScale(1);
-      this.readyText.setScale(1);
-      this.chargeBarFill.setFillStyle(0xa29bfe);
-    }
-
-    // Update streak indicator
-    if (streak >= 3) {
-      this.streakText.setText(`Streak: ${streak}`);
-      this.streakText.setFill(streak >= 10 ? '#ff6b9d' : '#f7dc6f');
-    } else {
-      this.streakText.setText('');
-    }
-  }
-
-  activatePowerUp() {
-    const gameScene = this.scene.get('GameScene');
-    if (!gameScene) return;
-
-    // Check if power-up is ready
-    if (!gameScene.powerUpCharge.isReady) return;
-
-    // Use the power-up
-    const success = gameScene.powerUpCharge.usePowerUp();
-    if (!success) return;
-
-    audio.playStar();
-
-    // Get equipped power-up
-    const equipped = powerUps.getEquippedPowerUp();
-
-    // Apply power-up effect
-    gameScene.applyPowerUpEffect(equipped);
-
-    // Update UI
-    this.updatePowerUp({
-      charge: 0,
-      isReady: false,
-      streak: gameScene.powerUpCharge.streakCount
-    });
+    // Power-up display simplified for now
   }
 }

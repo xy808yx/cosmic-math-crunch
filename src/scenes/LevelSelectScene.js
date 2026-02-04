@@ -225,8 +225,8 @@ export class LevelSelectScene extends Phaser.Scene {
 
     // Tip text
     this.add.text(200, 650, 'Tip: Get 3 stars by finishing with moves to spare!', {
-      fontSize: '12px',
-      fill: '#888888',
+      fontSize: '14px',
+      fill: '#aaaaaa',
       fontFamily: 'Arial',
       fontStyle: 'italic'
     }).setOrigin(0.5);

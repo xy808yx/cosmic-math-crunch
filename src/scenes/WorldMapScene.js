@@ -19,16 +19,17 @@ export class WorldMapScene extends Phaser.Scene {
     this.add.rectangle(200, 40, 400, 80, 0x12121f).setDepth(10);
 
     this.add.text(200, 25, 'Cosmic Math Crunch', {
-      fontSize: '22px',
+      fontSize: '24px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(11);
 
     this.totalStarsText = this.add.text(200, 55, `${progress.totalStars} Stars`, {
-      fontSize: '16px',
+      fontSize: '18px',
       fill: '#81ecec',
-      fontFamily: 'Arial'
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
     }).setOrigin(0.5).setDepth(11);
 
     // Settings button (top left)
@@ -66,8 +67,8 @@ export class WorldMapScene extends Phaser.Scene {
     this.add.rectangle(200, 675, 400, 50, 0x12121f).setDepth(10);
 
     const tutorialBtn = this.add.text(200, 675, 'Review Tutorial', {
-      fontSize: '14px',
-      fill: '#666666',
+      fontSize: '16px',
+      fill: '#888888',
       fontFamily: 'Arial'
     }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(11);
     tutorialBtn.on('pointerover', () => tutorialBtn.setFill('#ffffff'));
@@ -150,8 +151,8 @@ export class WorldMapScene extends Phaser.Scene {
 
     // World name
     this.worldContainer.add(
-      this.add.text(80, y - 12, world.name, {
-        fontSize: '18px',
+      this.add.text(80, y - 10, world.name, {
+        fontSize: '20px',
         fill: isUnlocked ? '#ffffff' : '#666666',
         fontFamily: 'Arial',
         fontStyle: 'bold'
@@ -160,11 +161,11 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Table info
     const tableText = world.tables.length > 1
-      ? `${world.tables[0]}x and ${world.tables[1]}x`
+      ? `${world.tables[0]}x and ${world.tables[1]}x tables`
       : `${world.tables[0]}x table`;
     this.worldContainer.add(
-      this.add.text(80, y + 12, tableText, {
-        fontSize: '14px',
+      this.add.text(80, y + 14, tableText, {
+        fontSize: '16px',
         fill: isUnlocked ? '#aaaaaa' : '#555555',
         fontFamily: 'Arial'
       }).setOrigin(0, 0.5)
@@ -173,22 +174,23 @@ export class WorldMapScene extends Phaser.Scene {
     // Right side - stars/progress or lock
     if (isUnlocked) {
       this.worldContainer.add(
-        this.add.text(350, y - 10, `${wp.starsEarned}⭐`, {
-          fontSize: '16px',
+        this.add.text(355, y - 8, `${wp.starsEarned}⭐`, {
+          fontSize: '18px',
           fill: '#f7dc6f',
-          fontFamily: 'Arial'
+          fontFamily: 'Arial',
+          fontStyle: 'bold'
         }).setOrigin(0.5)
       );
       this.worldContainer.add(
-        this.add.text(350, y + 12, `${wp.levelsCompleted}/${world.levelsRequired}`, {
-          fontSize: '14px',
+        this.add.text(355, y + 14, `${wp.levelsCompleted}/${world.levelsRequired}`, {
+          fontSize: '16px',
           fill: '#81ecec',
           fontFamily: 'Arial'
         }).setOrigin(0.5)
       );
     } else {
       this.worldContainer.add(
-        this.add.text(350, y, '🔒', { fontSize: '24px' }).setOrigin(0.5)
+        this.add.text(355, y, '🔒', { fontSize: '28px' }).setOrigin(0.5)
       );
     }
   }
