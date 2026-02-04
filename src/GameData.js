@@ -8,7 +8,7 @@ export const WORLDS = [
     color: 0x4a4a6a,
     accentColor: 0x81ecec,
     description: 'Learn the basics!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: true
   },
   {
@@ -18,7 +18,7 @@ export const WORLDS = [
     color: 0x6b4423,
     accentColor: 0xf39c12,
     description: 'Master the 3s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -28,7 +28,7 @@ export const WORLDS = [
     color: 0x4a235a,
     accentColor: 0xa29bfe,
     description: 'Conquer the 4s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -38,7 +38,7 @@ export const WORLDS = [
     color: 0x1e4d2b,
     accentColor: 0x58d68d,
     description: 'Learn the 5s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -48,7 +48,7 @@ export const WORLDS = [
     color: 0x2c3e50,
     accentColor: 0x5dade2,
     description: 'Master the 6s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -58,7 +58,7 @@ export const WORLDS = [
     color: 0x1a1a2e,
     accentColor: 0xff6b9d,
     description: 'The tricky 7s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -68,7 +68,7 @@ export const WORLDS = [
     color: 0x2e4a62,
     accentColor: 0x74b9ff,
     description: 'Conquer the 8s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -78,7 +78,7 @@ export const WORLDS = [
     color: 0x4a1a1a,
     accentColor: 0xff7675,
     description: 'Master the 9s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -88,7 +88,7 @@ export const WORLDS = [
     color: 0x2d132c,
     accentColor: 0xf7dc6f,
     description: 'The mighty 10s!',
-    levelsRequired: 8,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -98,7 +98,7 @@ export const WORLDS = [
     color: 0x0a3d62,
     accentColor: 0x82ccdd,
     description: 'Bonus: 11s!',
-    levelsRequired: 6,
+    levelsRequired: 3,
     unlocked: false
   },
   {
@@ -108,7 +108,7 @@ export const WORLDS = [
     color: 0x1e1e1e,
     accentColor: 0xffeaa7,
     description: 'Final challenge: 12s!',
-    levelsRequired: 6,
+    levelsRequired: 3,
     unlocked: false
   }
 ];

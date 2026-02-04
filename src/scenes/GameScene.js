@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
 import { WORLDS, getNumbersForWorld, getTargetsForWorld, progress } from '../GameData.js';
 import { achievements } from '../AchievementManager.js';
-import { powerUps, PowerUpChargeTracker } from '../PowerUpManager.js';
+import { PowerUpChargeTracker } from '../PowerUpManager.js';
 
 const TILE_SIZE = 64;
 const BOARD_OFFSET_X = 40;
@@ -241,6 +241,8 @@ export class GameScene extends Phaser.Scene {
     container.setData('row', row);
     container.setData('col', col);
     container.setData('value', num);
+    container.setData('text', text);
+    container.setData('bg', bg);
 
     return container;
   }
@@ -451,11 +453,14 @@ export class GameScene extends Phaser.Scene {
       this.movesLeft--;
       this.updateUI();
 
-      // Set new target
-      this.setNewTarget();
-
-      // Check win/lose
-      this.checkLevelState();
+      // Check win/lose first - don't set new target if level is complete
+      if (this.score >= this.targetScore) {
+        this.checkLevelState();
+      } else {
+        // Only set new target if game continues
+        this.setNewTarget();
+        this.checkLevelState();
+      }
     } else {
       // Invalid swap - animate back
       await this.animateSwap(tile1, tile2);
@@ -829,10 +834,12 @@ export class GameScene extends Phaser.Scene {
       // Level complete!
       this.canSelect = false;
 
-      // Calculate stars
+      // Calculate stars based on moves remaining (percentage-based for longer levels)
+      const startingMoves = this.registry.get('levelDifficulty')?.moves || 40;
+      const movesUsedPercent = (startingMoves - this.movesLeft) / startingMoves;
       let stars = 1;
-      if (this.movesLeft >= 10) stars = 3;
-      else if (this.movesLeft >= 5) stars = 2;
+      if (movesUsedPercent <= 0.5) stars = 3;  // Used 50% or less of moves
+      else if (movesUsedPercent <= 0.75) stars = 2;  // Used 75% or less of moves
 
       // Save progress and clear failures
       progress.completeLevel(this.worldId, this.currentLevel, stars);
@@ -938,7 +945,7 @@ export class GameScene extends Phaser.Scene {
     // No valid move - place factors of target on two adjacent tiles
     const target = this.targetProduct;
 
-    // Find a good factor pair (not 1 x n)
+    // Find a good factor pair (not 1 x n if possible)
     let factor1 = 1, factor2 = target;
     for (let i = 2; i <= Math.sqrt(target); i++) {
       if (target % i === 0) {
@@ -952,20 +959,35 @@ export class GameScene extends Phaser.Scene {
     const row = Phaser.Math.Between(0, this.boardSize - 1);
     const col = Phaser.Math.Between(0, this.boardSize - 2); // Leave room for adjacent
 
-    // Update board data
-    this.board[row][col] = factor1;
-    this.board[row][col + 1] = factor2;
+    // Update first tile
+    this.updateTileValue(row, col, factor1);
 
-    // Update tile visuals
-    if (this.tileSprites[row][col]) {
-      this.tileSprites[row][col].setData('value', factor1);
-      const text1 = this.tileSprites[row][col].getData('text');
-      if (text1) text1.setText(factor1.toString());
+    // Update second tile
+    this.updateTileValue(row, col + 1, factor2);
+  }
+
+  // Helper to update a tile's value and visuals
+  updateTileValue(row, col, newValue) {
+    // Update board data
+    this.board[row][col] = newValue;
+
+    const tile = this.tileSprites[row][col];
+    if (!tile) return;
+
+    // Update stored value
+    tile.setData('value', newValue);
+
+    // Update text
+    const text = tile.getData('text');
+    if (text) {
+      text.setText(newValue.toString());
+      text.setFontSize(newValue >= 10 ? '26px' : '30px');
     }
-    if (this.tileSprites[row][col + 1]) {
-      this.tileSprites[row][col + 1].setData('value', factor2);
-      const text2 = this.tileSprites[row][col + 1].getData('text');
-      if (text2) text2.setText(factor2.toString());
+
+    // Update background texture
+    const bg = tile.getData('bg');
+    if (bg) {
+      bg.setTexture(`tile_bg_${newValue}`);
     }
   }
 

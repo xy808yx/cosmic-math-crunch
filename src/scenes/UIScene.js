@@ -11,6 +11,8 @@ export class UIScene extends Phaser.Scene {
 
   create() {
     const gameScene = this.scene.get('GameScene');
+    this.gameScene = gameScene; // Store reference for cleanup
+    this.isTransitioning = false; // Prevent double-clicks during transitions
 
     // Get world info - prefer GameScene values over registry
     const worldId = gameScene?.worldId || this.registry.get('currentWorldId') || 1;
@@ -78,9 +80,25 @@ export class UIScene extends Phaser.Scene {
     gameScene.events.on('wrongAnswer', this.showWrongFeedback, this);
     gameScene.events.on('powerUpUpdate', this.updatePowerUp, this);
 
+    // Clean up event listeners when this scene shuts down
+    this.events.on('shutdown', this.cleanup, this);
+
     // Request initial target from GameScene (in case event was missed)
     if (gameScene.targetProduct) {
       this.updateTarget(gameScene.targetProduct, gameScene.currentFactors);
+    }
+  }
+
+  // Clean up event listeners to prevent memory leaks and duplicate handlers
+  cleanup() {
+    if (this.gameScene && this.gameScene.events) {
+      this.gameScene.events.off('updateUI', this.updateUI, this);
+      this.gameScene.events.off('targetChanged', this.updateTarget, this);
+      this.gameScene.events.off('levelComplete', this.showLevelComplete, this);
+      this.gameScene.events.off('levelFailed', this.showLevelFailed, this);
+      this.gameScene.events.off('correctAnswer', this.showCorrectFeedback, this);
+      this.gameScene.events.off('wrongAnswer', this.showWrongFeedback, this);
+      this.gameScene.events.off('powerUpUpdate', this.updatePowerUp, this);
     }
   }
 
@@ -433,8 +451,10 @@ export class UIScene extends Phaser.Scene {
     // Check for achievements (delayed to not overlap with confetti)
     this.time.delayedCall(1000, () => this.checkAchievements());
 
-    // Animated overlay fade in
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0);
+    // Animated overlay fade in (blocks input behind it)
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0)
+      .setInteractive()
+      .setDepth(50);
     this.tweens.add({
       targets: overlay,
       alpha: 0.75,
@@ -442,10 +462,12 @@ export class UIScene extends Phaser.Scene {
       ease: 'Quad.easeOut'
     });
 
-    // Calculate stars (3 for lots of moves left, 2 for some, 1 for barely)
+    // Calculate stars based on moves remaining (percentage-based)
+    const startingMoves = this.registry.get('levelDifficulty')?.moves || 40;
+    const movesUsedPercent = (startingMoves - data.movesLeft) / startingMoves;
     let stars = 1;
-    if (data.movesLeft >= 10) stars = 3;
-    else if (data.movesLeft >= 5) stars = 2;
+    if (movesUsedPercent <= 0.5) stars = 3;  // Used 50% or less of moves
+    else if (movesUsedPercent <= 0.75) stars = 2;  // Used 75% or less of moves
 
     // Create panel container (starts below screen)
     const panelContainer = this.add.container(200, 800);
@@ -528,9 +550,11 @@ export class UIScene extends Phaser.Scene {
           this.tweens.add({ targets: [nextBtn, nextBtnText], scale: 1, duration: 100 });
         });
         nextBtn.on('pointerdown', () => {
+          if (this.isTransitioning) return;
+          this.isTransitioning = true;
           audio.playClick();
           const gameScene = this.scene.get('GameScene');
-          gameScene.nextLevel();
+          if (gameScene) gameScene.nextLevel();
         });
 
         // Animate score count-up
@@ -596,8 +620,10 @@ export class UIScene extends Phaser.Scene {
     // Play failure sound
     audio.playLevelFailed();
 
-    // Animated overlay fade in
-    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0);
+    // Animated overlay fade in (blocks input behind it)
+    const overlay = this.add.rectangle(200, 350, 400, 700, 0x000000, 0)
+      .setInteractive()
+      .setDepth(50);
     this.tweens.add({
       targets: overlay,
       alpha: 0.75,
@@ -683,9 +709,13 @@ export class UIScene extends Phaser.Scene {
           this.tweens.add({ targets: [retryBtn, retryBtnText], scale: 1, duration: 100 });
         });
         retryBtn.on('pointerdown', () => {
+          if (this.isTransitioning) return;
+          this.isTransitioning = true;
           audio.playClick();
           const gameScene = this.scene.get('GameScene');
-          gameScene.restartLevel();
+          if (gameScene) {
+            gameScene.restartLevel();
+          }
           this.scene.restart();
         });
       }
