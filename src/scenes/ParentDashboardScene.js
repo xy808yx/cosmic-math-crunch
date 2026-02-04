@@ -74,10 +74,10 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   createNumberPad() {
-    const startX = 190;
-    const startY = 560;
     const buttonSize = 120;
     const spacing = 140;
+    const startX = 400 - spacing; // Center the 3-column grid (middle column at 400)
+    const startY = 560;
 
     // Numbers 1-9
     for (let i = 0; i < 9; i++) {
