@@ -110,22 +110,14 @@ export class UIScene extends Phaser.Scene {
       fontFamily: 'Arial'
     }).setOrigin(0.5);
 
-    // Target glow
-    this.targetGlow = this.add.text(200, 125, '?', {
-      fontSize: '52px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setAlpha(0.3).setScale(1.1);
-
-    // Main target number - BIG
+    // Main target number - BIG (stroke only, no glow)
     this.targetText = this.add.text(200, 125, '?', {
       fontSize: '52px',
       fill: '#f7dc6f',
       fontFamily: 'Arial',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 6
+      strokeThickness: 4
     }).setOrigin(0.5);
 
     // Factors hint - readable size
@@ -134,17 +126,6 @@ export class UIScene extends Phaser.Scene {
       fill: '#81ecec',
       fontFamily: 'Arial'
     }).setOrigin(0.5);
-
-    // Pulse animation
-    this.tweens.add({
-      targets: this.targetGlow,
-      alpha: { from: 0.2, to: 0.5 },
-      scale: { from: 1.05, to: 1.15 },
-      duration: 1000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
   }
 
   createBottomBar(gameScene) {
@@ -264,14 +245,13 @@ export class UIScene extends Phaser.Scene {
     if (!this.targetText || !this.factorsText) return;
 
     this.tweens.add({
-      targets: [this.targetText, this.targetGlow],
+      targets: this.targetText,
       scale: { from: 0.8, to: 1 },
       duration: 200,
       ease: 'Back.easeOut'
     });
 
     this.targetText.setText(product.toString());
-    if (this.targetGlow) this.targetGlow.setText(product.toString());
 
     // Show factors as hint
     const factorPairs = [];

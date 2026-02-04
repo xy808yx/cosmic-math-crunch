@@ -3,7 +3,7 @@ import { generateWorldIcons } from '../WorldArt.js';
 
 // Steven Universe inspired color palette
 const PALETTE = {
-  bg: '#1a1a2e',
+  bg: '#12121f',
   pink: '#ff6b9d',
   teal: '#4ecdc4',
   purple: '#9b59b6',
@@ -78,44 +78,21 @@ export class BootScene extends Phaser.Scene {
       // Create a graphics object for the tile background only
       const graphics = this.make.graphics({ x: 0, y: 0, add: false });
 
-      // Color variations for depth
+      // Solid color with clean design (3 operations only)
       const bgColor = color.color;
-      const darkColor = Phaser.Display.Color.ValueToColor(bgColor).darken(25).color;
-      const darkerColor = Phaser.Display.Color.ValueToColor(bgColor).darken(40).color;
-      const lightColor = Phaser.Display.Color.ValueToColor(bgColor).lighten(20).color;
-      const lighterColor = Phaser.Display.Color.ValueToColor(bgColor).lighten(35).color;
+      const lightColor = Phaser.Display.Color.ValueToColor(bgColor).lighten(30).color;
 
-      // Drop shadow (offset down-right)
-      graphics.fillStyle(0x000000, 0.3);
+      // 1. Drop shadow (solid black, 40% opacity)
+      graphics.fillStyle(0x000000, 0.4);
       graphics.fillRoundedRect(padding + 2, padding + 3, innerSize, innerSize, cornerRadius);
 
-      // Main tile body
+      // 2. Solid color fill (no gradients)
       graphics.fillStyle(bgColor);
       graphics.fillRoundedRect(padding, padding, innerSize, innerSize, cornerRadius);
 
-      // Gradient effect - top strip (lighter)
-      graphics.fillStyle(lightColor, 0.7);
-      graphics.fillRoundedRect(padding, padding, innerSize, 14, { tl: cornerRadius, tr: cornerRadius, bl: 0, br: 0 });
-
-      // Gradient effect - upper middle (slightly lighter)
-      graphics.fillStyle(lightColor, 0.3);
-      graphics.fillRoundedRect(padding + 4, padding + 12, innerSize - 8, 10, 0);
-
-      // Gradient effect - bottom shadow strip
-      graphics.fillStyle(darkColor, 0.8);
-      graphics.fillRoundedRect(padding, tileSize - padding - 12, innerSize, 12, { tl: 0, tr: 0, bl: cornerRadius, br: cornerRadius });
-
-      // Left edge highlight
-      graphics.fillStyle(lighterColor, 0.4);
-      graphics.fillRoundedRect(padding, padding + 6, 6, innerSize - 16, { tl: 0, tr: 0, bl: 0, br: 0 });
-
-      // Inner glow/rim (subtle border inside)
-      graphics.lineStyle(1.5, lighterColor, 0.5);
-      graphics.strokeRoundedRect(padding + 2, padding + 2, innerSize - 4, innerSize - 4, cornerRadius - 2);
-
-      // Bottom-right inner shadow
-      graphics.fillStyle(darkerColor, 0.3);
-      graphics.fillRoundedRect(tileSize - padding - 10, tileSize - padding - 10, 8, 8, { tl: 0, tr: 0, bl: 0, br: cornerRadius - 2 });
+      // 3. Light border stroke for definition
+      graphics.lineStyle(2, lightColor, 0.6);
+      graphics.strokeRoundedRect(padding, padding, innerSize, innerSize, cornerRadius);
 
       // Generate background texture only
       graphics.generateTexture(`tile_bg_${num}`, tileSize, tileSize);
@@ -125,53 +102,26 @@ export class BootScene extends Phaser.Scene {
     // Store tile colors for GameScene to use
     this.registry.set('tileColors', TILE_COLORS);
 
-    // Generate selected tile overlay with glow effect
+    // Generate selected tile overlay - clean double-border
     const selectGraphics = this.make.graphics({ x: 0, y: 0, add: false });
 
-    // Outer glow (soft, spread out)
-    selectGraphics.fillStyle(0xffffff, 0.15);
-    selectGraphics.fillRoundedRect(0, 0, tileSize, tileSize, 12);
-
-    // Middle glow layer
-    selectGraphics.fillStyle(0xffffff, 0.2);
-    selectGraphics.fillRoundedRect(2, 2, tileSize - 4, tileSize - 4, 11);
-
     // Outer white ring
-    selectGraphics.lineStyle(3, 0xffffff, 0.9);
-    selectGraphics.strokeRoundedRect(3, 3, tileSize - 6, tileSize - 6, 10);
+    selectGraphics.lineStyle(3, 0xffffff, 1);
+    selectGraphics.strokeRoundedRect(2, 2, tileSize - 4, tileSize - 4, 10);
 
-    // Inner accent ring (teal)
-    selectGraphics.lineStyle(2, 0x4ecdc4, 0.8);
+    // Inner teal ring
+    selectGraphics.lineStyle(2, 0x4ecdc4, 1);
     selectGraphics.strokeRoundedRect(6, 6, tileSize - 12, tileSize - 12, 8);
-
-    // Corner sparkle accents
-    selectGraphics.fillStyle(0xffffff, 0.9);
-    selectGraphics.fillCircle(8, 8, 3);
-    selectGraphics.fillCircle(tileSize - 8, 8, 3);
-    selectGraphics.fillCircle(8, tileSize - 8, 3);
-    selectGraphics.fillCircle(tileSize - 8, tileSize - 8, 3);
 
     selectGraphics.generateTexture('tile_selected', tileSize, tileSize);
     selectGraphics.destroy();
 
-    // Generate hint glow with pulsing effect style
+    // Generate hint overlay - single yellow border
     const hintGraphics = this.make.graphics({ x: 0, y: 0, add: false });
 
-    // Outer glow (yellow)
-    hintGraphics.fillStyle(0xf7dc6f, 0.2);
-    hintGraphics.fillRoundedRect(0, 0, tileSize, tileSize, 12);
-
-    // Middle glow
-    hintGraphics.fillStyle(0xf7dc6f, 0.25);
-    hintGraphics.fillRoundedRect(2, 2, tileSize - 4, tileSize - 4, 11);
-
-    // Outer ring
-    hintGraphics.lineStyle(3, 0xf7dc6f, 0.9);
-    hintGraphics.strokeRoundedRect(3, 3, tileSize - 6, tileSize - 6, 10);
-
-    // Inner ring
-    hintGraphics.lineStyle(2, 0xffeaa7, 0.7);
-    hintGraphics.strokeRoundedRect(6, 6, tileSize - 12, tileSize - 12, 8);
+    // Single yellow border
+    hintGraphics.lineStyle(3, 0xf7dc6f, 1);
+    hintGraphics.strokeRoundedRect(2, 2, tileSize - 4, tileSize - 4, 10);
 
     hintGraphics.generateTexture('tile_hint', tileSize, tileSize);
     hintGraphics.destroy();
