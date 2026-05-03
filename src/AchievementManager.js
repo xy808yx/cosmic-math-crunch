@@ -1,5 +1,6 @@
 // Achievement System
 // Tracks player achievements and unlocks cosmetic rewards
+import { WORLDS } from './GameData.js';
 
 export const ACHIEVEMENTS = [
   // Early game achievements
@@ -9,13 +10,6 @@ export const ACHIEVEMENTS = [
     description: 'Complete your first level',
     icon: '🛸',
     condition: { type: 'levels_completed', value: 1 }
-  },
-  {
-    id: 'perfect_launch',
-    name: 'Perfect Launch',
-    description: '3-star a level on first try',
-    icon: '⭐',
-    condition: { type: 'first_try_three_star', value: 1 }
   },
   {
     id: 'getting_started',
@@ -126,20 +120,6 @@ export const ACHIEVEMENTS = [
 
   // Special achievements
   {
-    id: 'comeback_kid',
-    name: 'Comeback Kid',
-    description: 'Complete a level after 3+ failures',
-    icon: '💪',
-    condition: { type: 'comeback', value: 3 }
-  },
-  {
-    id: 'speed_demon',
-    name: 'Speed Demon',
-    description: 'Complete a level with 10+ moves remaining',
-    icon: '⚡',
-    condition: { type: 'moves_remaining', value: 10 }
-  },
-  {
     id: 'explorer',
     name: 'Explorer',
     description: 'Unlock 3 different worlds',
@@ -181,8 +161,7 @@ class AchievementManager {
       levelsCompleted: 0,
       totalCorrect: 0,
       totalWrong: 0,
-      bestStreak: 0,
-      firstTryThreeStars: 0
+      bestStreak: 0
     };
   }
 
@@ -265,36 +244,18 @@ class AchievementManager {
   }
 
   // Record level completion
-  recordLevelComplete(worldId, levelNum, stars, movesRemaining, failureCount, progress) {
+  recordLevelComplete(worldId, stars, progress) {
     this.stats.levelsCompleted++;
 
-    // First Contact
     if (this.stats.levelsCompleted >= 1) this.unlock('first_contact');
     if (this.stats.levelsCompleted >= 5) this.unlock('getting_started');
 
-    // Perfect Launch - 3 stars on first try (0 failures)
-    if (stars === 3 && failureCount === 0) {
-      this.stats.firstTryThreeStars++;
-      this.unlock('perfect_launch');
-    }
-
-    // Comeback Kid
-    if (failureCount >= 3) {
-      this.unlock('comeback_kid');
-    }
-
-    // Speed Demon
-    if (movesRemaining >= 10) {
-      this.unlock('speed_demon');
-    }
-
-    // Check star achievements
     const totalStars = progress?.totalStars || 0;
     if (totalStars >= 10) this.unlock('star_collector_10');
     if (totalStars >= 25) this.unlock('star_collector_25');
     if (totalStars >= 50) this.unlock('star_collector_50');
 
-    // Check world completion (each world has 4 levels)
+    // Each world has 4 levels — see LEVEL_MODES in LevelSelectScene
     const worldProgress = progress?.getWorldProgress(worldId);
     if (worldProgress && worldProgress.levelsCompleted >= 4) {
       if (worldId === 1) this.unlock('moon_master');
@@ -302,10 +263,9 @@ class AchievementManager {
       if (worldId === 3) this.unlock('crystal_champion');
     }
 
-    // Check worlds unlocked
     let worldsUnlocked = 0;
-    for (let i = 1; i <= 11; i++) {
-      if (progress?.isWorldUnlocked(i)) worldsUnlocked++;
+    for (const w of WORLDS) {
+      if (progress?.isWorldUnlocked(w.id)) worldsUnlocked++;
     }
     if (worldsUnlocked >= 3) this.unlock('explorer');
 
