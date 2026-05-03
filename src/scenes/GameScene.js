@@ -1,12 +1,20 @@
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
-import { WORLDS, getNumbersForWorld, getTargetsForWorld, progress } from '../GameData.js';
+import { WORLDS, MODES, getProblemForWorld, progress } from '../GameData.js';
 import { achievements } from '../AchievementManager.js';
-import { PowerUpChargeTracker } from '../PowerUpManager.js';
+import { TransitionManager } from '../TransitionManager.js';
+import { createStarfield } from '../starfieldHelper.js';
+import { createButton, createIconButton } from '../buttonHelper.js';
+import { style } from '../textStyles.js';
+import { companion, drawCompanion } from '../CompanionManager.js';
+import { streak } from '../StreakManager.js';
+import { economy } from '../EconomyManager.js';
+import { grantStreakRewards } from '../MilestoneRewards.js';
+import { rollLevelEndDrop } from '../RandomDrops.js';
+import { PetHUD } from '../PetHUD.js';
 
-const TILE_SIZE = 128;
-const BOARD_OFFSET_X = 80;
-const BOARD_OFFSET_Y = 360;
+const W = 800;
+const H = 1400;
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -14,1326 +22,835 @@ export class GameScene extends Phaser.Scene {
   }
 
   init() {
-    // Game state
-    this.board = [];
-    this.selectedTile = null;
-    this.canSelect = true;
-    this.isProcessing = false;
-
-    // Get world/level from registry
     this.worldId = this.registry.get('currentWorldId') || 1;
     this.currentLevel = this.registry.get('currentLevel') || 1;
+    this.mode = this.registry.get('levelMode') || 'mult';
     this.world = WORLDS[this.worldId - 1];
+    this.modeConfig = MODES[this.mode];
 
-    // Get failure count for progressive support (Section 4.2)
-    this.failureCount = progress.getLevelFailures(this.worldId, this.currentLevel);
+    this.duration = this.modeConfig.duration;
+    this.scoreThreshold = this.modeConfig.scoreThreshold;
+    this.timeLeft = this.duration * 1000;
 
-    // Get difficulty settings - defaults match LevelSelectScene formula
-    const difficulty = this.registry.get('levelDifficulty') || {
-      moves: 15 + Math.floor(this.currentLevel / 3),
-      targetScore: 400 + this.currentLevel * 50,
-      boardSize: this.currentLevel > 8 ? 6 : 5
-    };
-
-    // Apply progressive difficulty reduction for 4+ failures
-    let moves = difficulty.moves;
-    let targetScore = difficulty.targetScore;
-    if (this.failureCount >= 4) {
-      moves += 5; // Extra moves
-      targetScore = Math.round(targetScore * 0.8); // 20% lower target
-    }
-
-    this.boardSize = difficulty.boardSize;
-    this.movesLeft = moves;
-    this.targetScore = targetScore;
     this.score = 0;
+    this.attempts = 0;
+    this.streak = 0;
+    this.bestStreak = 0;
+    this.history = [];
 
-    // Track if we should favor player (2+ failures)
-    this.favorPlayer = this.failureCount >= 2;
-
-    // Power-up system
-    this.powerUpCharge = new PowerUpChargeTracker();
-    this.lastMoveStartTime = 0;
-    this.powerUpPending = null; // For power-ups that need tile selection
-
-    // Get world-specific numbers and targets
-    this.availableNumbers = getNumbersForWorld(this.worldId);
-    this.targetProducts = this.buildTargetQueue();
-    this.currentTargetIndex = 0;
-    this.targetProduct = this.targetProducts[0];
-  }
-
-  // Build target queue mixing priority facts with regular facts (Section 4.3)
-  buildTargetQueue() {
-    const regularTargets = getTargetsForWorld(this.worldId);
-
-    // Get priority facts that are due for review
-    const priorityTargets = progress.getPriorityTargetsForWorld(this.worldId);
-
-    // Mix priority targets into the queue (every 3rd target)
-    const mixedQueue = [];
-    let priorityIndex = 0;
-
-    for (let i = 0; i < regularTargets.length; i++) {
-      // Insert priority target every 3rd position
-      if (i > 0 && i % 3 === 0 && priorityIndex < priorityTargets.length) {
-        mixedQueue.push(priorityTargets[priorityIndex]);
-        priorityIndex++;
-      }
-      mixedQueue.push(regularTargets[i]);
-    }
-
-    return mixedQueue;
+    this.input_ = '';
+    this.problem = null;
+    this.state = 'ready'; // ready | playing | feedback | ended
+    this.autoSubmitTimer = null;
   }
 
   create() {
-    // Initialize and start audio
     audio.init();
-    audio.startMusic();
 
-    // World-themed background
-    this.add.rectangle(400, 700, 800, 1400, this.world.color);
-
-    // Stars with twinkling effect
-    for (let i = 0; i < 50; i++) {
-      const x = Phaser.Math.Between(0, 800);
-      const y = Phaser.Math.Between(0, 1400);
-      const star = this.add.circle(x, y, Phaser.Math.Between(2, 4), 0xffffff, Phaser.Math.FloatBetween(0.2, 0.5));
-
-      // Subtle twinkle animation
-      this.tweens.add({
-        targets: star,
-        alpha: { from: star.alpha, to: Phaser.Math.FloatBetween(0.1, 0.6) },
-        duration: Phaser.Math.Between(1500, 3000),
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-      });
-    }
-
-    // Create board background panel
-    this.createBoardBackground();
-
-    // Create the game board
-    this.createBoard();
-
-    // Create particle emitter for effects
-    this.createParticles();
-
-    // Set up input
-    this.input.on('gameobjectdown', this.onTileClick, this);
-
-    // Emit initial state to UI
-    this.updateUI();
-
-    // Set new target
-    this.setNewTarget();
-
-    // Show hint after 3+ failures (progressive support)
-    if (this.failureCount >= 3) {
-      this.time.delayedCall(1500, () => this.showHintForValidMove());
-    }
-  }
-
-  createBoard() {
-    this.board = [];
-    this.tileSprites = [];
-
-    // Center the board based on size
-    const boardWidth = this.boardSize * TILE_SIZE;
-    const offsetX = (800 - boardWidth) / 2;
-
-    for (let row = 0; row < this.boardSize; row++) {
-      this.board[row] = [];
-      this.tileSprites[row] = [];
-
-      for (let col = 0; col < this.boardSize; col++) {
-        const num = this.getRandomNumber();
-        this.board[row][col] = num;
-
-        const x = offsetX + col * TILE_SIZE + TILE_SIZE / 2;
-        const y = BOARD_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2;
-
-        const tile = this.createTile(x, y, num, row, col);
-
-        // Add entrance animation
-        tile.setScale(0);
-        this.tweens.add({
-          targets: tile,
-          scale: 1,
-          duration: 200,
-          delay: (row * this.boardSize + col) * 30,
-          ease: 'Back.easeOut'
-        });
-
-        this.tileSprites[row][col] = tile;
-      }
-    }
-
-    // Store offset for later use
-    this.boardOffsetX = offsetX;
-  }
-
-  createBoardBackground() {
-    // Calculate board dimensions
-    const boardWidth = this.boardSize * TILE_SIZE + 48;
-    const boardHeight = this.boardSize * TILE_SIZE + 48;
-    const boardCenterX = 400;
-    const boardCenterY = BOARD_OFFSET_Y + (this.boardSize * TILE_SIZE) / 2;
-
-    // Drop shadow
-    this.add.rectangle(boardCenterX + 6, boardCenterY + 6, boardWidth, boardHeight, 0x000000, 0.4)
-      .setOrigin(0.5);
-
-    // Single panel with clean border
-    const boardBg = this.add.rectangle(boardCenterX, boardCenterY, boardWidth, boardHeight, 0x0a0a18, 0.9)
-      .setOrigin(0.5);
-
-    // Clean border with world accent color
-    boardBg.setStrokeStyle(4, this.world.accentColor, 0.8);
-  }
-
-  createTile(x, y, num, row, col) {
-    // Create a container with background and text
-    const container = this.add.container(x, y);
-
-    // Add background
-    const bg = this.add.image(0, 0, `tile_bg_${num}`);
-    container.add(bg);
-
-    // Add shadow text layer (offset down-right for 3D effect)
-    const shadowText = this.add.text(2, 3, num.toString(), {
-      fontSize: '54px',
-      fill: '#000000',
-      fontFamily: 'Arial Black, Arial, sans-serif',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setAlpha(0.4);
-    container.add(shadowText);
-
-    // Add number text on top with enhanced styling
-    const text = this.add.text(0, 0, num.toString(), {
-      fontSize: '54px',
-      fill: '#ffffff',
-      fontFamily: 'Arial Black, Arial, sans-serif',
-      fontStyle: 'bold',
-      stroke: '#000000',
-      strokeThickness: 4
-    }).setOrigin(0.5);
-    container.add(text);
-
-    // Make interactive and store data
-    container.setSize(TILE_SIZE, TILE_SIZE);
-    container.setInteractive();
-    container.setData('row', row);
-    container.setData('col', col);
-    container.setData('value', num);
-    container.setData('text', text);
-    container.setData('bg', bg);
-
-    return container;
-  }
-
-  getRandomNumber() {
-    // Weighted selection - include factors of current targets more often
-    const weights = [];
-    for (const num of this.availableNumbers) {
-      // Higher weight for factors of target product
-      if (this.targetProduct % num === 0 && num <= this.targetProduct) {
-        // After 2+ failures, heavily favor factors (progressive support)
-        const multiplier = this.favorPlayer ? 4 : 2;
-        for (let i = 0; i < multiplier; i++) {
-          weights.push(num);
-        }
-      } else {
-        weights.push(num);
-      }
-    }
-    return Phaser.Utils.Array.GetRandom(weights);
-  }
-
-  createParticles() {
-    // Main match particles (stars with multi-color tints)
-    this.matchParticles = this.add.particles(0, 0, 'star', {
-      speed: { min: 160, max: 360 },
-      scale: { start: 0.6, end: 0 },
-      alpha: { start: 1, end: 0 },
-      rotate: { min: 0, max: 360 },
-      lifespan: { min: 400, max: 650 },
-      gravityY: 360,
-      tint: [0xf7dc6f, 0xff6b9d, 0x4ecdc4, 0xa29bfe],
-      emitting: false
+    // === Background ===
+    createStarfield(this, {
+      accentColor: this.world.accentColor,
+      accentStrength: 0.18
     });
 
-    // Glow particles (soft ambient effect)
-    this.glowParticles = this.add.particles(0, 0, 'particle_glow', {
-      speed: { min: 60, max: 160 },
-      scale: { start: 0.8, end: 0 },
-      alpha: { start: 0.7, end: 0 },
-      lifespan: 400,
-      gravityY: -60,
-      emitting: false
+    // === Top bar ===
+    this.createTopBar();
+
+    // === Pet HUD (shows the kid feeding their pet live) ===
+    if (companion.hasStarter()) {
+      this.petHud = new PetHUD(this, 80, 170);
+    }
+
+    // === Time bar ===
+    this.timeBarBg = this.add.graphics().setDepth(5);
+    this.timeBarBg.fillStyle(0x1a1a2e, 0.8);
+    this.timeBarBg.fillRect(0, 100, W, 8);
+    this.timeBar = this.add.graphics().setDepth(6);
+    this.drawTimeBar(1);
+
+    // === Problem card ===
+    this.createProblemCard();
+
+    // === Stats row ===
+    this.createStatsRow();
+
+    // === Number pad ===
+    this.createNumberPad();
+
+    // Keyboard input (desktop). Bind once and remove on shutdown so
+    // scene.restart() (the Retry button) doesn't stack duplicate listeners.
+    this._onKeyDown = this.onKeyDown.bind(this);
+    this.input.keyboard?.on('keydown', this._onKeyDown);
+    this.events.once('shutdown', () => {
+      this.input.keyboard?.off('keydown', this._onKeyDown);
     });
 
-    // Spark particles (for combos)
-    this.sparkParticles = this.add.particles(0, 0, 'particle_spark', {
-      speed: { min: 300, max: 560 },
-      scale: { start: 0.7, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      rotate: { min: 0, max: 360 },
-      lifespan: 450,
-      gravityY: 100,
-      tint: this.world.accentColor,
-      emitting: false
-    });
+    new TransitionManager(this).fadeIn(300);
 
-    // Diamond particles (for special effects)
-    this.diamondParticles = this.add.particles(0, 0, 'particle_diamond', {
-      speed: { min: 200, max: 400 },
-      scale: { start: 0.5, end: 0 },
-      alpha: { start: 1, end: 0 },
-      rotate: { min: 0, max: 360 },
-      lifespan: 500,
-      gravityY: 200,
-      emitting: false
+    // First problem appears, give the player a beat before the timer starts
+    this.nextProblem();
+    this.time.delayedCall(450, () => {
+      this.state = 'playing';
     });
   }
 
-  setNewTarget() {
-    // Cycle through target products
-    this.targetProduct = this.targetProducts[this.currentTargetIndex % this.targetProducts.length];
-    this.currentTargetIndex++;
+  // ============================================================
+  // TOP BAR
+  // ============================================================
+  createTopBar() {
+    const bg = this.add.graphics().setDepth(4);
+    bg.fillStyle(0x07071a, 0.85);
+    bg.fillRect(0, 0, W, 100);
 
-    // Find factors for hint display
-    this.currentFactors = this.findFactors(this.targetProduct);
+    createIconButton(this, {
+      x: 60, y: 50, radius: 28,
+      accentColor: this.world.accentColor,
+      drawIcon: (g, size) => {
+        g.lineStyle(5, 0xffffff, 1);
+        g.lineBetween(size * 0.4, 0, -size * 0.3, 0);
+        g.lineBetween(-size * 0.3, 0, 0, -size * 0.4);
+        g.lineBetween(-size * 0.3, 0, 0, size * 0.4);
+      },
+      onClick: () => this.exitToLevelSelect()
+    }).setDepth(15);
 
-    // Update UI
-    this.events.emit('targetChanged', this.targetProduct, this.currentFactors);
+    this.add.text(400, 38, this.world.name, style('subhead', {
+      fontSize: '28px',
+      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
+    })).setOrigin(0.5).setDepth(15);
 
-    // Ensure at least one valid move exists
-    this.ensureValidMove();
+    this.add.text(400, 70, this.modeConfig.label.toUpperCase(), style('caption', {
+      fontSize: '18px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5).setDepth(15);
+
+    createIconButton(this, {
+      x: 740, y: 50, radius: 28,
+      accentColor: this.world.accentColor,
+      drawIcon: (g, size) => this.drawSoundIcon(g, size, audio.enabled),
+      onClick: () => audio.toggleEnabled()
+    }).setDepth(15);
   }
 
-  findFactors(n) {
-    const factors = [];
-    for (let i = 1; i <= n; i++) {
-      if (n % i === 0) {
-        factors.push(i);
-      }
-    }
-    return factors;
-  }
-
-  onTileClick(pointer, tile) {
-    if (!this.canSelect || this.isProcessing) return;
-
-    const row = tile.getData('row');
-    const col = tile.getData('col');
-    const value = tile.getData('value');
-
-    // Handle Wild Card power-up pending state
-    if (this.powerUpPending === 'wild') {
-      this.applyWildCardToTile(row, col);
-      return;
-    }
-
-    if (this.selectedTile === null) {
-      // First selection - start timing for power-up speed bonus
-      this.lastMoveStartTime = Date.now();
-      audio.playSelect();
-      this.selectedTile = { row, col, tile, value };
-      this.showSelection(tile);
-    } else if (this.selectedTile.row === row && this.selectedTile.col === col) {
-      // Clicked same tile - deselect
-      audio.playSelect();
-      this.hideSelection(this.selectedTile.tile);
-      this.selectedTile = null;
-    } else if (this.isAdjacent(this.selectedTile.row, this.selectedTile.col, row, col)) {
-      // Adjacent tile - try swap
-      audio.playSwap();
-      this.trySwap(this.selectedTile.row, this.selectedTile.col, row, col);
+  drawSoundIcon(g, size, isOn) {
+    g.fillStyle(0xffffff, 1);
+    g.fillRect(-size * 0.5, -size * 0.25, size * 0.3, size * 0.5);
+    g.beginPath();
+    g.moveTo(-size * 0.2, -size * 0.25);
+    g.lineTo(size * 0.1, -size * 0.5);
+    g.lineTo(size * 0.1, size * 0.5);
+    g.lineTo(-size * 0.2, size * 0.25);
+    g.closePath();
+    g.fillPath();
+    if (isOn) {
+      g.lineStyle(3, 0xffffff, 0.9);
+      g.beginPath();
+      g.arc(size * 0.25, 0, size * 0.35, -Math.PI / 4, Math.PI / 4);
+      g.strokePath();
     } else {
-      // Non-adjacent - switch selection
-      audio.playSelect();
-      this.hideSelection(this.selectedTile.tile);
-      this.selectedTile = { row, col, tile, value };
-      this.showSelection(tile);
+      g.lineStyle(3, 0xff6b6b, 1);
+      g.lineBetween(size * 0.25, -size * 0.3, size * 0.6, size * 0.3);
+      g.lineBetween(size * 0.6, -size * 0.3, size * 0.25, size * 0.3);
     }
   }
 
-  showSelection(tile) {
-    if (tile.selectionSprite) return;
+  drawTimeBar(pct) {
+    this.timeBar.clear();
+    const fillW = Math.max(0, Math.floor(W * pct));
+    const color = pct > 0.4 ? this.world.accentColor : pct > 0.2 ? 0xf7dc6f : 0xff6b6b;
+    this.timeBar.fillStyle(color, 1);
+    this.timeBar.fillRect(0, 100, fillW, 8);
+  }
 
-    const x = tile.x;
-    const y = tile.y;
-    const selection = this.add.image(x, y, 'tile_selected');
-    tile.selectionSprite = selection;
+  // ============================================================
+  // PROBLEM CARD
+  // ============================================================
+  createProblemCard() {
+    const cx = 400;
+    const cy = 290;
+    const cw = 660;
+    const ch = 320;
 
-    // Scale entrance
-    selection.setScale(0.8);
-    selection.setAlpha(0.5);
+    this.problemCardContainer = this.add.container(cx, cy).setDepth(10);
+
+    const glow = this.add.graphics();
+    glow.fillStyle(this.world.accentColor, 0.18);
+    glow.fillRoundedRect(-cw / 2 - 12, -ch / 2 - 12, cw + 24, ch + 24, 28);
+    this.problemCardContainer.add(glow);
+    this.cardGlow = glow;
 
     this.tweens.add({
-      targets: selection,
-      scale: 1,
-      alpha: 1,
-      duration: 150,
-      ease: 'Back.easeOut'
-    });
-
-    // Pulse animation with scale
-    this.tweens.add({
-      targets: selection,
-      scale: { from: 0.95, to: 1.08 },
-      alpha: { from: 0.85, to: 1 },
-      duration: 450,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut',
-      delay: 150
-    });
-
-    // Subtle rotation wobble
-    this.tweens.add({
-      targets: selection,
-      angle: { from: -2, to: 2 },
-      duration: 600,
+      targets: glow,
+      alpha: 0.3,
+      duration: 1500,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
-  }
 
-  hideSelection(tile) {
-    if (tile.selectionSprite) {
-      tile.selectionSprite.destroy();
-      tile.selectionSprite = null;
-    }
-  }
+    const card = this.add.graphics();
+    card.fillStyle(0x12122a, 0.95);
+    card.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 22);
+    card.lineStyle(3, this.world.accentColor, 0.8);
+    card.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 22);
+    this.problemCardContainer.add(card);
+    this.problemCard = card;
+    this.problemCardWidth = cw;
+    this.problemCardHeight = ch;
 
-  isAdjacent(row1, col1, row2, col2) {
-    const rowDiff = Math.abs(row1 - row2);
-    const colDiff = Math.abs(col1 - col2);
-    return (rowDiff === 1 && colDiff === 0) || (rowDiff === 0 && colDiff === 1);
-  }
+    this.problemText = this.add.text(0, -70, '', style('problem')).setOrigin(0.5);
+    this.problemCardContainer.add(this.problemText);
 
-  async trySwap(row1, col1, row2, col2) {
-    this.canSelect = false;
-    this.isProcessing = true;
-    this.hideSelection(this.selectedTile.tile);
+    // Thin divider line between question and answer
+    const divider = this.add.graphics();
+    divider.lineStyle(2, 0x4a4a60, 0.6);
+    divider.lineBetween(-cw / 2 + 70, 0, cw / 2 - 70, 0);
+    this.problemCardContainer.add(divider);
 
-    const tile1 = this.tileSprites[row1][col1];
-    const tile2 = this.tileSprites[row2][col2];
-    const val1 = this.board[row1][col1];
-    const val2 = this.board[row2][col2];
+    this.answerText = this.add.text(0, 75, '', style('answer')).setOrigin(0.5);
+    this.problemCardContainer.add(this.answerText);
 
-    // Animate swap
-    await this.animateSwap(tile1, tile2);
-
-    // Check if this creates a valid match (factors multiply to target)
-    const matches = this.findMatches(row1, col1, row2, col2, val1, val2);
-
-    if (matches.length > 0) {
-      // Valid match!
-      this.swapValues(row1, col1, row2, col2);
-
-      // Record correct fact attempt for spaced repetition (Section 4.3)
-      progress.recordFactAttempt(val1, val2, true);
-
-      await this.processMatches(matches);
-
-      // Use a move
-      this.movesLeft--;
-      this.updateUI();
-
-      // Check win/lose first - don't set new target if level is complete
-      if (this.score >= this.targetScore) {
-        this.checkLevelState();
-      } else {
-        // Only set new target if game continues
-        this.setNewTarget();
-        this.checkLevelState();
-      }
-    } else {
-      // Invalid swap - animate back
-      await this.animateSwap(tile1, tile2);
-
-      // Record wrong fact attempt for spaced repetition (Section 4.3)
-      // Find what factors would have been correct for this target
-      this.recordWrongAttemptForTarget();
-
-      // Wrong answer - costs a move per spec
-      this.movesLeft--;
-      this.updateUI();
-
-      // Play wrong sound
-      audio.playWrong();
-
-      // Track for spaced repetition (emit event)
-      this.events.emit('wrongAnswer', this.targetProduct);
-
-      // Track achievement
-      achievements.recordWrongAnswer();
-
-      // Update power-up charge (resets streak)
-      this.powerUpCharge.onWrongAnswer();
-
-      this.checkLevelState();
-    }
-
-    this.selectedTile = null;
-    this.canSelect = true;
-    this.isProcessing = false;
-  }
-
-  findMatches(row1, col1, row2, col2, val1, val2) {
-    const matches = [];
-
-    // Check if the two swapped tiles multiply to target
-    // Use == to handle potential string/number type issues
-    if (val1 * val2 == this.targetProduct) {
-      matches.push(
-        { row: row1, col: col1 },
-        { row: row2, col: col2 }
-      );
-    }
-
-    // Also check for 3+ in a row of same number (traditional match-3)
-    // This adds bonus points but doesn't require target matching
-    const horizontalMatches = this.findLineMatches(row1, col1, 0, 1);
-    const verticalMatches = this.findLineMatches(row1, col1, 1, 0);
-
-    if (horizontalMatches.length >= 3) matches.push(...horizontalMatches);
-    if (verticalMatches.length >= 3) matches.push(...verticalMatches);
-
-    return matches;
-  }
-
-  findLineMatches(row, col, rowDir, colDir) {
-    const value = this.board[row][col];
-    const matches = [{ row, col }];
-
-    // Check in positive direction
-    let r = row + rowDir;
-    let c = col + colDir;
-    while (r >= 0 && r < this.boardSize && c >= 0 && c < this.boardSize && this.board[r][c] === value) {
-      matches.push({ row: r, col: c });
-      r += rowDir;
-      c += colDir;
-    }
-
-    // Check in negative direction
-    r = row - rowDir;
-    c = col - colDir;
-    while (r >= 0 && r < this.boardSize && c >= 0 && c < this.boardSize && this.board[r][c] === value) {
-      matches.push({ row: r, col: c });
-      r -= rowDir;
-      c -= colDir;
-    }
-
-    return matches;
-  }
-
-  swapValues(row1, col1, row2, col2) {
-    // Swap in board array
-    const temp = this.board[row1][col1];
-    this.board[row1][col1] = this.board[row2][col2];
-    this.board[row2][col2] = temp;
-
-    // Swap sprite references
-    const tempSprite = this.tileSprites[row1][col1];
-    this.tileSprites[row1][col1] = this.tileSprites[row2][col2];
-    this.tileSprites[row2][col2] = tempSprite;
-
-    // Update sprite data
-    this.tileSprites[row1][col1].setData('row', row1).setData('col', col1);
-    this.tileSprites[row2][col2].setData('row', row2).setData('col', col2);
-  }
-
-  animateSwap(tile1, tile2) {
-    return new Promise(resolve => {
-      const x1 = tile1.x, y1 = tile1.y;
-      const x2 = tile2.x, y2 = tile2.y;
-      const duration = 180;
-
-      // Tile 1 animation with arc and scale
-      this.tweens.add({
-        targets: tile1,
-        x: x2,
-        y: y2,
-        duration: duration,
-        ease: 'Power2.easeInOut'
-      });
-
-      // Scale pop for tile 1
-      this.tweens.add({
-        targets: tile1,
-        scale: 1.15,
-        duration: duration / 2,
-        yoyo: true,
-        ease: 'Quad.easeOut'
-      });
-
-      // Tile 2 animation with arc and scale
-      this.tweens.add({
-        targets: tile2,
-        x: x1,
-        y: y1,
-        duration: duration,
-        ease: 'Power2.easeInOut',
-        onComplete: resolve
-      });
-
-      // Scale pop for tile 2
-      this.tweens.add({
-        targets: tile2,
-        scale: 1.15,
-        duration: duration / 2,
-        yoyo: true,
-        ease: 'Quad.easeOut'
-      });
-    });
-  }
-
-  async processMatches(matches) {
-    // Remove duplicates
-    const uniqueMatches = [];
-    const seen = new Set();
-    for (const m of matches) {
-      const key = `${m.row},${m.col}`;
-      if (!seen.has(key)) {
-        seen.add(key);
-        uniqueMatches.push(m);
-      }
-    }
-
-    // Calculate score (check for multiplier power-up)
-    let matchScore = uniqueMatches.length * 50;
-    if (this.powerUpCharge.consumeMultiplier()) {
-      matchScore *= 2;
-      this.showPowerUpMessage('2x BONUS!');
-    }
-    this.score += matchScore;
-
-    // Play match sound (bigger sound for more matches)
-    if (uniqueMatches.length > 2) {
-      audio.playCombo(uniqueMatches.length - 2);
-    } else {
-      audio.playMatch();
-    }
-
-    // Screen shake for big matches (3+ tiles)
-    if (uniqueMatches.length >= 3) {
-      const intensity = Math.min(uniqueMatches.length * 2, 10);
-      this.cameras.main.shake(200, intensity / 1000);
-    }
-
-    // Show score popup
-    this.showScorePopup(uniqueMatches, matchScore);
-
-    // Particle effects
-    for (const m of uniqueMatches) {
-      const tile = this.tileSprites[m.row][m.col];
-      this.matchParticles.emitParticleAt(tile.x, tile.y, 8);
-      this.glowParticles.emitParticleAt(tile.x, tile.y, 4);
-    }
-
-    // Combo burst for 3+ matches
-    if (uniqueMatches.length >= 3) {
-      // Calculate center of matched tiles
-      const cx = uniqueMatches.reduce((sum, m) => sum + this.tileSprites[m.row][m.col].x, 0) / uniqueMatches.length;
-      const cy = uniqueMatches.reduce((sum, m) => sum + this.tileSprites[m.row][m.col].y, 0) / uniqueMatches.length;
-
-      // Burst of spark particles
-      this.sparkParticles.emitParticleAt(cx, cy, uniqueMatches.length * 4);
-      this.diamondParticles.emitParticleAt(cx, cy, uniqueMatches.length * 2);
-    }
-
-    // Animate matched tiles out
-    await this.animateMatchedTiles(uniqueMatches);
-
-    // Clear matched positions
-    for (const m of uniqueMatches) {
-      this.board[m.row][m.col] = null;
-    }
-
-    // Drop tiles and fill
-    await this.dropAndFill();
-
-    // Emit correct answer event
-    this.events.emit('correctAnswer', this.targetProduct);
-
-    // Track achievement
-    achievements.recordCorrectAnswer();
-
-    // Update power-up charge based on speed and streak
-    const answerTimeMs = Date.now() - this.lastMoveStartTime;
-    this.powerUpCharge.onCorrectAnswer(answerTimeMs);
-
-    // Show hints if hint helper is active
-    if (this.powerUpCharge.areHintsActive()) {
-      this.time.delayedCall(500, () => this.showHintForValidMove());
-    }
-  }
-
-  showScorePopup(matches, score) {
-    // Find center of matches
-    let cx = 0, cy = 0;
-    for (const m of matches) {
-      const tile = this.tileSprites[m.row][m.col];
-      cx += tile.x;
-      cy += tile.y;
-    }
-    cx /= matches.length;
-    cy /= matches.length;
-
-    const popup = this.add.text(cx, cy, `+${score}`, {
-      fontSize: '72px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-      stroke: '#000',
-      strokeThickness: 10
-    }).setOrigin(0.5).setScale(0);
-
-    // Pop-in animation
+    // Blinking cursor — placed dynamically next to whatever the user has typed
+    this.cursor = this.add.rectangle(0, 75, 6, 80, 0xf7dc6f, 1);
+    this.problemCardContainer.add(this.cursor);
     this.tweens.add({
-      targets: popup,
-      scale: 1.3,
-      duration: 150,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        // Float up and fade out
-        this.tweens.add({
-          targets: popup,
-          y: cy - 120,
-          scale: 0.9,
-          alpha: 0,
-          duration: 650,
-          ease: 'Quad.easeOut',
-          onComplete: () => popup.destroy()
-        });
-      }
-    });
-  }
-
-  animateMatchedTiles(matches) {
-    return new Promise(resolve => {
-      let completed = 0;
-      const total = matches.length;
-
-      for (const m of matches) {
-        const tile = this.tileSprites[m.row][m.col];
-
-        this.tweens.add({
-          targets: tile,
-          scale: 0,
-          alpha: 0,
-          duration: 200,
-          ease: 'Back.easeIn',
-          onComplete: () => {
-            tile.destroy();
-            completed++;
-            if (completed === total) resolve();
-          }
-        });
-      }
-    });
-  }
-
-  async dropAndFill() {
-    // Play drop sound
-    audio.playDrop(3);
-
-    // Process column by column
-    for (let col = 0; col < this.boardSize; col++) {
-      // Find empty spaces and drop tiles
-      let writeRow = this.boardSize - 1;
-
-      for (let row = this.boardSize - 1; row >= 0; row--) {
-        if (this.board[row][col] !== null) {
-          if (row !== writeRow) {
-            // Move this tile down
-            this.board[writeRow][col] = this.board[row][col];
-            this.board[row][col] = null;
-
-            const tile = this.tileSprites[row][col];
-            this.tileSprites[writeRow][col] = tile;
-            this.tileSprites[row][col] = null;
-
-            tile.setData('row', writeRow);
-
-            const newY = BOARD_OFFSET_Y + writeRow * TILE_SIZE + TILE_SIZE / 2;
-            this.tweens.add({
-              targets: tile,
-              y: newY,
-              duration: 150,
-              ease: 'Bounce.easeOut'
-            });
-          }
-          writeRow--;
-        }
-      }
-
-      // Fill empty spaces at top
-      for (let row = writeRow; row >= 0; row--) {
-        const num = this.getRandomNumber();
-        this.board[row][col] = num;
-
-        const x = this.boardOffsetX + col * TILE_SIZE + TILE_SIZE / 2;
-        const startY = BOARD_OFFSET_Y - TILE_SIZE;
-        const endY = BOARD_OFFSET_Y + row * TILE_SIZE + TILE_SIZE / 2;
-
-        const tile = this.createTile(x, startY, num, row, col);
-        this.tileSprites[row][col] = tile;
-
-        this.tweens.add({
-          targets: tile,
-          y: endY,
-          duration: 200 + (writeRow - row) * 50,
-          ease: 'Bounce.easeOut'
-        });
-      }
-    }
-
-    // Wait for animations
-    await new Promise(resolve => this.time.delayedCall(400, resolve));
-
-    // Ensure there's still a valid move after new tiles dropped
-    this.ensureValidMove();
-  }
-
-  updateUI() {
-    this.events.emit('updateUI', {
-      score: this.score,
-      targetScore: this.targetScore,
-      movesLeft: this.movesLeft,
-      level: this.currentLevel
-    });
-  }
-
-  checkLevelState() {
-    if (this.score >= this.targetScore) {
-      // Level complete!
-      this.canSelect = false;
-
-      // Calculate stars based on moves remaining (percentage-based for longer levels)
-      const startingMoves = this.registry.get('levelDifficulty')?.moves || 40;
-      const movesUsedPercent = (startingMoves - this.movesLeft) / startingMoves;
-      let stars = 1;
-      if (movesUsedPercent <= 0.5) stars = 3;  // Used 50% or less of moves
-      else if (movesUsedPercent <= 0.75) stars = 2;  // Used 75% or less of moves
-
-      // Save progress and clear failures
-      progress.completeLevel(this.worldId, this.currentLevel, stars);
-      progress.clearLevelFailures(this.worldId, this.currentLevel);
-
-      // Track achievements
-      achievements.recordLevelComplete(
-        this.worldId,
-        this.currentLevel,
-        stars,
-        this.movesLeft,
-        this.failureCount,
-        progress
-      );
-
-      // Check table mastery achievements
-      for (const table of this.world.tables) {
-        const mastery = progress.getTableMastery(table);
-        achievements.checkTableMastery(table, mastery);
-      }
-
-      this.time.delayedCall(500, () => {
-        this.events.emit('levelComplete', {
-          score: this.score,
-          movesLeft: this.movesLeft,
-          stars: stars,
-          worldId: this.worldId,
-          level: this.currentLevel
-        });
-      });
-    } else if (this.movesLeft <= 0) {
-      // Out of moves - record failure
-      this.canSelect = false;
-      const failures = progress.recordLevelFailure(this.worldId, this.currentLevel);
-
-      this.time.delayedCall(500, () => {
-        this.events.emit('levelFailed', {
-          score: this.score,
-          targetScore: this.targetScore,
-          failures: failures
-        });
-      });
-    }
-  }
-
-  // Find and highlight a valid move (progressive support - 3+ failures)
-  showHintForValidMove() {
-    const validMove = this.findValidMove();
-    if (!validMove) return;
-
-    // Highlight both tiles
-    const tile1 = this.tileSprites[validMove.row1][validMove.col1];
-    const tile2 = this.tileSprites[validMove.row2][validMove.col2];
-
-    // Add pulsing hint overlay
-    const hint1 = this.add.image(tile1.x, tile1.y, 'tile_hint');
-    const hint2 = this.add.image(tile2.x, tile2.y, 'tile_hint');
-
-    // Pulse animation
-    this.tweens.add({
-      targets: [hint1, hint2],
-      alpha: { from: 1, to: 0.3 },
-      duration: 600,
+      targets: this.cursor,
+      alpha: 0.2,
+      duration: 500,
       yoyo: true,
-      repeat: 3,
-      onComplete: () => {
-        hint1.destroy();
-        hint2.destroy();
-      }
+      repeat: -1
     });
   }
 
-  findValidMove() {
-    // Search for adjacent pairs that multiply to target
-    const target = Number(this.targetProduct);
-
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        const val = Number(this.board[row][col]);
-
-        // Check right neighbor
-        if (col < this.boardSize - 1) {
-          const rightVal = Number(this.board[row][col + 1]);
-          if (val * rightVal === target) {
-            return { row1: row, col1: col, row2: row, col2: col + 1 };
-          }
-        }
-
-        // Check bottom neighbor
-        if (row < this.boardSize - 1) {
-          const bottomVal = Number(this.board[row + 1][col]);
-          if (val * bottomVal === target) {
-            return { row1: row, col1: col, row2: row + 1, col2: col };
-          }
-        }
-      }
-    }
-    return null;
-  }
-
-  // Ensure at least one valid move exists on the board - GUARANTEED
-  ensureValidMove() {
-    // Check if valid move already exists
-    if (this.findValidMove()) return;
-
-    const target = Number(this.targetProduct);
-
-    // Find ALL valid factor pairs for this target (within 1-10 range)
-    const factorPairs = [];
-    for (let i = 1; i <= 10; i++) {
-      if (target % i === 0) {
-        const j = target / i;
-        if (j >= 1 && j <= 10) {
-          factorPairs.push([i, j]);
-        }
-      }
-    }
-
-    // Prefer pairs that don't use 1 (more interesting)
-    factorPairs.sort((a, b) => {
-      const aHasOne = a[0] === 1 || a[1] === 1;
-      const bHasOne = b[0] === 1 || b[1] === 1;
-      if (aHasOne && !bHasOne) return 1;
-      if (!aHasOne && bHasOne) return -1;
-      return 0;
-    });
-
-    const [factor1, factor2] = factorPairs[0] || [1, target];
-
-    // Place factors on multiple adjacent pairs to GUARANTEE a valid move
-    // Try horizontal placement first
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize - 1; col++) {
-        this.board[row][col] = factor1;
-        this.board[row][col + 1] = factor2;
-
-        // Update the visual tiles
-        this.updateTileVisual(row, col, factor1);
-        this.updateTileVisual(row, col + 1, factor2);
-
-        // Verify it worked
-        if (this.findValidMove()) {
-          return;
-        }
-      }
-    }
-
-    // Fallback: force the first two tiles to be the factors
-    this.board[0][0] = factor1;
-    this.board[0][1] = factor2;
-    this.updateTileVisual(0, 0, factor1);
-    this.updateTileVisual(0, 1, factor2);
-  }
-
-  // Update tile visual without any conditions - force the update
-  updateTileVisual(row, col, newValue) {
-    const tile = this.tileSprites[row]?.[col];
-    if (!tile) return;
-
-    // Force numeric value
-    const numValue = Number(newValue);
-
-    // Update stored value
-    tile.setData('value', numValue);
-
-    // Update text - get reference and force update
-    const text = tile.getData('text');
-    if (text) {
-      text.setText(numValue.toString());
-    }
-
-    // Update background texture
-    const bg = tile.getData('bg');
-    if (bg) {
-      bg.setTexture(`tile_bg_${numValue}`);
-    }
-  }
-
-  // Record a wrong attempt for spaced repetition (Section 4.3)
-  // Find the smallest factor pair for this target and mark it as needing review
-  recordWrongAttemptForTarget() {
-    const target = this.targetProduct;
-    // Find smallest factor pair (e.g., for 12: 3x4 not 2x6 or 1x12)
-    for (let i = 2; i <= Math.sqrt(target); i++) {
-      if (target % i === 0) {
-        progress.recordFactAttempt(i, target / i, false);
-        return;
-      }
-    }
-    // Fallback for primes or edge cases
-    progress.recordFactAttempt(1, target, false);
-  }
-
-  // Called by UI to restart level
-  restartLevel() {
-    this.scene.restart();
-  }
-
-  // Called by UI to go to next level or back to level select
-  nextLevel() {
-    // Go back to level select to choose next level
-    audio.stopMusic();
-    this.scene.stop('UIScene');
-    this.scene.stop('GameScene');
-    this.scene.start('LevelSelectScene');
-  }
-
-  // Called by UI to go back to world map
-  goToWorldMap() {
-    audio.stopMusic();
-    this.scene.stop('UIScene');
-    this.scene.stop('GameScene');
-    this.scene.start('WorldMapScene');
-  }
-
-  // Apply power-up effect
-  async applyPowerUpEffect(powerUp) {
-    if (!powerUp) return;
-
-    this.canSelect = false;
-    this.isProcessing = true;
-
-    switch (powerUp.effect) {
-      case 'clear_row':
-        await this.powerUpClearRow();
-        break;
-      case 'clear_match':
-        await this.powerUpClearMatch();
-        break;
-      case 'clear_area':
-        await this.powerUpClearArea();
-        break;
-      case 'double_points':
-        this.powerUpCharge.activateMultiplier();
-        this.showPowerUpMessage('2x Points Active!');
-        break;
-      case 'clear_factors':
-        await this.powerUpClearFactors();
-        break;
-      case 'clear_number':
-        await this.powerUpClearNumber();
-        break;
-      case 'wild':
-        // Wild card requires tile selection - set pending
-        this.powerUpPending = 'wild';
-        this.showPowerUpMessage('Tap a tile to change it!');
-        break;
-      case 'show_hints':
-        this.powerUpCharge.activateHints();
-        this.showPowerUpMessage('Hints active for 3 turns!');
-        this.showHintForValidMove();
-        break;
-      default:
-        break;
-    }
-
-    this.canSelect = true;
-    this.isProcessing = false;
-  }
-
-  showPowerUpMessage(message) {
-    const popup = this.add.text(400, 700, message, {
-      fontSize: '48px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold',
-      stroke: '#000',
-      strokeThickness: 8
-    }).setOrigin(0.5);
-
+  flashCard(color, intensity = 1) {
+    const cw = this.problemCardWidth;
+    const ch = this.problemCardHeight;
+    const flash = this.add.graphics().setDepth(11);
+    flash.fillStyle(color, 0.35 * intensity);
+    flash.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 22);
+    flash.x = this.problemCardContainer.x;
+    flash.y = this.problemCardContainer.y;
     this.tweens.add({
-      targets: popup,
-      y: 600,
+      targets: flash,
       alpha: 0,
-      scale: 1.5,
-      duration: 1000,
-      ease: 'Quad.easeOut',
-      onComplete: () => popup.destroy()
+      duration: 350,
+      onComplete: () => flash.destroy()
     });
   }
 
-  // Clear a random row (Shooting Star)
-  async powerUpClearRow() {
-    const row = Phaser.Math.Between(0, this.boardSize - 1);
-    const matches = [];
-
-    for (let col = 0; col < this.boardSize; col++) {
-      matches.push({ row, col });
-    }
-
-    audio.playCombo(3);
-
-    // Add score
-    this.score += matches.length * 30;
-    this.showScorePopup(matches, matches.length * 30);
-
-    // Animate and clear
-    await this.animateMatchedTiles(matches);
-    for (const m of matches) {
-      this.board[m.row][m.col] = null;
-    }
-    await this.dropAndFill();
-
-    this.updateUI();
-    this.checkLevelState();
-  }
-
-  // Clear a random matching pair (Companion Zap)
-  async powerUpClearMatch() {
-    const validMove = this.findValidMove();
-    if (!validMove) {
-      this.showPowerUpMessage('No matches found!');
-      return;
-    }
-
-    const matches = [
-      { row: validMove.row1, col: validMove.col1 },
-      { row: validMove.row2, col: validMove.col2 }
-    ];
-
-    audio.playMatch();
-
-    // Add score
-    this.score += 100;
-    this.showScorePopup(matches, 100);
-
-    // Animate and clear
-    await this.animateMatchedTiles(matches);
-    for (const m of matches) {
-      this.board[m.row][m.col] = null;
-    }
-    await this.dropAndFill();
-
-    this.updateUI();
-    this.setNewTarget();
-    this.checkLevelState();
-  }
-
-  // Clear 3x3 area around center (Black Hole)
-  async powerUpClearArea() {
-    // Clear center of board for now (could make this targeted)
-    const centerRow = Math.floor(this.boardSize / 2);
-    const centerCol = Math.floor(this.boardSize / 2);
-    const matches = [];
-
-    for (let r = centerRow - 1; r <= centerRow + 1; r++) {
-      for (let c = centerCol - 1; c <= centerCol + 1; c++) {
-        if (r >= 0 && r < this.boardSize && c >= 0 && c < this.boardSize) {
-          matches.push({ row: r, col: c });
-        }
-      }
-    }
-
-    // Screen shake
-    this.cameras.main.shake(300, 0.01);
-    audio.playCombo(4);
-
-    // Add score
-    this.score += matches.length * 25;
-    this.showScorePopup(matches, matches.length * 25);
-
-    // Animate and clear
-    await this.animateMatchedTiles(matches);
-    for (const m of matches) {
-      this.board[m.row][m.col] = null;
-    }
-    await this.dropAndFill();
-
-    this.updateUI();
-    this.checkLevelState();
-  }
-
-  // Clear all factors of target (Factor Bomb)
-  async powerUpClearFactors() {
-    const factors = this.findFactors(this.targetProduct);
-    const matches = [];
-
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        if (factors.includes(this.board[row][col])) {
-          matches.push({ row, col });
-        }
-      }
-    }
-
-    if (matches.length === 0) {
-      this.showPowerUpMessage('No factors found!');
-      return;
-    }
-
-    audio.playCombo(Math.min(matches.length, 5));
-
-    // Add score
-    this.score += matches.length * 20;
-    this.showScorePopup(matches, matches.length * 20);
-
-    // Animate and clear
-    await this.animateMatchedTiles(matches);
-    for (const m of matches) {
-      this.board[m.row][m.col] = null;
-    }
-    await this.dropAndFill();
-
-    this.updateUI();
-    this.checkLevelState();
-  }
-
-  // Clear all tiles of one number (Supernova)
-  async powerUpClearNumber() {
-    // Find most common number on board
-    const counts = {};
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        const val = this.board[row][col];
-        counts[val] = (counts[val] || 0) + 1;
-      }
-    }
-
-    let maxNum = null;
-    let maxCount = 0;
-    for (const [num, count] of Object.entries(counts)) {
-      if (count > maxCount) {
-        maxCount = count;
-        maxNum = parseInt(num);
-      }
-    }
-
-    const matches = [];
-    for (let row = 0; row < this.boardSize; row++) {
-      for (let col = 0; col < this.boardSize; col++) {
-        if (this.board[row][col] === maxNum) {
-          matches.push({ row, col });
-        }
-      }
-    }
-
-    audio.playCombo(Math.min(matches.length, 5));
-
-    // Add score
-    this.score += matches.length * 25;
-    this.showScorePopup(matches, matches.length * 25);
-
-    // Animate and clear
-    await this.animateMatchedTiles(matches);
-    for (const m of matches) {
-      this.board[m.row][m.col] = null;
-    }
-    await this.dropAndFill();
-
-    this.updateUI();
-    this.checkLevelState();
-  }
-
-  // Apply Wild Card to a tile - change it to a factor of the target
-  applyWildCardToTile(row, col) {
-    this.powerUpPending = null;
-
-    // Find the best factor to change this tile to
-    const target = this.targetProduct;
-    const tile = this.tileSprites[row][col];
-
-    // Find factors of current target that would help make a match
-    // Prefer the factor that pairs with an adjacent tile
-    const adjacentPositions = [
-      { r: row - 1, c: col },
-      { r: row + 1, c: col },
-      { r: row, c: col - 1 },
-      { r: row, c: col + 1 }
-    ];
-
-    let bestFactor = null;
-    for (const pos of adjacentPositions) {
-      if (pos.r >= 0 && pos.r < this.boardSize && pos.c >= 0 && pos.c < this.boardSize) {
-        const adjacentVal = this.board[pos.r][pos.c];
-        if (target % adjacentVal === 0) {
-          const neededFactor = target / adjacentVal;
-          if (neededFactor >= 1 && neededFactor <= 10) {
-            bestFactor = neededFactor;
-            break;
-          }
-        }
-      }
-    }
-
-    // Fallback: pick a reasonable factor
-    if (!bestFactor) {
-      for (let i = 2; i <= 10; i++) {
-        if (target % i === 0 && target / i <= 10) {
-          bestFactor = i;
-          break;
-        }
-      }
-    }
-
-    if (!bestFactor) bestFactor = 1;
-
-    // Update the tile
-    this.board[row][col] = bestFactor;
-    this.updateTileVisual(row, col, bestFactor);
-
-    // Visual feedback
-    audio.playMatch();
-    this.matchParticles.emitParticleAt(tile.x, tile.y, 6);
-
+  shakeCard() {
+    const ox = this.problemCardContainer.x;
     this.tweens.add({
-      targets: tile,
-      scale: 1.3,
-      duration: 150,
+      targets: this.problemCardContainer,
+      x: { from: ox - 14, to: ox + 14 },
+      duration: 60,
+      repeat: 4,
       yoyo: true,
+      onComplete: () => { this.problemCardContainer.x = ox; }
+    });
+  }
+
+  // ============================================================
+  // STATS ROW
+  // ============================================================
+  createStatsRow() {
+    const y = 510;
+    this.streakText = this.add.text(160, y, '0', style('stat', {
+      fill: '#ff8b3d'
+    })).setOrigin(0.5).setDepth(10);
+    this.add.text(160, y + 32, 'STREAK', style('statLabel')).setOrigin(0.5).setDepth(10);
+
+    this.scoreText = this.add.text(400, y, '0', style('stat', {
+      fill: '#ffffff'
+    })).setOrigin(0.5).setDepth(10);
+    this.add.text(400, y + 32, 'SCORE', style('statLabel')).setOrigin(0.5).setDepth(10);
+
+    this.timeText = this.add.text(640, y, this.formatTime(this.timeLeft), style('stat', {
+      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
+    })).setOrigin(0.5).setDepth(10);
+    this.add.text(640, y + 32, 'TIME', style('statLabel')).setOrigin(0.5).setDepth(10);
+  }
+
+  formatTime(ms) {
+    const totalS = Math.max(0, Math.ceil(ms / 1000));
+    const m = Math.floor(totalS / 60);
+    const s = totalS % 60;
+    return `${m}:${s.toString().padStart(2, '0')}`;
+  }
+
+  // ============================================================
+  // NUMBER PAD
+  // ============================================================
+  createNumberPad() {
+    const cellW = 200;
+    const cellH = 140;
+    const gap = 16;
+    const startY = 600;
+    const cols = [184, 400, 616];
+
+    const layout = [
+      ['1', '2', '3'],
+      ['4', '5', '6'],
+      ['7', '8', '9'],
+      ['back', '0', 'enter']
+    ];
+
+    this.padButtons = [];
+
+    for (let r = 0; r < 4; r++) {
+      const y = startY + cellH / 2 + r * (cellH + gap);
+      for (let c = 0; c < 3; c++) {
+        const key = layout[r][c];
+        const x = cols[c];
+        const btn = this.makePadButton(x, y, cellW, cellH, key);
+        this.padButtons.push(btn);
+      }
+    }
+  }
+
+  makePadButton(x, y, w, h, key) {
+    const isAction = key === 'back' || key === 'enter';
+    const baseColor = key === 'enter'
+      ? this.world.accentColor
+      : key === 'back' ? 0x6a3a3a : 0x2a2a44;
+    const radius = 18;
+
+    const container = this.add.container(x, y).setDepth(10);
+
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.5);
+    shadow.fillRoundedRect(-w / 2 + 2, -h / 2 + 6, w, h, radius);
+    container.add(shadow);
+
+    const bg = this.add.graphics();
+    this.drawPadFace(bg, w, h, radius, baseColor);
+    container.add(bg);
+
+    let face;
+    if (key === 'back') {
+      face = this.add.graphics();
+      face.lineStyle(6, 0xffffff, 1);
+      face.lineBetween(-22, 0, 22, 0);
+      face.lineBetween(-22, 0, -8, -16);
+      face.lineBetween(-22, 0, -8, 16);
+      container.add(face);
+    } else if (key === 'enter') {
+      face = this.add.graphics();
+      face.lineStyle(8, 0xffffff, 1);
+      face.lineBetween(-26, 4, -6, 26);
+      face.lineBetween(-6, 26, 30, -22);
+      container.add(face);
+    } else {
+      face = this.add.text(0, -2, key, style('pad')).setOrigin(0.5);
+      container.add(face);
+    }
+
+    const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
+    container.add(hit);
+
+    hit.on('pointerdown', () => {
+      this.tweens.add({ targets: container, scaleX: 0.92, scaleY: 0.92, duration: 60, yoyo: true });
+      this.handleKey(key);
+    });
+
+    container.key = key;
+    container.bg = bg;
+    container.baseColor = baseColor;
+    container.dimensions = { w, h, radius };
+    return container;
+  }
+
+  drawPadFace(g, w, h, radius, color) {
+    const lighter = Phaser.Display.Color.ValueToColor(color).lighten(18).color;
+    const darker = Phaser.Display.Color.ValueToColor(color).darken(20).color;
+
+    g.fillStyle(darker, 1);
+    g.fillRoundedRect(-w / 2, -h / 2 + 4, w, h - 4, radius);
+
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(-w / 2, -h / 2, w, h - 6, radius);
+
+    g.fillStyle(lighter, 0.45);
+    g.fillRoundedRect(
+      -w / 2 + 4,
+      -h / 2 + 3,
+      w - 8,
+      (h - 6) / 2.4,
+      { tl: radius - 2, tr: radius - 2, bl: 4, br: 4 }
+    );
+
+    g.lineStyle(2, 0x000000, 0.25);
+    g.strokeRoundedRect(-w / 2, -h / 2, w, h - 6, radius);
+  }
+
+  // ============================================================
+  // INPUT
+  // ============================================================
+  onKeyDown(event) {
+    if (this.state !== 'playing') return;
+    if (event.key >= '0' && event.key <= '9') {
+      this.handleKey(event.key);
+    } else if (event.key === 'Backspace' || event.key === 'Delete') {
+      this.handleKey('back');
+    } else if (event.key === 'Enter' || event.key === ' ') {
+      this.handleKey('enter');
+    }
+  }
+
+  handleKey(key) {
+    if (this.state !== 'playing') return;
+
+    if (key === 'back') {
+      if (this.input_.length > 0) {
+        this.input_ = this.input_.slice(0, -1);
+        this.cancelAutoSubmit();
+        this.renderInput();
+      }
+      return;
+    }
+
+    if (key === 'enter') {
+      if (this.input_.length > 0) {
+        this.cancelAutoSubmit();
+        this.submitAnswer();
+      }
+      return;
+    }
+
+    // Digit
+    if (this.input_.length >= 3) return; // max 3 digits (e.g. 144)
+    this.input_ += key;
+    this.renderInput();
+
+    audio.playSelect();
+
+    // Auto-submit on a short delay if length matches expected
+    const expectedLen = this.problem.answer.toString().length;
+    if (this.input_.length >= expectedLen) {
+      this.cancelAutoSubmit();
+      this.autoSubmitTimer = this.time.delayedCall(220, () => {
+        if (this.state === 'playing' && this.input_.length >= expectedLen) {
+          this.submitAnswer();
+        }
+      });
+    }
+  }
+
+  cancelAutoSubmit() {
+    if (this.autoSubmitTimer) {
+      this.autoSubmitTimer.remove();
+      this.autoSubmitTimer = null;
+    }
+  }
+
+  renderInput() {
+    this.answerText.setText(this.input_ || '');
+    // Cursor sits to the right of whatever's typed (centered around x=0)
+    const halfW = this.answerText.width / 2;
+    this.cursor.x = halfW + 14;
+    this.cursor.setVisible(this.input_.length < 3);
+  }
+
+  // ============================================================
+  // PROBLEM FLOW
+  // ============================================================
+  nextProblem() {
+    this.problem = getProblemForWorld(this.worldId, this.mode);
+    this.input_ = '';
+    this.cancelAutoSubmit();
+    this.problemText.setText(this.problem.display);
+    this.answerText.setText('');
+    this.renderInput();
+
+    // Pop the new problem in
+    this.problemText.setScale(0.7);
+    this.tweens.add({
+      targets: this.problemText,
+      scale: 1,
+      duration: 220,
       ease: 'Back.easeOut'
     });
+  }
 
-    this.showPowerUpMessage(`Changed to ${bestFactor}!`);
+  submitAnswer() {
+    if (!this.problem) return;
+    this.cancelAutoSubmit();
+
+    const userAnswer = parseInt(this.input_, 10);
+    const correct = userAnswer === this.problem.answer;
+    this.attempts++;
+    this.history.push({
+      problem: this.problem,
+      userAnswer,
+      correct
+    });
+
+    progress.recordFactAttempt(this.problem.a, this.problem.b, correct);
+
+    // Block input + pause the timer while feedback plays so the player
+    // can't double-submit the same problem.
+    this.state = 'feedback';
+
+    if (correct) {
+      this.score++;
+      this.streak++;
+      this.bestStreak = Math.max(this.bestStreak, this.streak);
+      this.scoreText.setText(this.score.toString());
+      this.streakText.setText(this.streak.toString());
+      this.flashCard(0x58d68d, 1);
+      audio.playMatch();
+      achievements.recordCorrectAnswer();
+
+      // Feed the pet — one pellet per correct answer.
+      this.petHud?.munch(1);
+
+      // Earn one stardust per correct answer.
+      economy.addStardust(1);
+
+      // Pulse score for emphasis
+      this.tweens.add({
+        targets: this.scoreText,
+        scale: { from: 1.4, to: 1 },
+        duration: 220,
+        ease: 'Back.easeOut'
+      });
+
+      this.time.delayedCall(280, () => {
+        if (this.state === 'feedback') {
+          this.state = 'playing';
+          this.nextProblem();
+        }
+      });
+    } else {
+      this.streak = 0;
+      this.streakText.setText('0');
+      this.flashCard(0xff6b6b, 1);
+      this.shakeCard();
+      audio.playWrong();
+      achievements.recordWrongAnswer();
+      this.petHud?.droop();
+
+      // Show correct answer briefly, then next problem
+      this.answerText.setText(this.problem.answer.toString());
+      this.answerText.setColor('#ff6b6b');
+      this.cursor.setVisible(false);
+
+      this.time.delayedCall(900, () => {
+        this.answerText.setColor('#f7dc6f');
+        if (this.state === 'feedback') {
+          this.state = 'playing';
+          this.nextProblem();
+        }
+      });
+    }
+  }
+
+  // ============================================================
+  // UPDATE LOOP
+  // ============================================================
+  update(_time, delta) {
+    if (this.state !== 'playing') return;
+
+    this.timeLeft -= delta;
+    if (this.timeLeft <= 0) {
+      this.timeLeft = 0;
+      this.endRound();
+      return;
+    }
+
+    const pct = this.timeLeft / (this.duration * 1000);
+    this.drawTimeBar(pct);
+    this.timeText.setText(this.formatTime(this.timeLeft));
+
+    // Tick sound under 5 seconds (once per second)
+    if (this.timeLeft <= 5000) {
+      const sec = Math.ceil(this.timeLeft / 1000);
+      if (sec !== this.lastTickSec) {
+        this.lastTickSec = sec;
+        audio.playTick?.();
+        this.tweens.add({
+          targets: this.timeText,
+          scale: { from: 1.3, to: 1 },
+          duration: 250,
+          ease: 'Quad.easeOut'
+        });
+      }
+    }
+  }
+
+  // ============================================================
+  // END OF ROUND
+  // ============================================================
+  endRound() {
+    this.state = 'ended';
+    this.cancelAutoSubmit();
+    audio.playRoundComplete?.();
+
+    const accuracy = this.attempts > 0 ? Math.round((this.score / this.attempts) * 100) : 0;
+    const stars = this.calculateStars(this.score, accuracy);
+
+    progress.completeLevel(this.worldId, this.currentLevel, stars);
+
+    // Star bonus stardust on top of per-correct earn.
+    if (stars > 0) {
+      economy.addStardust(stars * 5);
+    }
+
+    // Register the play day for the streak system + collect any new milestones.
+    streak.registerPlayDay();
+    this.newStreakMilestones = streak.consumeNewMilestones();
+    this.streakRewards = grantStreakRewards(this.newStreakMilestones || []);
+
+    // Roll a random cosmetic drop weighted by stars earned.
+    this.randomDrop = stars > 0 ? rollLevelEndDrop(stars) : null;
+
+    // Track table mastery achievements across the full 12×12 set —
+    // worlds no longer pin a specific table.
+    for (let table = 1; table <= 12; table++) {
+      const mastery = progress.getTableMastery(table);
+      achievements.checkTableMastery(table, mastery);
+    }
+    achievements.recordLevelComplete(this.worldId, stars, progress);
+
+    this.showSummary({ stars, accuracy });
+  }
+
+  calculateStars(score, accuracy) {
+    if (score === 0) return 0;
+    const meetsAccuracy = accuracy >= 85;
+    if (score >= this.scoreThreshold && meetsAccuracy) return 3;
+    if (score >= Math.ceil(this.scoreThreshold * 0.7) || meetsAccuracy) return 2;
+    return 1;
+  }
+
+  showSummary({ stars, accuracy }) {
+    // Dim background
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50).setInteractive();
+    this.tweens.add({ targets: overlay, alpha: 0.7, duration: 350 });
+
+    const panelW = 700;
+    const panelH = 980;
+    const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.98);
+    bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
+    bg.lineStyle(3, this.world.accentColor, 0.9);
+    bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 28);
+    panel.add(bg);
+
+    panel.add(this.add.text(0, -panelH / 2 + 60, 'Time’s Up!', style('display', {
+      fontSize: '48px'
+    })).setOrigin(0.5));
+
+    panel.add(this.add.text(0, -panelH / 2 + 110, this.modeConfig.label.toUpperCase(), style('caption', {
+      fill: '#cfcfe0', fontSize: '20px'
+    })).setOrigin(0.5));
+
+    // Stars
+    const starY = -panelH / 2 + 200;
+    for (let i = 0; i < 3; i++) {
+      const filled = i < stars;
+      const star = this.makeStarShape(filled);
+      star.x = -110 + i * 110;
+      star.y = starY;
+      star.setScale(0);
+      panel.add(star);
+      this.tweens.add({
+        targets: star,
+        scale: 1,
+        duration: 250,
+        delay: 700 + i * 200,
+        ease: 'Back.easeOut',
+        onStart: () => filled && audio.playStar()
+      });
+    }
+
+    // Stats
+    const statY = starY + 160;
+    panel.add(this.add.text(-160, statY, this.score.toString(), style('display', {
+      fontSize: '64px',
+      fill: '#ffffff'
+    })).setOrigin(0.5));
+    panel.add(this.add.text(-160, statY + 50, 'CORRECT', style('caption')).setOrigin(0.5));
+
+    panel.add(this.add.text(0, statY, `${accuracy}%`, style('display', {
+      fontSize: '64px',
+      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
+    })).setOrigin(0.5));
+    panel.add(this.add.text(0, statY + 50, 'ACCURACY', style('caption')).setOrigin(0.5));
+
+    panel.add(this.add.text(160, statY, this.bestStreak.toString(), style('display', {
+      fontSize: '64px',
+      fill: '#ff8b3d'
+    })).setOrigin(0.5));
+    panel.add(this.add.text(160, statY + 50, 'BEST STREAK', style('caption')).setOrigin(0.5));
+
+    // Streak milestone celebration banner (if any earned this round)
+    if (this.newStreakMilestones && this.newStreakMilestones.length > 0) {
+      const m = this.newStreakMilestones[0];
+      const reward = (this.streakRewards || []).find(r => r);
+      const banner = this.add.container(0, -panelH / 2 + 30);
+      const bannerBg = this.add.graphics();
+      bannerBg.fillStyle(0xff8b3d, 1);
+      bannerBg.fillRoundedRect(-260, -28, 520, 56, 28);
+      banner.add(bannerBg);
+      const label = reward
+        ? `🔥 ${m}-day streak — unlocked ${reward.item.name}!`
+        : `🔥 ${m}-day streak unlocked!`;
+      banner.add(this.add.text(0, 0, label, style('subhead', {
+        fontSize: '22px',
+        fill: '#1a0a00',
+        fontStyle: '900'
+      })).setOrigin(0.5));
+      panel.add(banner);
+      this.tweens.add({
+        targets: banner,
+        scale: { from: 0.6, to: 1 },
+        duration: 400,
+        delay: 1200,
+        ease: 'Back.easeOut'
+      });
+    }
+
+    // Random cosmetic drop banner (separate row below the milestone banner)
+    if (this.randomDrop) {
+      const dropY = (this.newStreakMilestones && this.newStreakMilestones.length > 0)
+        ? -panelH / 2 + 92
+        : -panelH / 2 + 30;
+      const banner = this.add.container(0, dropY);
+      const bannerBg = this.add.graphics();
+      bannerBg.fillStyle(0xc77eff, 1);
+      bannerBg.fillRoundedRect(-260, -26, 520, 52, 26);
+      banner.add(bannerBg);
+      banner.add(this.add.text(0, 0, `✨ Surprise drop: ${this.randomDrop.item.name}!`, style('subhead', {
+        fontSize: '22px',
+        fill: '#1a0a26',
+        fontStyle: '900'
+      })).setOrigin(0.5));
+      panel.add(banner);
+      this.tweens.add({
+        targets: banner,
+        scale: { from: 0.6, to: 1 },
+        duration: 400,
+        delay: 1500,
+        ease: 'Back.easeOut'
+      });
+    }
+
+    // Weakest facts to review
+    const weakFacts = this.getWeakFactsFromHistory();
+    const reviewY = statY + 130;
+    panel.add(this.add.text(0, reviewY, weakFacts.length ? 'Practice these' : 'No tricky facts!', style('subhead', {
+      fontSize: '24px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5));
+
+    weakFacts.slice(0, 3).forEach((wf, i) => {
+      const wy = reviewY + 50 + i * 56;
+      panel.add(this.add.text(0, wy, `${wf.display} = ${wf.answer}`, style('subhead', {
+        fontSize: '32px',
+        fill: '#f7dc6f'
+      })).setOrigin(0.5));
+    });
+
+    // Pet "chow down" moment — show the pet eating the pellets earned this level.
+    // Positioned below the weak-facts review section so it doesn't overlap.
+    if (companion.hasStarter() && this.petHud) {
+      const petY = reviewY + 230;
+      const pet = drawCompanion(this, 0, petY, { scale: 0.7 });
+      panel.add(pet);
+
+      const fedText = this.add.text(0, petY + 60,
+        `Fed ${this.petHud.pelletsThisLevel} pellets to ${companion.getSpecies().name}!`,
+        style('subhead', { fontSize: '22px', fill: '#f7dc6f' })
+      ).setOrigin(0.5);
+      panel.add(fedText);
+
+      // Quick chomp animation cycle
+      this.tweens.add({
+        targets: pet,
+        scaleX: 0.92,
+        scaleY: 0.6,
+        duration: 180,
+        yoyo: true,
+        repeat: 2,
+        ease: 'Sine.easeInOut',
+        delay: 600
+      });
+    }
+
+    // Buttons
+    const btnY = panelH / 2 - 130;
+    const retryBtn = createButton(this, {
+      x: -130, y: btnY, label: 'Retry',
+      width: 240, height: 80,
+      color: 0x4a4a6a,
+      onClick: () => this.scene.restart()
+    });
+    panel.add(retryBtn);
+
+    const continueBtn = createButton(this, {
+      x: 130, y: btnY, label: 'Continue',
+      width: 240, height: 80,
+      color: this.world.accentColor,
+      onClick: () => this.exitToLevelSelect()
+    });
+    panel.add(continueBtn);
+
+    this.tweens.add({
+      targets: panel,
+      y: H / 2,
+      duration: 500,
+      ease: 'Back.easeOut'
+    });
+  }
+
+  makeStarShape(filled) {
+    const g = this.add.graphics();
+    const points = 5;
+    const outerR = 36;
+    const innerR = 16;
+    g.beginPath();
+    for (let i = 0; i < points * 2; i++) {
+      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
+      const r = i % 2 === 0 ? outerR : innerR;
+      const px = Math.cos(angle) * r;
+      const py = Math.sin(angle) * r;
+      if (i === 0) g.moveTo(px, py);
+      else g.lineTo(px, py);
+    }
+    g.closePath();
+    if (filled) {
+      g.fillStyle(0xf7dc6f, 1);
+      g.fillPath();
+      g.fillStyle(0xffffff, 0.4);
+      g.fillCircle(-outerR * 0.3, -outerR * 0.3, outerR * 0.18);
+    } else {
+      g.lineStyle(3, 0x6a6a80, 1);
+      g.strokePath();
+    }
+    return g;
+  }
+
+  getWeakFactsFromHistory() {
+    const stats = new Map();
+    for (const h of this.history) {
+      const key = h.problem.display;
+      const e = stats.get(key) || { display: h.problem.display, answer: h.problem.answer, correct: 0, total: 0 };
+      e.total++;
+      if (h.correct) e.correct++;
+      stats.set(key, e);
+    }
+    return [...stats.values()]
+      .filter(e => e.total >= 1 && e.correct < e.total)
+      .sort((a, b) => (a.correct / a.total) - (b.correct / b.total));
+  }
+
+  // ============================================================
+  // EXIT
+  // ============================================================
+  exitToLevelSelect() {
+    this.scene.start('LevelSelectScene');
   }
 }

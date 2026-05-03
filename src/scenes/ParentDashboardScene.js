@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { progress, WORLDS } from '../GameData.js';
 import { achievements } from '../AchievementManager.js';
 import { audio } from '../AudioManager.js';
+import { companion, drawCompanion } from '../CompanionManager.js';
+import { streak } from '../StreakManager.js';
 
 export class ParentDashboardScene extends Phaser.Scene {
   constructor() {
@@ -65,12 +67,14 @@ export class ParentDashboardScene extends Phaser.Scene {
       this.scene.start('WorldMapScene');
     });
 
-    // Hint text
-    this.add.text(400, 1320, 'Default PIN: 0000', {
-      fontSize: '24px',
-      fill: '#555555',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
+    // Hint text — only show the default PIN if it hasn't been changed.
+    if (!localStorage.getItem('cosmicMathParentPin')) {
+      this.add.text(400, 1320, 'Default PIN: 0000', {
+        fontSize: '24px',
+        fill: '#555555',
+        fontFamily: 'Arial'
+      }).setOrigin(0.5);
+    }
 
     // Sound toggle (top-right)
     this.createSoundToggle(740, 50);
@@ -176,7 +180,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     this.currentTab = 'summary';
 
     // Header
-    this.add.rectangle(400, 80, 800, 160, 0x2d2d44);
+    this.add.rectangle(400, 50, 800, 100, 0x07071a).setAlpha(0.95);
 
     this.add.text(400, 50, 'Parent Dashboard', {
       fontSize: '40px',
@@ -213,12 +217,13 @@ export class ParentDashboardScene extends Phaser.Scene {
   createTabs() {
     const tabs = [
       { id: 'summary', label: 'Summary' },
+      { id: 'companion', label: 'Pet' },
       { id: 'analytics', label: 'Analytics' },
       { id: 'settings', label: 'Settings' }
     ];
 
-    const tabWidth = 240;
-    const startX = 140;
+    const tabWidth = 180;
+    const startX = 110;
 
     this.tabButtons = {};
 
@@ -226,11 +231,11 @@ export class ParentDashboardScene extends Phaser.Scene {
       const x = startX + index * tabWidth;
       const isActive = tab.id === this.currentTab;
 
-      const bg = this.add.rectangle(x, 120, tabWidth - 20, 60, isActive ? 0x4ecdc4 : 0x2d2d44)
+      const bg = this.add.rectangle(x, 150, tabWidth - 20, 60, isActive ? 0x4ecdc4 : 0x2d2d44)
         .setStrokeStyle(2, 0x4ecdc4)
         .setInteractive();
 
-      const text = this.add.text(x, 120, tab.label, {
+      const text = this.add.text(x, 150, tab.label, {
         fontSize: '24px',
         fill: isActive ? '#1a1a2e' : '#ffffff',
         fontFamily: 'Arial',
@@ -264,6 +269,9 @@ export class ParentDashboardScene extends Phaser.Scene {
       case 'summary':
         this.showSummaryTab();
         break;
+      case 'companion':
+        this.showCompanionTab();
+        break;
       case 'analytics':
         this.showAnalyticsTab();
         break;
@@ -273,8 +281,147 @@ export class ParentDashboardScene extends Phaser.Scene {
     }
   }
 
+  showCompanionTab() {
+    const startY = 250;
+
+    if (!companion.hasStarter()) {
+      const msg = this.add.text(400, 600, 'No companion picked yet.\nYour child will choose one\nthe next time they open the game.', {
+        fontSize: '28px',
+        fill: '#cfcfe0',
+        fontFamily: 'Arial',
+        align: 'center',
+        lineSpacing: 10
+      }).setOrigin(0.5);
+      this.contentContainer.add(msg);
+      return;
+    }
+
+    const species = companion.getSpecies();
+
+    // Pet portrait card
+    const card = this.add.rectangle(400, startY + 100, 720, 240, 0x2d2d44, 0.9)
+      .setStrokeStyle(4, species.color);
+    this.contentContainer.add(card);
+
+    const pet = drawCompanion(this, 200, startY + 100, { scale: 0.95 });
+    this.contentContainer.add(pet);
+
+    // Name + stage
+    const nameText = this.add.text(340, startY + 50, species.name, {
+      fontSize: '38px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    this.contentContainer.add(nameText);
+
+    const stageText = this.add.text(340, startY + 100, `Stage: ${companion.getStage()}`, {
+      fontSize: '24px',
+      fill: '#' + species.accent.toString(16).padStart(6, '0'),
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(stageText);
+
+    const moodText = this.add.text(340, startY + 140, `Mood: ${companion.getMood()}`, {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(moodText);
+
+    const fedText = this.add.text(340, startY + 180, `Total fed: ${companion.getTotalPellets()} pellets`, {
+      fontSize: '22px',
+      fill: '#cfcfe0',
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(fedText);
+
+    // Hunger bar with label
+    const hungerY = startY + 280;
+    const hungerLabel = this.add.text(80, hungerY, 'Hunger', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(hungerLabel);
+
+    const hungerPct = companion.getHunger();
+    const hungerColor = hungerPct < 30 ? 0x58d68d : hungerPct < 60 ? 0xf7dc6f : hungerPct < 85 ? 0xff8b3d : 0xff6b6b;
+    const barBg = this.add.rectangle(400, hungerY + 50, 640, 24, 0x1a1a2e).setStrokeStyle(2, 0x4a4a60);
+    this.contentContainer.add(barBg);
+    const barFillW = Math.max(2, 636 * (1 - hungerPct / 100));
+    const barFill = this.add.rectangle(82, hungerY + 50, barFillW, 20, hungerColor).setOrigin(0, 0.5);
+    this.contentContainer.add(barFill);
+    const hungerNum = this.add.text(720, hungerY + 50, `${hungerPct}%`, {
+      fontSize: '22px',
+      fill: '#ffffff',
+      fontFamily: 'Arial'
+    }).setOrigin(1, 0.5);
+    this.contentContainer.add(hungerNum);
+
+    // Streak readout
+    const streakY = startY + 380;
+    const streakHeader = this.add.text(80, streakY, 'Daily Streak', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(streakHeader);
+
+    const streakNum = this.add.text(720, streakY, `${streak.getCurrent()} days (best: ${streak.getBest()})`, {
+      fontSize: '24px',
+      fill: '#ff8b3d',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(1, 0);
+    this.contentContainer.add(streakNum);
+
+    // Vacation pause toggle
+    this.addVacationToggle(startY + 470);
+  }
+
+  addVacationToggle(y) {
+    const isPaused = progress.parentSettings.pauseHunger;
+
+    const card = this.add.rectangle(400, y + 50, 720, 130, 0x2d2d44, 0.9)
+      .setStrokeStyle(4, isPaused ? 0xf7dc6f : 0x4ecdc4)
+      .setInteractive();
+    this.contentContainer.add(card);
+
+    const title = this.add.text(80, y + 20, 'Vacation Mode', {
+      fontSize: '28px',
+      fill: '#ffffff',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    });
+    this.contentContainer.add(title);
+
+    const description = this.add.text(80, y + 60, 'Pauses hunger so the pet doesn\'t starve while away.', {
+      fontSize: '20px',
+      fill: '#888888',
+      fontFamily: 'Arial'
+    });
+    this.contentContainer.add(description);
+
+    const stateText = this.add.text(720, y + 50, isPaused ? 'ON' : 'OFF', {
+      fontSize: '36px',
+      fill: isPaused ? '#f7dc6f' : '#888888',
+      fontFamily: 'Arial',
+      fontStyle: 'bold'
+    }).setOrigin(1, 0.5);
+    this.contentContainer.add(stateText);
+
+    card.on('pointerdown', () => {
+      audio.playClick();
+      progress.parentSettings.pauseHunger = !progress.parentSettings.pauseHunger;
+      progress.save();
+      this.contentContainer.removeAll(true);
+      this.showCompanionTab();
+    });
+  }
+
   showSummaryTab() {
-    const startY = 200;
+    const startY = 250;
     let y = startY;
 
     // Calculate stats
@@ -299,10 +446,6 @@ export class ParentDashboardScene extends Phaser.Scene {
 
     // Achievements
     this.addStatCard(y, 'Achievements', `${stats.achievementsEarned} / ${stats.achievementsTotal}`, 0xff6b9d);
-    y += 140;
-
-    // Play Sessions (estimated)
-    this.addStatCard(y, 'Total Sessions', `${stats.totalSessions}`, 0x81ecec);
   }
 
   addStatCard(y, label, value, accentColor) {
@@ -327,7 +470,7 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   showAnalyticsTab() {
-    const startY = 200;
+    const startY = 250;
     let y = startY;
 
     // Title: Fact Mastery
@@ -342,7 +485,7 @@ export class ParentDashboardScene extends Phaser.Scene {
 
     // Heat map grid (tables 1-10)
     this.createMasteryHeatMap(y);
-    y += 560;
+    y += 660;
 
     // Most Missed Facts
     const missedTitle = this.add.text(400, y, 'Most Missed Facts', {
@@ -463,7 +606,7 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   showSettingsTab() {
-    const startY = 240;
+    const startY = 250;
     let y = startY;
 
     // Change PIN
@@ -492,7 +635,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       lineSpacing: 10
     }).setOrigin(0.5, 0);
     this.contentContainer.add(diffInfo);
-    y += 200;
+    y += 250;
 
     // Logout (clear PIN verification)
     this.addSettingButton(y, 'Lock Dashboard', () => {
@@ -575,10 +718,7 @@ export class ParentDashboardScene extends Phaser.Scene {
 
     const elements = [overlay, panel, title, instruction, pinDisplay, numRow, cancelBtn, saveBtn];
 
-    // Number input handling
-    this.input.keyboard.on('keydown', (event) => {
-      if (this.newPinIndex === undefined) return;
-
+    const onKey = (event) => {
       if (event.key >= '0' && event.key <= '9' && this.newPinIndex < 4) {
         this.newPinDigits[this.newPinIndex] = event.key;
         this.newPinIndex++;
@@ -588,12 +728,18 @@ export class ParentDashboardScene extends Phaser.Scene {
         this.newPinDigits[this.newPinIndex] = '';
         pinDisplay.setText(this.newPinDigits.map(d => d || '_').join(' '));
       }
-    });
+    };
+    this.input.keyboard.on('keydown', onKey);
+
+    const closeDialog = () => {
+      this.input.keyboard.off('keydown', onKey);
+      this.newPinIndex = undefined;
+      elements.forEach(el => el.destroy());
+    };
 
     cancelBtn.on('pointerdown', () => {
       audio.playClick();
-      this.newPinIndex = undefined;
-      elements.forEach(el => el.destroy());
+      closeDialog();
     });
 
     saveBtn.on('pointerdown', () => {
@@ -601,8 +747,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       if (this.newPinIndex === 4) {
         const newPin = this.newPinDigits.join('');
         localStorage.setItem('cosmicMathParentPin', newPin);
-        this.newPinIndex = undefined;
-        elements.forEach(el => el.destroy());
+        closeDialog();
 
         // Show confirmation
         const confirm = this.add.text(400, 700, 'PIN Updated!', {
@@ -676,21 +821,17 @@ export class ParentDashboardScene extends Phaser.Scene {
       }).setOrigin(0.5);
 
       this.time.delayedCall(1500, () => {
-        this.registry.set('tutorialComplete', false);
         this.registry.set('parentPinVerified', false);
-        this.scene.start('TutorialScene');
+        this.scene.start('WorldMapScene');
       });
     });
   }
 
   resetAllProgress() {
-    // Reset all localStorage data
+    // Reset all localStorage data (keep parent PIN).
     localStorage.removeItem('cosmicMathProgress');
     localStorage.removeItem('cosmicMathAchievements');
-    localStorage.removeItem('cosmicMathPowerUps');
-    // Keep parent PIN
 
-    // Reset singletons
     progress.reset();
     achievements.reset();
   }
@@ -724,8 +865,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       currentWorld,
       overallAccuracy,
       achievementsEarned: achievements.getEarnedCount(),
-      achievementsTotal: achievements.getTotalCount(),
-      totalSessions: Math.max(1, Math.floor(levelsCompleted / 3)) // Rough estimate
+      achievementsTotal: achievements.getTotalCount()
     };
   }
 
@@ -741,7 +881,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     container.add(bg);
 
     // Sound icon
-    this.soundIcon = this.createSoundIcon(audio.musicEnabled);
+    this.soundIcon = this.createSoundIcon(audio.enabled);
     container.add(this.soundIcon);
 
     // Interactive
@@ -756,7 +896,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     });
     bg.on('pointerdown', () => {
       audio.playClick();
-      const enabled = audio.toggleMusic();
+      const enabled = audio.toggleEnabled();
       this.soundIcon.destroy();
       this.soundIcon = this.createSoundIcon(enabled);
       container.add(this.soundIcon);

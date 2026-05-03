@@ -1,168 +1,223 @@
-// World and progression data
+// World and progression data.
+// Math is no longer per-world — every world contains the full 12×12 set.
+// Worlds are pure progression / theming, gated by total stars.
+// `levelsRequired` stays at 4 because each world has 4 mode slots
+// (mult, div, mixed, speed) — see LEVEL_MODES in LevelSelectScene.
 
 export const WORLDS = [
   {
     id: 1,
     name: 'Moon Base',
-    tables: [1, 2],
     color: 0x4a4a6a,
     accentColor: 0x81ecec,
-    description: 'Learn the basics!',
-    levelsRequired: 3,
-    unlocked: true
+    description: 'Where it all begins — your first hop into the dark.',
+    levelsRequired: 4,
+    unlockStars: 0
   },
   {
     id: 2,
     name: 'Asteroid Belt',
-    tables: [3],
     color: 0x6b4423,
     accentColor: 0xf39c12,
-    description: 'Master the 3s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'Dodging the rubble of long-gone planets.',
+    levelsRequired: 4,
+    unlockStars: 5
   },
   {
     id: 3,
     name: 'Crystal Planet',
-    tables: [4],
     color: 0x4a235a,
     accentColor: 0xa29bfe,
-    description: 'Conquer the 4s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'A world where time chimes like glass.',
+    levelsRequired: 4,
+    unlockStars: 12
   },
   {
     id: 4,
     name: 'Nebula Gardens',
-    tables: [5],
     color: 0x1e4d2b,
     accentColor: 0x58d68d,
-    description: 'Learn the 5s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'Drifting clouds of color and quiet warmth.',
+    levelsRequired: 4,
+    unlockStars: 22
   },
   {
     id: 5,
     name: 'Robot Station',
-    tables: [6],
     color: 0x2c3e50,
     accentColor: 0x5dade2,
-    description: 'Master the 6s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'An automated outpost humming with ancient code.',
+    levelsRequired: 4,
+    unlockStars: 35
   },
   {
     id: 6,
     name: 'Black Hole Edge',
-    tables: [7],
     color: 0x1a1a2e,
     accentColor: 0xff6b9d,
-    description: 'The tricky 7s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'Light bends. So does logic.',
+    levelsRequired: 4,
+    unlockStars: 50
   },
   {
     id: 7,
     name: 'Ice Comet',
-    tables: [8],
     color: 0x2e4a62,
     accentColor: 0x74b9ff,
-    description: 'Conquer the 8s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'A frozen tail blazing across the sky.',
+    levelsRequired: 4,
+    unlockStars: 65
   },
   {
     id: 8,
     name: 'Supernova',
-    tables: [9],
     color: 0x4a1a1a,
     accentColor: 0xff7675,
-    description: 'Master the 9s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: "A star's last brilliant breath.",
+    levelsRequired: 4,
+    unlockStars: 80
   },
   {
     id: 9,
     name: 'Galactic Core',
-    tables: [10],
     color: 0x2d132c,
     accentColor: 0xf7dc6f,
-    description: 'The mighty 10s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'The bright, dense heart of your home galaxy.',
+    levelsRequired: 4,
+    unlockStars: 95
   },
   {
     id: 10,
     name: 'Parallel Dimension',
-    tables: [11],
     color: 0x0a3d62,
     accentColor: 0x82ccdd,
-    description: 'Bonus: 11s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'Familiar yet strange — the rules feel sideways.',
+    levelsRequired: 4,
+    unlockStars: 110
   },
   {
     id: 11,
     name: "Universe's End",
-    tables: [12],
     color: 0x1e1e1e,
     accentColor: 0xffeaa7,
-    description: 'Final challenge: 12s!',
-    levelsRequired: 3,
-    unlocked: false
+    description: 'The last horizon. Beyond, only theories.',
+    levelsRequired: 4,
+    unlockStars: 125
   }
 ];
 
-// Generate products for a given table
-export function getProductsForTable(table) {
-  const products = [];
-  for (let i = 1; i <= 10; i++) {
-    products.push(table * i);
+// Mode → human-readable label and config used by GameScene/LevelSelectScene
+export const MODES = {
+  mult:    { label: 'Multiply', symbol: '×',  duration: 60, scoreThreshold: 18 },
+  div:     { label: 'Divide',   symbol: '÷',  duration: 60, scoreThreshold: 14 },
+  mixed:   { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 },
+  speed:   { label: 'Speed',    symbol: '⚡', duration: 45, scoreThreshold: 12 },
+  missing: { label: 'Missing',  symbol: '?',  duration: 60, scoreThreshold: 12 },
+  multi:   { label: 'Multi-Step', symbol: '∑', duration: 75, scoreThreshold: 10 }
+};
+
+// Generate one problem for the given mode.
+// Math is no longer constrained by world — facts are sampled freely from 1..12.
+// `worldId` is accepted for back-compat but only used for theming elsewhere.
+// Returns { display, a, b, op, answer, factKey }.
+export function getProblemForWorld(_worldId, mode = 'mult') {
+  // Decide operation
+  let op = mode;
+  if (mode === 'mixed' || mode === 'speed') {
+    op = Math.random() < 0.5 ? 'mult' : 'div';
   }
-  return products;
-}
 
-// Generate available numbers for a world (factors that make sense)
-export function getNumbersForWorld(worldId) {
-  const world = WORLDS[worldId - 1];
-
-  // Numbers 1-10 are always available
-  const numbers = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-  // Weight toward factors of current tables
-  const weighted = [];
-  for (const num of numbers) {
-    const isKeyFactor = world.tables.includes(num) || num <= 5;
-    const count = isKeyFactor ? 3 : 1;
-    for (let i = 0; i < count; i++) {
-      weighted.push(num);
+  // ~30% chance: surface a fact that's due for review (priority loop).
+  let a, b;
+  if (Math.random() < 0.3) {
+    const due = progress.getFactsDueForReview()
+      .filter(f => Math.max(f.a, f.b) <= 12);
+    if (due.length > 0) {
+      const pf = due[0];
+      a = pf.a;
+      b = pf.b;
     }
   }
 
-  return weighted;
-}
-
-// Generate target products for a world
-export function getTargetsForWorld(worldId) {
-  const world = WORLDS[worldId - 1];
-  const targets = [];
-
-  for (const table of world.tables) {
-    for (let i = 2; i <= 10; i++) {
-      targets.push(table * i);
-    }
+  if (a === undefined) {
+    a = Math.floor(Math.random() * 12) + 1;
+    b = Math.floor(Math.random() * 12) + 1;
   }
 
-  // Shuffle
-  return targets.sort(() => Math.random() - 0.5);
+  const product = a * b;
+  const factKey = `${Math.min(a, b)}x${Math.max(a, b)}`;
+
+  if (op === 'mult') {
+    // Random factor order
+    const flip = Math.random() < 0.5;
+    const left = flip ? b : a;
+    const right = flip ? a : b;
+    return {
+      display: `${left} × ${right}`,
+      a, b,
+      op: '×',
+      answer: product,
+      factKey
+    };
+  }
+
+  if (op === 'div') {
+    // Division: present product ÷ divisor = quotient.
+    const divisorIsA = Math.random() < 0.5;
+    const divisor = divisorIsA ? a : b;
+    const quotient = divisorIsA ? b : a;
+    return {
+      display: `${product} ÷ ${divisor}`,
+      a, b,
+      op: '÷',
+      answer: quotient,
+      factKey
+    };
+  }
+
+  if (op === 'missing') {
+    // Missing factor: "a × ? = product" — kid solves for the other factor.
+    const aIsKnown = Math.random() < 0.5;
+    const known = aIsKnown ? a : b;
+    const unknown = aIsKnown ? b : a;
+    return {
+      display: `${known} × ? = ${product}`,
+      a, b,
+      op: '?',
+      answer: unknown,
+      factKey
+    };
+  }
+
+  if (op === 'multi') {
+    // Multi-step: "a × b ± c" with c in [1..9]. Keep answer non-negative.
+    const c = Math.floor(Math.random() * 9) + 1;
+    const plus = Math.random() < 0.6 || product < c;
+    const sign = plus ? '+' : '−';
+    const answer = plus ? product + c : product - c;
+    return {
+      display: `${a} × ${b} ${sign} ${c}`,
+      a, b,
+      op: '∑',
+      answer,
+      factKey
+    };
+  }
+
+  // Fallback: behave like multiplication.
+  return {
+    display: `${a} × ${b}`,
+    a, b,
+    op: '×',
+    answer: product,
+    factKey
+  };
 }
 
 // Player progress manager
 class PlayerProgress {
   constructor() {
     this.load();
-    // Track consecutive failures per level (not persisted)
-    this.levelFailures = {};
   }
 
   load() {
@@ -174,6 +229,12 @@ class PlayerProgress {
         this.factMastery = data.factMastery || {};
         this.totalStars = data.totalStars || 0;
         this.currentWorld = data.currentWorld || 1;
+        this.companion = { ...this.getDefaultCompanion(), ...(data.companion || {}) };
+        this.streak = { ...this.getDefaultStreak(), ...(data.streak || {}) };
+        this.parentSettings = { ...this.getDefaultParentSettings(), ...(data.parentSettings || {}) };
+        this.economy = { ...this.getDefaultEconomy(), ...(data.economy || {}) };
+        this.ship = this.mergeShip(data.ship);
+        this.cosmetics = this.mergeCosmetics(data.cosmetics);
       } else {
         this.reset();
       }
@@ -187,32 +248,87 @@ class PlayerProgress {
     this.factMastery = {};
     this.totalStars = 0;
     this.currentWorld = 1;
-    this.levelFailures = {};
+    this.companion = this.getDefaultCompanion();
+    this.streak = this.getDefaultStreak();
+    this.parentSettings = this.getDefaultParentSettings();
+    this.economy = this.getDefaultEconomy();
+    this.ship = this.getDefaultShip();
+    this.cosmetics = this.getDefaultCosmetics();
     this.save();
   }
 
-  // Track level failures for progressive support
-  recordLevelFailure(worldId, levelNum) {
-    const key = `${worldId}-${levelNum}`;
-    this.levelFailures[key] = (this.levelFailures[key] || 0) + 1;
-    return this.levelFailures[key];
+  getDefaultCompanion() {
+    return {
+      speciesId: null,            // 'ember' | 'tide' | 'sprout' — null = needs starter pick
+      stage: 'egg',               // 'egg' | 'baby' | 'teen' | 'adult'
+      totalPellets: 0,            // lifetime food eaten — drives evolution
+      hunger: 0,                  // 0=full, 100=starving
+      lastFedAt: Date.now()
+    };
   }
 
-  getLevelFailures(worldId, levelNum) {
-    const key = `${worldId}-${levelNum}`;
-    return this.levelFailures[key] || 0;
+  getDefaultStreak() {
+    return {
+      current: 0,
+      best: 0,
+      lastPlayDate: null,         // 'YYYY-MM-DD'
+      milestonesEarned: []        // [3, 7, 30] etc.
+    };
   }
 
-  clearLevelFailures(worldId, levelNum) {
-    const key = `${worldId}-${levelNum}`;
-    this.levelFailures[key] = 0;
+  getDefaultParentSettings() {
+    return {
+      pauseHunger: false
+    };
+  }
+
+  getDefaultEconomy() {
+    return {
+      stardust: 0
+    };
+  }
+
+  getDefaultShip() {
+    return {
+      parts: { hull: 'hull_default', wings: 'wings_default', paint: 'paint_default', decal: null },
+      ownedParts: ['hull_default', 'wings_default', 'paint_default'],
+      newSinceLastView: []
+    };
+  }
+
+  getDefaultCosmetics() {
+    return {
+      pet: { hat: null, accessory: null },
+      ownedIds: [],
+      newSinceLastView: []
+    };
+  }
+
+  mergeShip(saved) {
+    const def = this.getDefaultShip();
+    if (!saved) return def;
+    return {
+      parts: { ...def.parts, ...(saved.parts || {}) },
+      ownedParts: Array.isArray(saved.ownedParts) ? saved.ownedParts : def.ownedParts,
+      newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
+    };
+  }
+
+  mergeCosmetics(saved) {
+    const def = this.getDefaultCosmetics();
+    if (!saved) return def;
+    return {
+      pet: { ...def.pet, ...(saved.pet || {}) },
+      ownedIds: Array.isArray(saved.ownedIds) ? saved.ownedIds : [],
+      newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
+    };
   }
 
   getDefaultWorldProgress() {
     const progress = {};
     for (const world of WORLDS) {
       progress[world.id] = {
-        unlocked: world.id === 1,
+        unlocked: (world.unlockStars || 0) === 0,
         levelsCompleted: 0,
         starsEarned: 0,
         levelStars: {} // levelNum: stars (1-3)
@@ -227,7 +343,13 @@ class PlayerProgress {
         worldProgress: this.worldProgress,
         factMastery: this.factMastery,
         totalStars: this.totalStars,
-        currentWorld: this.currentWorld
+        currentWorld: this.currentWorld,
+        companion: this.companion,
+        streak: this.streak,
+        parentSettings: this.parentSettings,
+        economy: this.economy,
+        ship: this.ship,
+        cosmetics: this.cosmetics
       }));
     } catch (e) {
       console.warn('Could not save progress');
@@ -321,32 +443,12 @@ class PlayerProgress {
     return priority;
   }
 
-  // Get priority targets for a world (facts that need review)
-  getPriorityTargetsForWorld(worldId) {
-    const world = WORLDS[worldId - 1];
-    const dueFacts = this.getFactsDueForReview();
-
-    // Filter to facts relevant to this world's tables
-    const relevantFacts = dueFacts.filter(fact => {
-      return world.tables.some(table =>
-        fact.a === table || fact.b === table
-      );
-    });
-
-    return relevantFacts.map(f => f.product);
-  }
-
-  // Check if there are facts due for session start review
-  hasFactsDueForReview() {
-    return this.getFactsDueForReview().length > 0;
-  }
-
-  // Get mastery percentage for a table
+  // Get mastery percentage for a table (partners 1..12)
   getTableMastery(table) {
     let correct = 0;
     let total = 0;
 
-    for (let i = 1; i <= 10; i++) {
+    for (let i = 1; i <= 12; i++) {
       const key = `${Math.min(table, i)}x${Math.max(table, i)}`;
       if (this.factMastery[key]) {
         correct += this.factMastery[key].correct;
@@ -378,19 +480,13 @@ class PlayerProgress {
     this.save();
   }
 
-  checkWorldUnlock(completedWorldId) {
-    const world = WORLDS[completedWorldId - 1];
-    const wp = this.worldProgress[completedWorldId];
-
-    // Check unlock conditions
-    const levelsComplete = wp.levelsCompleted >= world.levelsRequired;
-    const hasMastery = world.tables.every(t => this.getTableMastery(t) >= 70);
-
-    if (levelsComplete && hasMastery) {
-      // Unlock next world
-      const nextWorldId = completedWorldId + 1;
-      if (nextWorldId <= WORLDS.length) {
-        this.worldProgress[nextWorldId].unlocked = true;
+  checkWorldUnlock(_completedWorldId) {
+    // Stars-based unlock — re-evaluate every world after each level completion.
+    for (const world of WORLDS) {
+      const wp = this.worldProgress[world.id];
+      if (!wp || wp.unlocked) continue;
+      if (this.totalStars >= (world.unlockStars || 0)) {
+        wp.unlocked = true;
       }
     }
   }

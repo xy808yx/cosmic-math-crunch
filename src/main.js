@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene.js';
-import { TutorialScene } from './scenes/TutorialScene.js';
 import { WorldMapScene } from './scenes/WorldMapScene.js';
 import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
-import { UIScene } from './scenes/UIScene.js';
 import { ParentDashboardScene } from './scenes/ParentDashboardScene.js';
+import { StarterPickerScene } from './scenes/StarterPickerScene.js';
+import { ShopScene } from './scenes/ShopScene.js';
+import { CompanionScene } from './scenes/CompanionScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -29,7 +30,7 @@ const config = {
       height: 1400
     }
   },
-  scene: [BootScene, TutorialScene, WorldMapScene, LevelSelectScene, GameScene, UIScene, ParentDashboardScene]
+  scene: [BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene, ShopScene, CompanionScene, ParentDashboardScene]
 };
 
 const game = new Phaser.Game(config);
