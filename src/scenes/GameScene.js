@@ -16,6 +16,13 @@ import { PetHUD } from '../PetHUD.js';
 const W = 800;
 const H = 1400;
 
+// Per-mode hint shown above the problem text. Keeps kids from reading
+// only the first chunk and submitting (e.g. "2 × 10" for "2 × 10 − 6").
+const MODE_HINTS = {
+  missing: 'FIND THE MISSING ?',
+  multi: 'DO ALL THE STEPS!'
+};
+
 export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
@@ -197,6 +204,15 @@ export class GameScene extends Phaser.Scene {
     this.problemCard = card;
     this.problemCardWidth = cw;
     this.problemCardHeight = ch;
+
+    // Mode-specific nudge so kids don't read "2 × 10" and submit 20 when the
+    // problem is actually "2 × 10 − 6" or "2 × ? = 20".
+    this.modeHint = this.add.text(0, -125, '', style('caption', {
+      fontSize: '20px',
+      fill: '#f7dc6f',
+      fontStyle: '900'
+    })).setOrigin(0.5);
+    this.problemCardContainer.add(this.modeHint);
 
     this.problemText = this.add.text(0, -70, '', style('problem')).setOrigin(0.5);
     this.problemCardContainer.add(this.problemText);
@@ -459,6 +475,7 @@ export class GameScene extends Phaser.Scene {
     this.input_ = '';
     this.cancelAutoSubmit();
     this.problemText.setText(this.problem.display);
+    this.modeHint.setText(MODE_HINTS[this.mode] || '');
     this.answerText.setText('');
     this.renderInput();
 
