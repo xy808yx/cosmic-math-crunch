@@ -5,7 +5,7 @@ import { LevelSelectScene } from './scenes/LevelSelectScene.js';
 import { GameScene } from './scenes/GameScene.js';
 import { ParentDashboardScene } from './scenes/ParentDashboardScene.js';
 import { StarterPickerScene } from './scenes/StarterPickerScene.js';
-import { ShopScene } from './scenes/ShopScene.js';
+import { CockpitScene } from './scenes/CockpitScene.js';
 import { CompanionScene } from './scenes/CompanionScene.js';
 
 const config = {
@@ -30,7 +30,7 @@ const config = {
       height: 1400
     }
   },
-  scene: [BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene, ShopScene, CompanionScene, ParentDashboardScene]
+  scene: [BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene, CockpitScene, CompanionScene, ParentDashboardScene]
 };
 
 const game = new Phaser.Game(config);

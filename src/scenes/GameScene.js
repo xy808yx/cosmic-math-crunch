@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
 import { WORLDS, MODES, getProblemForWorld, progress } from '../GameData.js';
-import { achievements } from '../AchievementManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createButton, createIconButton } from '../buttonHelper.js';
@@ -12,16 +11,10 @@ import { economy } from '../EconomyManager.js';
 import { grantStreakRewards } from '../MilestoneRewards.js';
 import { rollLevelEndDrop } from '../RandomDrops.js';
 import { PetHUD } from '../PetHUD.js';
+import { records } from '../RecordsManager.js';
 
 const W = 800;
 const H = 1400;
-
-// Per-mode hint shown above the problem text. Keeps kids from reading
-// only the first chunk and submitting (e.g. "2 × 10" for "2 × 10 − 6").
-const MODE_HINTS = {
-  missing: 'FIND THE MISSING ?',
-  multi: 'DO ALL THE STEPS!'
-};
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -44,6 +37,7 @@ export class GameScene extends Phaser.Scene {
     this.streak = 0;
     this.bestStreak = 0;
     this.history = [];
+    this.problemStartedAtMs = 0;
 
     this.input_ = '';
     this.problem = null;
@@ -467,15 +461,21 @@ export class GameScene extends Phaser.Scene {
     this.cursor.setVisible(this.input_.length < 3);
   }
 
+  elapsedThisProblemMs() {
+    if (!this.problemStartedAtMs) return 0;
+    return performance.now() - this.problemStartedAtMs;
+  }
+
   // ============================================================
   // PROBLEM FLOW
   // ============================================================
   nextProblem() {
     this.problem = getProblemForWorld(this.worldId, this.mode);
+    this.problemStartedAtMs = performance.now();
     this.input_ = '';
     this.cancelAutoSubmit();
     this.problemText.setText(this.problem.display);
-    this.modeHint.setText(MODE_HINTS[this.mode] || '');
+    if (this.modeHint) this.modeHint.setText('');
     this.answerText.setText('');
     this.renderInput();
 
@@ -516,7 +516,7 @@ export class GameScene extends Phaser.Scene {
       this.streakText.setText(this.streak.toString());
       this.flashCard(0x58d68d, 1);
       audio.playMatch();
-      achievements.recordCorrectAnswer();
+      records.recordAnswer(this.problem, true, this.elapsedThisProblemMs());
 
       // Feed the pet — one pellet per correct answer.
       this.petHud?.munch(1);
@@ -544,7 +544,7 @@ export class GameScene extends Phaser.Scene {
       this.flashCard(0xff6b6b, 1);
       this.shakeCard();
       audio.playWrong();
-      achievements.recordWrongAnswer();
+      records.recordAnswer(this.problem, false, this.elapsedThisProblemMs());
       this.petHud?.droop();
 
       // Show correct answer briefly, then next problem
@@ -621,13 +621,7 @@ export class GameScene extends Phaser.Scene {
     // Roll a random cosmetic drop weighted by stars earned.
     this.randomDrop = stars > 0 ? rollLevelEndDrop(stars) : null;
 
-    // Track table mastery achievements across the full 12×12 set —
-    // worlds no longer pin a specific table.
-    for (let table = 1; table <= 12; table++) {
-      const mastery = progress.getTableMastery(table);
-      achievements.checkTableMastery(table, mastery);
-    }
-    achievements.recordLevelComplete(this.worldId, stars, progress);
+    records.recordLevelComplete(this.worldId, stars, this.bestStreak);
 
     this.showSummary({ stars, accuracy });
   }

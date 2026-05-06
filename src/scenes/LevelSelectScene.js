@@ -9,8 +9,9 @@ import { style } from '../textStyles.js';
 const W = 800;
 const H = 1400;
 
-// Level number → mode key
-const LEVEL_MODES = ['mult', 'div', 'mixed', 'speed', 'missing', 'multi'];
+// Level number → mode key. Phase 1 keeps the existing world unlock logic;
+// Phase 3 will add a 4th 'boss' slot and rewire unlocks per the spec.
+const LEVEL_MODES = ['mult', 'div', 'mixed'];
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {

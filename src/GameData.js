@@ -1,8 +1,8 @@
 // World and progression data.
 // Math is no longer per-world — every world contains the full 12×12 set.
 // Worlds are pure progression / theming, gated by total stars.
-// `levelsRequired` stays at 4 because each world has 4 mode slots
-// (mult, div, mixed, speed) — see LEVEL_MODES in LevelSelectScene.
+// `levelsRequired` is 3 (mult, div, mixed) for Phase 1.
+// Phase 3 will add a 4th boss slot and bump to 4 — see LEVEL_MODES in LevelSelectScene.
 
 export const WORLDS = [
   {
@@ -11,7 +11,7 @@ export const WORLDS = [
     color: 0x4a4a6a,
     accentColor: 0x81ecec,
     description: 'Where it all begins — your first hop into the dark.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 0
   },
   {
@@ -20,7 +20,7 @@ export const WORLDS = [
     color: 0x6b4423,
     accentColor: 0xf39c12,
     description: 'Dodging the rubble of long-gone planets.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 5
   },
   {
@@ -29,7 +29,7 @@ export const WORLDS = [
     color: 0x4a235a,
     accentColor: 0xa29bfe,
     description: 'A world where time chimes like glass.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 12
   },
   {
@@ -38,7 +38,7 @@ export const WORLDS = [
     color: 0x1e4d2b,
     accentColor: 0x58d68d,
     description: 'Drifting clouds of color and quiet warmth.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 22
   },
   {
@@ -47,7 +47,7 @@ export const WORLDS = [
     color: 0x2c3e50,
     accentColor: 0x5dade2,
     description: 'An automated outpost humming with ancient code.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 35
   },
   {
@@ -56,7 +56,7 @@ export const WORLDS = [
     color: 0x1a1a2e,
     accentColor: 0xff6b9d,
     description: 'Light bends. So does logic.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 50
   },
   {
@@ -65,7 +65,7 @@ export const WORLDS = [
     color: 0x2e4a62,
     accentColor: 0x74b9ff,
     description: 'A frozen tail blazing across the sky.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 65
   },
   {
@@ -74,7 +74,7 @@ export const WORLDS = [
     color: 0x4a1a1a,
     accentColor: 0xff7675,
     description: "A star's last brilliant breath.",
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 80
   },
   {
@@ -83,7 +83,7 @@ export const WORLDS = [
     color: 0x2d132c,
     accentColor: 0xf7dc6f,
     description: 'The bright, dense heart of your home galaxy.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 95
   },
   {
@@ -92,7 +92,7 @@ export const WORLDS = [
     color: 0x0a3d62,
     accentColor: 0x82ccdd,
     description: 'Familiar yet strange — the rules feel sideways.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 110
   },
   {
@@ -101,19 +101,18 @@ export const WORLDS = [
     color: 0x1e1e1e,
     accentColor: 0xffeaa7,
     description: 'The last horizon. Beyond, only theories.',
-    levelsRequired: 4,
+    levelsRequired: 3,
     unlockStars: 125
   }
 ];
 
-// Mode → human-readable label and config used by GameScene/LevelSelectScene
+// Mode → human-readable label and config used by GameScene/LevelSelectScene.
+// Cut: speed/missing/multi — every level is timed now (timer comes from world),
+// and missing/multi target advanced cognition rather than automaticity.
 export const MODES = {
-  mult:    { label: 'Multiply', symbol: '×',  duration: 60, scoreThreshold: 18 },
-  div:     { label: 'Divide',   symbol: '÷',  duration: 60, scoreThreshold: 14 },
-  mixed:   { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 },
-  speed:   { label: 'Speed',    symbol: '⚡', duration: 45, scoreThreshold: 12 },
-  missing: { label: 'Missing',  symbol: '?',  duration: 60, scoreThreshold: 12 },
-  multi:   { label: 'Multi-Step', symbol: '∑', duration: 75, scoreThreshold: 10 }
+  mult:  { label: 'Multiply', symbol: '×',  duration: 60, scoreThreshold: 18 },
+  div:   { label: 'Divide',   symbol: '÷',  duration: 60, scoreThreshold: 14 },
+  mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
 
 // Generate one problem for the given mode.
@@ -123,7 +122,7 @@ export const MODES = {
 export function getProblemForWorld(_worldId, mode = 'mult') {
   // Decide operation
   let op = mode;
-  if (mode === 'mixed' || mode === 'speed') {
+  if (mode === 'mixed') {
     op = Math.random() < 0.5 ? 'mult' : 'div';
   }
 
@@ -171,35 +170,6 @@ export function getProblemForWorld(_worldId, mode = 'mult') {
       a, b,
       op: '÷',
       answer: quotient,
-      factKey
-    };
-  }
-
-  if (op === 'missing') {
-    // Missing factor: "a × ? = product" — kid solves for the other factor.
-    const aIsKnown = Math.random() < 0.5;
-    const known = aIsKnown ? a : b;
-    const unknown = aIsKnown ? b : a;
-    return {
-      display: `${known} × ? = ${product}`,
-      a, b,
-      op: '?',
-      answer: unknown,
-      factKey
-    };
-  }
-
-  if (op === 'multi') {
-    // Multi-step: "a × b ± c" with c in [1..9]. Keep answer non-negative.
-    const c = Math.floor(Math.random() * 9) + 1;
-    const plus = Math.random() < 0.6 || product < c;
-    const sign = plus ? '+' : '−';
-    const answer = plus ? product + c : product - c;
-    return {
-      display: `${a} × ${b} ${sign} ${c}`,
-      a, b,
-      op: '∑',
-      answer,
       factKey
     };
   }
@@ -262,8 +232,8 @@ class PlayerProgress {
       speciesId: null,            // 'ember' | 'tide' | 'sprout' — null = needs starter pick
       stage: 'egg',               // 'egg' | 'baby' | 'teen' | 'adult'
       totalPellets: 0,            // lifetime food eaten — drives evolution
-      hunger: 0,                  // 0=full, 100=starving
-      lastFedAt: Date.now()
+      lastFedAt: Date.now(),
+      lastVisitedAt: Date.now()   // updated whenever the kid opens the app — drives "missed you" greeting
     };
   }
 
@@ -277,9 +247,7 @@ class PlayerProgress {
   }
 
   getDefaultParentSettings() {
-    return {
-      pauseHunger: false
-    };
+    return {};
   }
 
   getDefaultEconomy() {
