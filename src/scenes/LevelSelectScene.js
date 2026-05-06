@@ -147,14 +147,14 @@ export class LevelSelectScene extends Phaser.Scene {
         ? { label: BOSS_LABEL, symbol: BOSS_SYMBOL }
         : MODES[modeKey];
       const stars = this.worldProgress.levelStars[levelNum] || 0;
-      this.createModeCard(x, y, cardW, cardH, levelNum, modeKey, mode, stars, true, isBoss);
+      this.createModeCard(x, y, cardW, cardH, levelNum, modeKey, mode, stars, isBoss);
     });
   }
 
-  createModeCard(x, y, w, h, levelNum, modeKey, mode, stars, isUnlocked, isBoss) {
+  createModeCard(x, y, w, h, levelNum, modeKey, mode, stars, isBoss) {
     const container = this.add.container(x, y).setDepth(10);
 
-    const accent = isBoss ? 0xff6b6b : (isUnlocked ? this.world.accentColor : 0x3a3a4a);
+    const accent = isBoss ? 0xff6b6b : this.world.accentColor;
 
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.5);
@@ -162,30 +162,25 @@ export class LevelSelectScene extends Phaser.Scene {
     container.add(shadow);
 
     const card = this.add.graphics();
-    card.fillStyle(0x12122a, isUnlocked ? 0.95 : 0.75);
+    card.fillStyle(0x12122a, 0.95);
     card.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
-    card.lineStyle(3, accent, isUnlocked ? 0.85 : 0.4);
+    card.lineStyle(3, accent, 0.85);
     card.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
     container.add(card);
 
-    // Mode icon (the operator symbol)
-    const symbolText = this.add.text(0, -h / 2 + 50, mode.symbol, style('display', {
-      fontSize: isBoss ? '64px' : '64px',
+    container.add(this.add.text(0, -h / 2 + 50, mode.symbol, style('display', {
+      fontSize: '64px',
       fill: '#' + accent.toString(16).padStart(6, '0'),
       strokeThickness: 0
-    })).setOrigin(0.5);
-    container.add(symbolText);
+    })).setOrigin(0.5));
 
-    // Mode label
-    const labelText = this.add.text(0, -h / 2 + 108, mode.label, style('headline', {
+    container.add(this.add.text(0, -h / 2 + 108, mode.label, style('headline', {
       fontSize: '26px',
-      fill: isUnlocked ? '#ffffff' : '#5a5a72',
+      fill: '#ffffff',
       fontStyle: isBoss ? '900' : 'bold'
-    })).setOrigin(0.5);
-    container.add(labelText);
+    })).setOrigin(0.5));
 
-    if (isBoss && isUnlocked) {
-      // Villain name underneath — gives the boss slot identity.
+    if (isBoss) {
       const villain = this.world.villain || 'Boss';
       container.add(this.add.text(0, -h / 2 + 138, villain.toUpperCase(), style('caption', {
         fontSize: '14px',
@@ -193,43 +188,26 @@ export class LevelSelectScene extends Phaser.Scene {
       })).setOrigin(0.5));
     }
 
-    if (isUnlocked) {
-      // Stars row
-      const starY = h / 2 - 38;
-      for (let s = 0; s < 3; s++) {
-        const filled = s < stars;
-        const star = this.makeMiniStar(filled);
-        star.x = -54 + s * 54;
-        star.y = starY;
-        container.add(star);
-      }
-
-      // Hit area
-      const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
-      container.add(hit);
-
-      hit.on('pointerover', () => {
-        this.tweens.add({ targets: container, scaleX: 1.04, scaleY: 1.04, duration: 110 });
-      });
-      hit.on('pointerout', () => {
-        this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 110 });
-      });
-      hit.on('pointerdown', () => {
-        audio.playClick();
-        this.startLevel(levelNum, modeKey);
-      });
-    } else {
-      // Lock indicator
-      const lockY = h / 2 - 50;
-      const lock = this.add.graphics();
-      lock.fillStyle(0x5a5a72, 1);
-      lock.fillRoundedRect(-18, lockY - 12, 36, 24, 4);
-      lock.lineStyle(4, 0x5a5a72, 1);
-      lock.beginPath();
-      lock.arc(0, lockY - 14, 12, Math.PI, 0);
-      lock.strokePath();
-      container.add(lock);
+    const starY = h / 2 - 38;
+    for (let s = 0; s < 3; s++) {
+      const star = this.makeMiniStar(s < stars);
+      star.x = -54 + s * 54;
+      star.y = starY;
+      container.add(star);
     }
+
+    const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
+    container.add(hit);
+    hit.on('pointerover', () => {
+      this.tweens.add({ targets: container, scaleX: 1.04, scaleY: 1.04, duration: 110 });
+    });
+    hit.on('pointerout', () => {
+      this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 110 });
+    });
+    hit.on('pointerdown', () => {
+      audio.playClick();
+      this.startLevel(levelNum, modeKey);
+    });
   }
 
   makeMiniStar(filled) {

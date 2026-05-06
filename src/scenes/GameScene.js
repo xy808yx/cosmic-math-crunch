@@ -8,7 +8,6 @@ import {
   getDistractors,
   getProblemSecondsForWorldAndMode,
   getAsteroidCountForWorld,
-  MULTI_ASTEROID_ENABLED,
   progress
 } from '../GameData.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -65,9 +64,7 @@ export class GameScene extends Phaser.Scene {
 
     this.shipHp = SHIP_HP_MAX;
 
-    this.asteroidSlots = this.isBoss
-      ? 1
-      : (MULTI_ASTEROID_ENABLED ? getAsteroidCountForWorld(this.worldId) : 1);
+    this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
 
     this.bossHp = BOSS_CONFIG.hp;
     this.bossDefeated = false;
@@ -213,7 +210,7 @@ export class GameScene extends Phaser.Scene {
       const ix = cx + i * 42;
       const icon = this.add.container(ix, cy).setDepth(20);
       const heart = this.add.graphics();
-      this.drawShield(heart, true);
+      this.drawHeart(heart, true);
       icon.add(heart);
       icon.fullColor = true;
       icon.heart = heart;
@@ -224,21 +221,18 @@ export class GameScene extends Phaser.Scene {
     })).setOrigin(0.5).setDepth(20);
   }
 
-  drawShield(g, full) {
+  drawHeart(g, full) {
     g.clear();
-    // Heart drawn as two circles + a downward triangle.
-    const fillColor = full ? 0xff5c7c : 0x000000;
-    const fillAlpha = full ? 1 : 0;
+    // Two circles + a downward triangle.
     const strokeColor = full ? 0xff8ba3 : 0x4a4a60;
-    const strokeAlpha = full ? 0.9 : 1;
 
-    g.fillStyle(fillColor, fillAlpha);
     if (full) {
+      g.fillStyle(0xff5c7c, 1);
       g.fillCircle(-7, -6, 9);
       g.fillCircle(7, -6, 9);
       g.fillTriangle(-15, -3, 15, -3, 0, 14);
     }
-    g.lineStyle(2, strokeColor, strokeAlpha);
+    g.lineStyle(2, strokeColor, full ? 0.9 : 1);
     g.strokeCircle(-7, -6, 9);
     g.strokeCircle(7, -6, 9);
     g.beginPath();
@@ -259,7 +253,7 @@ export class GameScene extends Phaser.Scene {
       const filled = i < this.shipHp;
       if (icon.fullColor !== filled) {
         icon.fullColor = filled;
-        this.drawShield(icon.heart, filled);
+        this.drawHeart(icon.heart, filled);
         if (!filled) {
           this.tweens.add({
             targets: icon,
@@ -426,12 +420,16 @@ export class GameScene extends Phaser.Scene {
 
     this.activeAsteroids.push(asteroid);
 
-    if (!this.targetedAsteroid) {
-      this.targetAsteroid(asteroid);
-    } else if (this.asteroidSlots > 1) {
+    // In multi-asteroid mode every asteroid is tappable so the player can
+    // freely switch targets. Targeting the same asteroid is a no-op.
+    if (this.asteroidSlots > 1) {
       const hit = this.add.rectangle(0, 0, 220, 220, 0x000000, 0).setInteractive({ useHandCursor: true });
       container.add(hit);
       hit.on('pointerdown', () => this.targetAsteroid(asteroid));
+    }
+
+    if (!this.targetedAsteroid) {
+      this.targetAsteroid(asteroid);
     }
   }
 
@@ -830,7 +828,6 @@ export class GameScene extends Phaser.Scene {
       audio.playAsteroidBoom?.();
       this.explodeAsteroid(asteroid);
       this.removeAsteroid(asteroid);
-      audio.playMatch?.();
       this.time.delayedCall(180, () => {
         if (this.state === 'feedback' || this.state === 'playing') {
           this.state = 'playing';
@@ -841,6 +838,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleWrong(asteroid, btn) {
+    const pickedValue = btn.value;
     this.flashMcButton(btn, 0xff6b6b);
     audio.playWrong?.();
 
@@ -855,7 +853,7 @@ export class GameScene extends Phaser.Scene {
     if (asteroid.isBoss) {
       // Boss is harsher than a normal asteroid — wrong tap costs ship HP.
       this.attempts++;
-      this.history.push({ problem: asteroid.problem, userAnswer: btn.value, correct: false });
+      this.history.push({ problem: asteroid.problem, userAnswer: pickedValue, correct: false });
       progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, false);
       records.recordAnswer(asteroid.problem, false, performance.now() - asteroid.startedAtMs);
 
@@ -896,11 +894,14 @@ export class GameScene extends Phaser.Scene {
         this.failLevel();
         return;
       }
+      // Lock input until the next boss problem is in place — otherwise the
+      // stale buttons (still tied to the previous problem) accept clicks.
+      this.state = 'feedback';
       this.bossAttackBack(asteroid);
       this.time.delayedCall(220, () => {
-        if (this.state === 'playing' || this.state === 'feedback') {
-          this.cycleBossProblem(asteroid);
-        }
+        if (this.state === 'failed' || this.state === 'ended') return;
+        this.cycleBossProblem(asteroid);
+        this.state = 'playing';
       });
       return;
     }

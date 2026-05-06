@@ -391,9 +391,12 @@ export class WorldMapScene extends Phaser.Scene {
       fill: isUnlocked ? '#ffffff' : '#5a5a72'
     })).setOrigin(0, 0.5));
 
+    const prevWorld = WORLDS.find(w => w.id === world.id - 1);
     const subtitle = isUnlocked
       ? world.description
-      : `Unlocks at ${world.unlockStars} ⭐`;
+      : prevWorld
+        ? `Clear ${prevWorld.name} to unlock`
+        : 'Locked';
     cardContainer.add(this.add.text(textX, 22, subtitle, style('body', {
       fontSize: isUnlocked ? 18 : 22,
       fill: isUnlocked ? '#' + world.accentColor.toString(16).padStart(6, '0') : '#7a7a90',
