@@ -1,8 +1,12 @@
 // World and progression data.
 // Math is no longer per-world — every world contains the full 12×12 set.
-// Worlds are pure progression / theming, gated by total stars.
-// `levelsRequired` is 3 (mult, div, mixed) for Phase 1.
-// Phase 3 will add a 4th boss slot and bump to 4 — see LEVEL_MODES in LevelSelectScene.
+// Worlds are pure progression / theming.
+// `levelsRequired` is 4 (mult, div, mixed, boss) — world N+1 unlocks when all
+// 4 challenges of world N are cleared. See checkWorldUnlock() below.
+//
+// Each world also carries:
+//   - `villain`: the boss persona text (shown above the boss HP bar)
+//   - `flavorText`: the 1-line story card shown after the world is cleared
 
 export const WORLDS = [
   {
@@ -11,8 +15,9 @@ export const WORLDS = [
     color: 0x4a4a6a,
     accentColor: 0x81ecec,
     description: 'Where it all begins — your first hop into the dark.',
-    levelsRequired: 3,
-    unlockStars: 0
+    villain: 'Cratershade',
+    flavorText: 'Moon Base reclaimed. The Void recoils into deeper space.',
+    levelsRequired: 4
   },
   {
     id: 2,
@@ -20,8 +25,9 @@ export const WORLDS = [
     color: 0x6b4423,
     accentColor: 0xf39c12,
     description: 'Dodging the rubble of long-gone planets.',
-    levelsRequired: 3,
-    unlockStars: 5
+    villain: 'Boulderlord',
+    flavorText: 'Asteroid Belt cleared. The rubble drifts quiet again.',
+    levelsRequired: 4
   },
   {
     id: 3,
@@ -29,8 +35,9 @@ export const WORLDS = [
     color: 0x4a235a,
     accentColor: 0xa29bfe,
     description: 'A world where time chimes like glass.',
-    levelsRequired: 3,
-    unlockStars: 12
+    villain: 'Shardmaw',
+    flavorText: 'Crystal Planet rings free. Light pours through the facets.',
+    levelsRequired: 4
   },
   {
     id: 4,
@@ -38,8 +45,9 @@ export const WORLDS = [
     color: 0x1e4d2b,
     accentColor: 0x58d68d,
     description: 'Drifting clouds of color and quiet warmth.',
-    levelsRequired: 3,
-    unlockStars: 22
+    villain: 'Mistshroud',
+    flavorText: 'Nebula Gardens bloom. Color rolls back across the dark.',
+    levelsRequired: 4
   },
   {
     id: 5,
@@ -47,8 +55,9 @@ export const WORLDS = [
     color: 0x2c3e50,
     accentColor: 0x5dade2,
     description: 'An automated outpost humming with ancient code.',
-    levelsRequired: 3,
-    unlockStars: 35
+    villain: 'Coregrinder',
+    flavorText: 'Robot Station reboots. Ancient lights blink awake.',
+    levelsRequired: 4
   },
   {
     id: 6,
@@ -56,8 +65,9 @@ export const WORLDS = [
     color: 0x1a1a2e,
     accentColor: 0xff6b9d,
     description: 'Light bends. So does logic.',
-    levelsRequired: 3,
-    unlockStars: 50
+    villain: 'Eventhorror',
+    flavorText: 'The Black Hole Edge holds. Light bends back toward home.',
+    levelsRequired: 4
   },
   {
     id: 7,
@@ -65,8 +75,9 @@ export const WORLDS = [
     color: 0x2e4a62,
     accentColor: 0x74b9ff,
     description: 'A frozen tail blazing across the sky.',
-    levelsRequired: 3,
-    unlockStars: 65
+    villain: 'Frostfang',
+    flavorText: 'Ice Comet streaks free. Its tail blazes a path forward.',
+    levelsRequired: 4
   },
   {
     id: 8,
@@ -74,8 +85,9 @@ export const WORLDS = [
     color: 0x4a1a1a,
     accentColor: 0xff7675,
     description: "A star's last brilliant breath.",
-    levelsRequired: 3,
-    unlockStars: 80
+    villain: 'Pyrewraith',
+    flavorText: 'Supernova settles. Its embers seed new constellations.',
+    levelsRequired: 4
   },
   {
     id: 9,
@@ -83,8 +95,9 @@ export const WORLDS = [
     color: 0x2d132c,
     accentColor: 0xf7dc6f,
     description: 'The bright, dense heart of your home galaxy.',
-    levelsRequired: 3,
-    unlockStars: 95
+    villain: 'Corecrusher',
+    flavorText: 'Galactic Core pulses gold. The galaxy turns on its axis once more.',
+    levelsRequired: 4
   },
   {
     id: 10,
@@ -92,8 +105,9 @@ export const WORLDS = [
     color: 0x0a3d62,
     accentColor: 0x82ccdd,
     description: 'Familiar yet strange — the rules feel sideways.',
-    levelsRequired: 3,
-    unlockStars: 110
+    villain: 'Mirrorshade',
+    flavorText: 'Parallel Dimension snaps back. The rules feel right again.',
+    levelsRequired: 4
   },
   {
     id: 11,
@@ -101,8 +115,9 @@ export const WORLDS = [
     color: 0x1e1e1e,
     accentColor: 0xffeaa7,
     description: 'The last horizon. Beyond, only theories.',
-    levelsRequired: 3,
-    unlockStars: 125
+    villain: 'The Void Devourer',
+    flavorText: 'The Void shatters. Stars relight across every world.',
+    levelsRequired: 4
   }
 ];
 
@@ -115,26 +130,160 @@ export const MODES = {
   mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
 
+// Per-problem timer (seconds) keyed by world id. Drives asteroid descent speed.
+// Phase 2 uses this to size each asteroid's fall duration; Phase 3 will also
+// drive multi-asteroid spawn cadence.
+const WORLD_PROBLEM_SECONDS = {
+  1: 7.0,  2: 6.0,  3: 5.5,  4: 5.0,  5: 4.5,
+  6: 4.0,  7: 3.5,  8: 3.0,  9: 2.5,  10: 2.0,  11: 1.5
+};
+
+export function getProblemSecondsForWorld(worldId) {
+  return WORLD_PROBLEM_SECONDS[worldId] ?? 6.0;
+}
+
+// Number of asteroids on screen at once. Worlds 1–5 = 1, 6–8 = 2, 9–11 = 3.
+// Phase 2 ships only worlds 1–5 (single asteroid). Worlds 6–11 are gated
+// behind the multi-asteroid flag below until Phase 3 enables them.
+export function getAsteroidCountForWorld(worldId) {
+  if (worldId <= 5) return 1;
+  if (worldId <= 8) return 2;
+  return 3;
+}
+
+// Phase 3: multi-asteroid is live. Worlds 6–8 = 2 on screen, 9–11 = 3.
+export const MULTI_ASTEROID_ENABLED = true;
+
+// Boss timer adds +1.0s to the world's per-problem timer — boss is rigorous
+// on accuracy, not chaotic on speed.
+const BOSS_TIMER_BONUS_S = 1.0;
+export function getProblemSecondsForWorldAndMode(worldId, mode) {
+  const base = getProblemSecondsForWorld(worldId);
+  return mode === 'boss' ? base + BOSS_TIMER_BONUS_S : base;
+}
+
+// Boss config — same for every world.
+export const BOSS_CONFIG = {
+  hp: 5,
+  buttonCount: 6,
+  asteroidScale: 3.4
+};
+
+// Smart distractors: build 3 wrong answers that mimic real kid mistakes for
+// the given problem. Always pulls from this fact family, never random.
+//
+// For multiplication a × b = c:
+//   - off-by-one factor results: (a-1)*b, (a+1)*b, a*(b-1), a*(b+1)
+//   - swapped → addition mistake: a + b
+//   - one ballpark distractor: c ± small
+//
+// For division c ÷ d = q (where c = d*q):
+//   - off-by-one quotient: q ± 1
+//   - the divisor / dividend itself
+//   - common confusion: c - d
+//
+// Returns `count` distinct ints, none equal to the correct answer, none
+// negative, none implausibly far from the correct value. Default 3 for normal
+// 4-button play; pass 5 for boss (6 buttons total).
+export function getDistractors(problem, count = 3) {
+  const { a, b, op, answer } = problem;
+  const candidates = new Set();
+
+  if (op === '×') {
+    // Off-by-one factor (very common kid mistake — they recall the wrong fact).
+    candidates.add((a - 1) * b);
+    candidates.add((a + 1) * b);
+    candidates.add(a * (b - 1));
+    candidates.add(a * (b + 1));
+    // Square-of-factor mistake (e.g. 7×8 → guess 49 because they thought 7×7).
+    candidates.add(a * a);
+    candidates.add(b * b);
+    // Addition / counted-on-fingers mistake.
+    candidates.add(a + b);
+    // Double-the-answer / half-the-answer ballpark slips.
+    candidates.add(answer + a);
+    candidates.add(answer - b);
+    candidates.add(answer + 1);
+    candidates.add(answer - 1);
+  } else {
+    // Division: c ÷ d = q
+    const dividend = a * b;
+    const divisor = (problem.display.match(/÷\s*(\d+)/) || [])[1];
+    const dNum = divisor ? parseInt(divisor, 10) : Math.max(a, b);
+    const q = answer;
+    // Off-by-one quotient.
+    candidates.add(q - 1);
+    candidates.add(q + 1);
+    candidates.add(q + 2);
+    // Subtract divisor from dividend instead of dividing.
+    candidates.add(dividend - dNum);
+    // Quotient × 2 / quotient / 2 (rough ballpark slip).
+    candidates.add(q * 2);
+    candidates.add(Math.max(1, Math.floor(q / 2)));
+    // The divisor itself (kid froze and just typed something on the card).
+    candidates.add(dNum);
+  }
+
+  // Filter to plausible values, drop duplicates and the correct answer.
+  const valid = [...candidates].filter(n =>
+    Number.isInteger(n) &&
+    n > 0 &&
+    n !== answer &&
+    n <= 200          // anything beyond is implausible for 1..12 facts
+  );
+
+  // Shuffle and pick 3.
+  for (let i = valid.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [valid[i], valid[j]] = [valid[j], valid[i]];
+  }
+
+  const picked = [];
+  for (const v of valid) {
+    if (picked.length >= count) break;
+    if (!picked.includes(v)) picked.push(v);
+  }
+
+  // Fallback: if we couldn't find enough (very small facts like 1×1), pad ±n.
+  let pad = 1;
+  while (picked.length < count) {
+    const candidate = answer + pad;
+    if (candidate > 0 && candidate !== answer && !picked.includes(candidate)) {
+      picked.push(candidate);
+    }
+    pad = pad > 0 ? -pad : -pad + 1;
+    if (Math.abs(pad) > 30) break;
+  }
+
+  return picked;
+}
+
 // Generate one problem for the given mode.
 // Math is no longer constrained by world — facts are sampled freely from 1..12.
 // `worldId` is accepted for back-compat but only used for theming elsewhere.
+//
+// Fact-pool weighting (Phase 3):
+//   - mode === 'boss': 100% weak facts (lowest accuracy first; ties broken by
+//     slowest avg). Falls back to random if no factMastery data exists yet.
+//   - other modes: 60% weak fact, 40% pure random. The "weak" picker pulls
+//     from the bottom-third of accuracy among facts the player has actually
+//     attempted (>=2 tries).
+//
 // Returns { display, a, b, op, answer, factKey }.
 export function getProblemForWorld(_worldId, mode = 'mult') {
   // Decide operation
   let op = mode;
-  if (mode === 'mixed') {
+  if (mode === 'mixed' || mode === 'boss') {
     op = Math.random() < 0.5 ? 'mult' : 'div';
   }
 
-  // ~30% chance: surface a fact that's due for review (priority loop).
   let a, b;
-  if (Math.random() < 0.3) {
-    const due = progress.getFactsDueForReview()
-      .filter(f => Math.max(f.a, f.b) <= 12);
-    if (due.length > 0) {
-      const pf = due[0];
-      a = pf.a;
-      b = pf.b;
+  const useWeak = mode === 'boss' ? true : Math.random() < 0.6;
+  if (useWeak) {
+    const weak = progress.pickWeakFact();
+    if (weak) {
+      a = weak.a;
+      b = weak.b;
     }
   }
 
@@ -195,7 +344,7 @@ class PlayerProgress {
       const saved = localStorage.getItem('cosmicMathProgress');
       if (saved) {
         const data = JSON.parse(saved);
-        this.worldProgress = data.worldProgress || this.getDefaultWorldProgress();
+        this.worldProgress = this.mergeWorldProgress(data.worldProgress);
         this.factMastery = data.factMastery || {};
         this.totalStars = data.totalStars || 0;
         this.currentWorld = data.currentWorld || 1;
@@ -292,11 +441,28 @@ class PlayerProgress {
     };
   }
 
+  mergeWorldProgress(saved) {
+    const defaults = this.getDefaultWorldProgress();
+    if (!saved) return defaults;
+    for (const w of WORLDS) {
+      const s = saved[w.id];
+      if (s) {
+        defaults[w.id] = {
+          unlocked: s.unlocked || defaults[w.id].unlocked,
+          levelsCompleted: s.levelsCompleted || 0,
+          starsEarned: s.starsEarned || 0,
+          levelStars: s.levelStars || {}
+        };
+      }
+    }
+    return defaults;
+  }
+
   getDefaultWorldProgress() {
     const progress = {};
     for (const world of WORLDS) {
       progress[world.id] = {
-        unlocked: (world.unlockStars || 0) === 0,
+        unlocked: world.id === 1,
         levelsCompleted: 0,
         starsEarned: 0,
         levelStars: {} // levelNum: stars (1-3)
@@ -449,14 +615,55 @@ class PlayerProgress {
   }
 
   checkWorldUnlock(_completedWorldId) {
-    // Stars-based unlock — re-evaluate every world after each level completion.
-    for (const world of WORLDS) {
+    // Phase 3: world N+1 unlocks when world N has all 4 challenges cleared
+    // (mult, div, mixed, boss). World 1 is always unlocked.
+    for (let i = 0; i < WORLDS.length; i++) {
+      const world = WORLDS[i];
       const wp = this.worldProgress[world.id];
-      if (!wp || wp.unlocked) continue;
-      if (this.totalStars >= (world.unlockStars || 0)) {
+      if (!wp) continue;
+      if (i === 0) {
+        wp.unlocked = true;
+        continue;
+      }
+      const prev = WORLDS[i - 1];
+      const prevWp = this.worldProgress[prev.id];
+      const prevCleared = prevWp && Object.keys(prevWp.levelStars).length >= prev.levelsRequired;
+      if (prevCleared && !wp.unlocked) {
         wp.unlocked = true;
       }
     }
+  }
+
+  // Facts the player has attempted, sorted weakest-first (lowest accuracy,
+  // tie-broken by fewest attempts so we surface novel weak ones).
+  rankedWeakFacts(minTotal = 2) {
+    const facts = [];
+    for (const [key, data] of Object.entries(this.factMastery)) {
+      if (!data || data.total < minTotal) continue;
+      const [a, b] = key.split('x').map(Number);
+      if (a < 1 || b < 1 || a > 12 || b > 12) continue;
+      facts.push({ a, b, accuracy: data.correct / data.total, total: data.total });
+    }
+    facts.sort((x, y) => x.accuracy - y.accuracy || x.total - y.total);
+    return facts;
+  }
+
+  // Returns null on fresh saves so callers can fall back to random sampling.
+  // Bottom third of weakest facts, floor 3 / cap 8 — focused without becoming
+  // repetitive on a single fact.
+  pickWeakFact() {
+    const facts = this.rankedWeakFacts();
+    if (facts.length === 0) return null;
+    const poolSize = Math.min(Math.max(3, Math.ceil(facts.length / 3)), 8);
+    const pool = facts.slice(0, poolSize);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  isWorldFullyCleared(worldId) {
+    const wp = this.worldProgress[worldId];
+    const world = WORLDS.find(w => w.id === worldId);
+    if (!wp || !world) return false;
+    return Object.keys(wp.levelStars).length >= world.levelsRequired;
   }
 
   isWorldUnlocked(worldId) {
@@ -477,20 +684,12 @@ class PlayerProgress {
 
   // Get most missed facts for analytics
   getMostMissedFacts(count = 5) {
-    const facts = [];
-
-    for (const [key, data] of Object.entries(this.factMastery)) {
-      if (data.total >= 3) { // Only include facts with enough attempts
-        const [a, b] = key.split('x').map(Number);
-        const accuracy = Math.round((data.correct / data.total) * 100);
-        facts.push({ a, b, accuracy, total: data.total });
-      }
-    }
-
-    // Sort by accuracy (lowest first)
-    facts.sort((x, y) => x.accuracy - y.accuracy);
-
-    return facts.slice(0, count);
+    return this.rankedWeakFacts(3).slice(0, count).map(f => ({
+      a: f.a,
+      b: f.b,
+      accuracy: Math.round(f.accuracy * 100),
+      total: f.total
+    }));
   }
 }
 

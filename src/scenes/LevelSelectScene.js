@@ -9,9 +9,11 @@ import { style } from '../textStyles.js';
 const W = 800;
 const H = 1400;
 
-// Level number → mode key. Phase 1 keeps the existing world unlock logic;
-// Phase 3 will add a 4th 'boss' slot and rewire unlocks per the spec.
-const LEVEL_MODES = ['mult', 'div', 'mixed'];
+// Level number → mode key. Phase 3: each world is mult/div/mixed + boss.
+const LEVEL_MODES = ['mult', 'div', 'mixed', 'boss'];
+
+const BOSS_LABEL = 'Boss';
+const BOSS_SYMBOL = '☠';
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -124,12 +126,13 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   createModeGrid() {
-    const startY = 410;
+    const startY = 400;
     const cardW = 230;
-    const cardH = 220;
+    const cardH = 200;
     const gapX = 18;
     const gapY = 22;
-    const cols = 3;
+    // 2x2 grid: row 1 = mult/div, row 2 = mixed/boss.
+    const cols = 2;
     const rowWidth = cols * cardW + (cols - 1) * gapX;
     const startX = 400 - rowWidth / 2 + cardW / 2;
 
@@ -139,17 +142,19 @@ export class LevelSelectScene extends Phaser.Scene {
       const x = startX + col * (cardW + gapX);
       const y = startY + row * (cardH + gapY) + cardH / 2;
       const levelNum = i + 1;
-      const mode = MODES[modeKey];
+      const isBoss = modeKey === 'boss';
+      const mode = isBoss
+        ? { label: BOSS_LABEL, symbol: BOSS_SYMBOL }
+        : MODES[modeKey];
       const stars = this.worldProgress.levelStars[levelNum] || 0;
-      // All modes are always playable — no sequential gate.
-      this.createModeCard(x, y, cardW, cardH, levelNum, modeKey, mode, stars, true);
+      this.createModeCard(x, y, cardW, cardH, levelNum, modeKey, mode, stars, true, isBoss);
     });
   }
 
-  createModeCard(x, y, w, h, levelNum, modeKey, mode, stars, isUnlocked) {
+  createModeCard(x, y, w, h, levelNum, modeKey, mode, stars, isUnlocked, isBoss) {
     const container = this.add.container(x, y).setDepth(10);
 
-    const accent = isUnlocked ? this.world.accentColor : 0x3a3a4a;
+    const accent = isBoss ? 0xff6b6b : (isUnlocked ? this.world.accentColor : 0x3a3a4a);
 
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.5);
@@ -164,19 +169,29 @@ export class LevelSelectScene extends Phaser.Scene {
     container.add(card);
 
     // Mode icon (the operator symbol)
-    const symbolText = this.add.text(0, -h / 2 + 60, mode.symbol, style('display', {
-      fontSize: '64px',
+    const symbolText = this.add.text(0, -h / 2 + 50, mode.symbol, style('display', {
+      fontSize: isBoss ? '64px' : '64px',
       fill: '#' + accent.toString(16).padStart(6, '0'),
       strokeThickness: 0
     })).setOrigin(0.5);
     container.add(symbolText);
 
     // Mode label
-    const labelText = this.add.text(0, -h / 2 + 130, mode.label, style('headline', {
+    const labelText = this.add.text(0, -h / 2 + 108, mode.label, style('headline', {
       fontSize: '26px',
-      fill: isUnlocked ? '#ffffff' : '#5a5a72'
+      fill: isUnlocked ? '#ffffff' : '#5a5a72',
+      fontStyle: isBoss ? '900' : 'bold'
     })).setOrigin(0.5);
     container.add(labelText);
+
+    if (isBoss && isUnlocked) {
+      // Villain name underneath — gives the boss slot identity.
+      const villain = this.world.villain || 'Boss';
+      container.add(this.add.text(0, -h / 2 + 138, villain.toUpperCase(), style('caption', {
+        fontSize: '14px',
+        fill: '#ff8b8b'
+      })).setOrigin(0.5));
+    }
 
     if (isUnlocked) {
       // Stars row
