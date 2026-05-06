@@ -1,9 +1,23 @@
+// Parent dashboard — clean, consistent space-themed layout. 8px spacing grid,
+// dark base + cyan/coral/mint accents. Includes a Reset Progress button.
+
 import Phaser from 'phaser';
 import { progress, WORLDS } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
+import { style } from '../textStyles.js';
+import { createIconButton, createButton } from '../buttonHelper.js';
+import { createStarfield } from '../starfieldHelper.js';
+import { drawArrowLeftIcon, drawSoundIcon } from '../StatIcons.js';
+
+const W = 1080;
+const H = 1920;
+
+const ACCENT = 0x4ecdc4;
+const WARN = 0xff6b6b;
+const SUCCESS = 0x58d68d;
 
 export class ParentDashboardScene extends Phaser.Scene {
   constructor() {
@@ -11,12 +25,10 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   create() {
-    // Background
-    this.add.rectangle(400, 700, 800, 1400, 0x12121f);
+    createStarfield(this, { width: W, height: H, accentStrength: 0 });
+    this.add.rectangle(W / 2, H / 2, W, H, 0x07071a, 0.65).setDepth(0);
 
-    // Check if PIN verified this session
     const pinVerified = this.registry.get('parentPinVerified');
-
     if (!pinVerified) {
       this.showPinEntry();
     } else {
@@ -25,118 +37,99 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   showPinEntry() {
-    // Title
-    this.add.text(400, 160, 'Parent Dashboard', {
-      fontSize: '48px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    this.add.text(W / 2, 240, 'Parent Dashboard', style('display', {
+      fontSize: '64px',
+      fill: '#ffffff'
+    })).setOrigin(0.5).setDepth(10);
 
-    this.add.text(400, 240, 'Enter PIN to access', {
+    this.add.text(W / 2, 320, 'Enter PIN to continue', style('body', {
       fontSize: '28px',
-      fill: '#81ecec',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
+      fill: '#cfcfe0'
+    })).setOrigin(0.5).setDepth(10);
 
-    // PIN display
     this.pinDigits = ['', '', '', ''];
     this.currentPinIndex = 0;
+    this.pinDisplay = this.add.text(W / 2, 460, '_ _ _ _', style('display', {
+      fontSize: '96px',
+      fill: '#ffffff'
+    })).setOrigin(0.5).setDepth(10);
 
-    this.pinDisplay = this.add.text(400, 360, '_ _ _ _', {
-      fontSize: '72px',
-      fill: '#ffffff',
-      fontFamily: 'monospace',
-      letterSpacing: 40
-    }).setOrigin(0.5);
-
-    // Number pad
     this.createNumberPad();
 
-    // Back button
-    const backBtn = this.add.text(400, 1240, '< Back to Game', {
-      fontSize: '32px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    backBtn.on('pointerover', () => backBtn.setFill('#ffffff'));
-    backBtn.on('pointerout', () => backBtn.setFill('#888888'));
-    backBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.scene.start('WorldMapScene');
+    const back = createButton(this, {
+      x: W / 2, y: H - 130, label: '< Back to Game',
+      width: 360, height: 80, color: 0x4a4a6a,
+      onClick: () => this.scene.start('WorldMapScene')
     });
+    back.setDepth(10);
 
-    // Hint text — only show the default PIN if it hasn't been changed.
     if (!localStorage.getItem('cosmicMathParentPin')) {
-      this.add.text(400, 1320, 'Default PIN: 0000', {
-        fontSize: '24px',
-        fill: '#555555',
-        fontFamily: 'Arial'
-      }).setOrigin(0.5);
+      this.add.text(W / 2, H - 60, 'Default PIN: 0000', style('caption', {
+        fontSize: '22px',
+        fill: '#7a7a90'
+      })).setOrigin(0.5).setDepth(10);
     }
-
-    // Sound toggle (top-right)
-    this.createSoundToggle(740, 50);
   }
 
   createNumberPad() {
-    const buttonSize = 120;
-    const spacing = 140;
-    const startX = 400 - spacing; // Center the 3-column grid (middle column at 400)
-    const startY = 560;
+    const buttonSize = 140;
+    const spacing = 168;
+    const startX = W / 2 - spacing;
+    const startY = 700;
 
-    // Numbers 1-9
     for (let i = 0; i < 9; i++) {
       const row = Math.floor(i / 3);
       const col = i % 3;
       const x = startX + col * spacing;
       const y = startY + row * spacing;
       const num = i + 1;
-
-      this.createPadButton(x, y, buttonSize, num.toString(), () => this.enterDigit(num.toString()));
+      this.makePadButton(x, y, buttonSize, num.toString(), () => this.enterDigit(num.toString()));
     }
-
-    // 0 button (center bottom)
-    this.createPadButton(startX + spacing, startY + 3 * spacing, buttonSize, '0', () => this.enterDigit('0'));
-
-    // Clear button (left bottom)
-    this.createPadButton(startX, startY + 3 * spacing, buttonSize, 'C', () => this.clearPin(), 0xff6b6b);
-
-    // Backspace button (right bottom)
-    this.createPadButton(startX + 2 * spacing, startY + 3 * spacing, buttonSize, '<', () => this.backspace(), 0xf39c12);
+    this.makePadButton(startX + spacing, startY + 3 * spacing, buttonSize, '0', () => this.enterDigit('0'));
+    this.makePadButton(startX, startY + 3 * spacing, buttonSize, 'C', () => this.clearPin(), WARN);
+    this.makePadButton(startX + 2 * spacing, startY + 3 * spacing, buttonSize, '<', () => this.backspace(), 0xffb142);
   }
 
-  createPadButton(x, y, size, label, callback, color = 0x2d2d44) {
-    const btn = this.add.rectangle(x, y, size, size, color)
-      .setStrokeStyle(4, 0x4ecdc4)
-      .setInteractive();
-
-    const text = this.add.text(x, y, label, {
-      fontSize: '48px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    btn.on('pointerover', () => btn.setStrokeStyle(6, 0xffffff));
-    btn.on('pointerout', () => btn.setStrokeStyle(4, 0x4ecdc4));
-    btn.on('pointerdown', () => {
+  makePadButton(x, y, size, label, callback, color = ACCENT) {
+    const c = this.add.container(x, y).setDepth(10);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.95);
+    bg.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
+    bg.lineStyle(3, color, 0.8);
+    bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
+    c.add(bg);
+    c.add(this.add.text(0, 0, label, style('display', {
+      fontSize: '52px',
+      fill: '#ffffff'
+    })).setOrigin(0.5));
+    const hit = this.add.rectangle(0, 0, size, size, 0x000000, 0).setInteractive({ useHandCursor: true });
+    c.add(hit);
+    hit.on('pointerdown', () => {
       audio.playClick();
       callback();
+    });
+    hit.on('pointerover', () => {
+      bg.clear();
+      bg.fillStyle(0x1a1a30, 0.95);
+      bg.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
+      bg.lineStyle(4, color, 1);
+      bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
+    });
+    hit.on('pointerout', () => {
+      bg.clear();
+      bg.fillStyle(0x12122a, 0.95);
+      bg.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
+      bg.lineStyle(3, color, 0.8);
+      bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
     });
   }
 
   enterDigit(digit) {
     if (this.currentPinIndex >= 4) return;
-
     this.pinDigits[this.currentPinIndex] = digit;
     this.currentPinIndex++;
     this.updatePinDisplay();
-
-    if (this.currentPinIndex === 4) {
-      this.verifyPin();
-    }
+    if (this.currentPinIndex === 4) this.verifyPin();
   }
 
   backspace() {
@@ -154,63 +147,56 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   updatePinDisplay() {
-    const display = this.pinDigits.map(d => d || '_').join(' ');
-    this.pinDisplay.setText(display);
+    this.pinDisplay.setText(this.pinDigits.map(d => d || '_').join(' '));
   }
 
   verifyPin() {
     const enteredPin = this.pinDigits.join('');
     const savedPin = localStorage.getItem('cosmicMathParentPin') || '0000';
-
     if (enteredPin === savedPin) {
       this.registry.set('parentPinVerified', true);
       this.scene.restart();
     } else {
-      // Wrong PIN - shake and reset
       this.cameras.main.shake(200, 0.01);
-      this.pinDisplay.setFill('#ff6b6b');
+      this.pinDisplay.setColor('#ff6b6b');
       this.time.delayedCall(500, () => {
-        this.pinDisplay.setFill('#ffffff');
+        this.pinDisplay.setColor('#ffffff');
         this.clearPin();
       });
     }
   }
 
+  // ============================================================
+  // DASHBOARD
+  // ============================================================
   showDashboard() {
     this.currentTab = 'summary';
 
-    // Header
-    this.add.rectangle(400, 50, 800, 100, 0x07071a).setAlpha(0.95);
+    const headerBg = this.add.graphics().setDepth(10);
+    headerBg.fillStyle(0x07071a, 0.92);
+    headerBg.fillRect(0, 0, W, 160);
 
-    this.add.text(400, 50, 'Parent Dashboard', {
-      fontSize: '40px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
+    createIconButton(this, {
+      x: 80, y: 80, radius: 36,
+      accentColor: ACCENT,
+      drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
+      onClick: () => this.scene.start('WorldMapScene')
+    }).setDepth(15);
 
-    // Back button
-    const backBtn = this.add.text(60, 50, '< Back', {
-      fontSize: '28px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    }).setInteractive();
+    this.add.text(W / 2, 80, 'Parent Dashboard', style('display', {
+      fontSize: '54px',
+      fill: '#ffffff'
+    })).setOrigin(0.5).setDepth(15);
 
-    backBtn.on('pointerover', () => backBtn.setFill('#ffffff'));
-    backBtn.on('pointerout', () => backBtn.setFill('#888888'));
-    backBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.scene.start('WorldMapScene');
-    });
+    createIconButton(this, {
+      x: W - 80, y: 80, radius: 36,
+      accentColor: ACCENT,
+      drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
+      onClick: () => audio.toggleEnabled()
+    }).setDepth(15);
 
-    // Sound toggle (top-right)
-    this.createSoundToggle(740, 50);
-
-    // Tab buttons
+    this.contentContainer = this.add.container(0, 0).setDepth(11);
     this.createTabs();
-
-    // Content area
-    this.contentContainer = this.add.container(0, 0);
     this.showSummaryTab();
   }
 
@@ -222,649 +208,396 @@ export class ParentDashboardScene extends Phaser.Scene {
       { id: 'settings', label: 'Settings' }
     ];
 
-    const tabWidth = 180;
-    const startX = 110;
+    const tabWidth = 240;
+    const tabHeight = 64;
+    const gap = 16;
+    const totalW = tabs.length * tabWidth + (tabs.length - 1) * gap;
+    const startX = W / 2 - totalW / 2 + tabWidth / 2;
+    const tabY = 220;
 
     this.tabButtons = {};
 
-    tabs.forEach((tab, index) => {
-      const x = startX + index * tabWidth;
-      const isActive = tab.id === this.currentTab;
-
-      const bg = this.add.rectangle(x, 150, tabWidth - 20, 60, isActive ? 0x4ecdc4 : 0x2d2d44)
-        .setStrokeStyle(2, 0x4ecdc4)
-        .setInteractive();
-
-      const text = this.add.text(x, 150, tab.label, {
-        fontSize: '24px',
-        fill: isActive ? '#1a1a2e' : '#ffffff',
-        fontFamily: 'Arial',
-        fontStyle: isActive ? 'bold' : 'normal'
-      }).setOrigin(0.5);
-
-      bg.on('pointerdown', () => {
+    tabs.forEach((tab, i) => {
+      const x = startX + i * (tabWidth + gap);
+      const c = this.add.container(x, tabY).setDepth(12);
+      const bg = this.add.graphics();
+      c.add(bg);
+      const text = this.add.text(0, 0, tab.label, style('subhead', {
+        fontSize: '24px'
+      })).setOrigin(0.5);
+      c.add(text);
+      const hit = this.add.rectangle(0, 0, tabWidth, tabHeight, 0x000000, 0)
+        .setInteractive({ useHandCursor: true });
+      c.add(hit);
+      hit.on('pointerdown', () => {
         audio.playClick();
         this.switchTab(tab.id);
       });
 
-      this.tabButtons[tab.id] = { bg, text };
+      c.bg = bg;
+      c.text = text;
+      c.tabId = tab.id;
+      c.tabW = tabWidth;
+      c.tabH = tabHeight;
+      this.tabButtons[tab.id] = c;
+    });
+    this.refreshTabs();
+  }
+
+  refreshTabs() {
+    Object.values(this.tabButtons).forEach(c => {
+      const isActive = c.tabId === this.currentTab;
+      c.bg.clear();
+      c.bg.fillStyle(isActive ? ACCENT : 0x1a1a30, 0.95);
+      c.bg.fillRoundedRect(-c.tabW / 2, -c.tabH / 2, c.tabW, c.tabH, 16);
+      c.bg.lineStyle(2, ACCENT, isActive ? 1 : 0.5);
+      c.bg.strokeRoundedRect(-c.tabW / 2, -c.tabH / 2, c.tabW, c.tabH, 16);
+      c.text.setColor(isActive ? '#0a0a1a' : '#ffffff');
     });
   }
 
   switchTab(tabId) {
     this.currentTab = tabId;
-
-    // Update tab visuals
-    Object.entries(this.tabButtons).forEach(([id, { bg, text }]) => {
-      const isActive = id === tabId;
-      bg.setFillStyle(isActive ? 0x4ecdc4 : 0x2d2d44);
-      text.setFill(isActive ? '#1a1a2e' : '#ffffff');
-      text.setFontStyle(isActive ? 'bold' : 'normal');
-    });
-
-    // Clear and show new content
+    this.refreshTabs();
     this.contentContainer.removeAll(true);
-
-    switch (tabId) {
-      case 'summary':
-        this.showSummaryTab();
-        break;
-      case 'companion':
-        this.showCompanionTab();
-        break;
-      case 'analytics':
-        this.showAnalyticsTab();
-        break;
-      case 'settings':
-        this.showSettingsTab();
-        break;
-    }
+    if (tabId === 'summary') this.showSummaryTab();
+    else if (tabId === 'companion') this.showCompanionTab();
+    else if (tabId === 'analytics') this.showAnalyticsTab();
+    else this.showSettingsTab();
   }
 
-  showCompanionTab() {
-    const startY = 250;
-
-    if (!companion.hasStarter()) {
-      const msg = this.add.text(400, 600, 'No companion picked yet.\nYour child will choose one\nthe next time they open the game.', {
-        fontSize: '28px',
-        fill: '#cfcfe0',
-        fontFamily: 'Arial',
-        align: 'center',
-        lineSpacing: 10
-      }).setOrigin(0.5);
-      this.contentContainer.add(msg);
-      return;
-    }
-
-    const species = companion.getSpecies();
-
-    // Pet portrait card
-    const card = this.add.rectangle(400, startY + 100, 720, 240, 0x2d2d44, 0.9)
-      .setStrokeStyle(4, species.color);
-    this.contentContainer.add(card);
-
-    const pet = drawCompanion(this, 200, startY + 100, { scale: 0.95 });
-    this.contentContainer.add(pet);
-
-    // Name + stage
-    const nameText = this.add.text(340, startY + 50, species.name, {
-      fontSize: '38px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
-    this.contentContainer.add(nameText);
-
-    const stageText = this.add.text(340, startY + 100, `Stage: ${companion.getStage()}`, {
-      fontSize: '24px',
-      fill: '#' + species.accent.toString(16).padStart(6, '0'),
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(stageText);
-
-    const fedText = this.add.text(340, startY + 140, `Total fed: ${companion.getTotalPellets()} pellets`, {
-      fontSize: '22px',
-      fill: '#cfcfe0',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(fedText);
-
-    // Streak readout
-    const streakY = startY + 240;
-    const streakHeader = this.add.text(80, streakY, 'Daily Streak', {
-      fontSize: '24px',
-      fill: '#cfcfe0',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(streakHeader);
-
-    const streakNum = this.add.text(720, streakY, `${streak.getCurrent()} days (best: ${streak.getBest()})`, {
-      fontSize: '24px',
-      fill: '#ff8b3d',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(1, 0);
-    this.contentContainer.add(streakNum);
-  }
-
+  // ----- SUMMARY -----
   showSummaryTab() {
-    const startY = 250;
-    let y = startY;
-
-    // Calculate stats
     const stats = this.calculateStats();
-
-    // Total Stars
-    this.addStatCard(y, 'Total Stars', `${stats.totalStars}`, 0xf7dc6f);
-    y += 140;
-
-    // Levels Completed
-    this.addStatCard(y, 'Levels Completed', `${stats.levelsCompleted}`, 0x4ecdc4);
-    y += 140;
-
-    // Current World
-    this.addStatCard(y, 'Current World', stats.currentWorld, 0xa29bfe);
-    y += 140;
-
-    // Overall Accuracy
-    const accuracyColor = stats.overallAccuracy >= 80 ? 0x58d68d : stats.overallAccuracy >= 60 ? 0xf7dc6f : 0xff6b6b;
-    this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accuracyColor);
-    y += 140;
-
+    let y = 360;
+    this.addStatCard(y, 'Total Stars', `${stats.totalStars}`, 0xf7dc6f); y += 152;
+    this.addStatCard(y, 'Levels Completed', `${stats.levelsCompleted}`, ACCENT); y += 152;
+    this.addStatCard(y, 'Current World', stats.currentWorld, 0xa29bfe); y += 152;
+    const accColor = stats.overallAccuracy >= 80 ? SUCCESS : stats.overallAccuracy >= 60 ? 0xf7dc6f : WARN;
+    this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accColor); y += 152;
+    this.addStatCard(y, 'Day Streak', `${streak.getCurrent()}d (best ${streak.getBest()}d)`, 0xff8b3d);
   }
 
   addStatCard(y, label, value, accentColor) {
-    const card = this.add.rectangle(400, y, 720, 110, 0x2d2d44, 0.9)
-      .setStrokeStyle(4, accentColor);
-    this.contentContainer.add(card);
-
-    const labelText = this.add.text(80, y - 16, label, {
-      fontSize: '28px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(labelText);
-
-    const valueText = this.add.text(720, y, value, {
-      fontSize: '48px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(1, 0.5);
-    this.contentContainer.add(valueText);
+    const w = 880;
+    const c = this.add.container(W / 2, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.95);
+    bg.fillRoundedRect(-w / 2, -64, w, 128, 18);
+    bg.lineStyle(3, accentColor, 0.85);
+    bg.strokeRoundedRect(-w / 2, -64, w, 128, 18);
+    c.add(bg);
+    c.add(this.add.text(-w / 2 + 32, -16, label, style('caption', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      fontStyle: '900'
+    })).setOrigin(0, 0.5));
+    c.add(this.add.text(w / 2 - 32, 0, value, style('display', {
+      fontSize: '54px',
+      fill: '#ffffff'
+    })).setOrigin(1, 0.5));
+    this.contentContainer.add(c);
   }
 
-  showAnalyticsTab() {
-    const startY = 250;
-    let y = startY;
-
-    // Title: Fact Mastery
-    const title = this.add.text(400, y, 'Multiplication Fact Mastery', {
-      fontSize: '32px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    this.contentContainer.add(title);
-    y += 60;
-
-    // Heat map grid (tables 1-10)
-    this.createMasteryHeatMap(y);
-    y += 660;
-
-    // Most Missed Facts
-    const missedTitle = this.add.text(400, y, 'Most Missed Facts', {
-      fontSize: '32px',
-      fill: '#ff6b6b',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    this.contentContainer.add(missedTitle);
-    y += 50;
-
-    this.showMostMissedFacts(y);
-  }
-
-  createMasteryHeatMap(startY) {
-    const cellSize = 64;
-    const startX = 90;
-
-    // Column headers (1-10)
-    for (let i = 1; i <= 10; i++) {
-      const header = this.add.text(startX + i * cellSize, startY, i.toString(), {
-        fontSize: '24px',
-        fill: '#888888',
-        fontFamily: 'Arial'
-      }).setOrigin(0.5);
-      this.contentContainer.add(header);
-    }
-
-    // Row headers and cells
-    for (let row = 1; row <= 10; row++) {
-      const rowY = startY + row * (cellSize - 12);
-
-      // Row header
-      const rowHeader = this.add.text(startX - 10, rowY + cellSize / 2, row.toString(), {
-        fontSize: '24px',
-        fill: '#888888',
-        fontFamily: 'Arial'
-      }).setOrigin(1, 0.5);
-      this.contentContainer.add(rowHeader);
-
-      // Cells
-      for (let col = 1; col <= 10; col++) {
-        const mastery = progress.getFactMastery(row, col);
-        const color = this.getMasteryColor(mastery);
-
-        const cellX = startX + col * cellSize;
-        const cellY = rowY + cellSize / 2;
-
-        const cell = this.add.rectangle(cellX, cellY, cellSize - 8, cellSize - 16, color);
-        this.contentContainer.add(cell);
-
-        // Show percentage on hover (simplified - just show if high mastery)
-        if (mastery >= 90) {
-          const check = this.add.text(cellX, cellY, '✓', {
-            fontSize: '28px',
-            fill: '#1a1a2e'
-          }).setOrigin(0.5);
-          this.contentContainer.add(check);
-        }
-      }
-    }
-
-    // Legend
-    const legendY = startY + 11 * (cellSize - 12) + 20;
-    const legendColors = [
-      { color: 0x2d2d44, label: '0%' },
-      { color: 0xff6b6b, label: '<50%' },
-      { color: 0xf39c12, label: '50-75%' },
-      { color: 0xf7dc6f, label: '75-90%' },
-      { color: 0x58d68d, label: '90%+' }
-    ];
-
-    let legendX = 80;
-    legendColors.forEach(({ color, label }) => {
-      const box = this.add.rectangle(legendX, legendY, 30, 30, color);
-      this.contentContainer.add(box);
-
-      const text = this.add.text(legendX + 24, legendY, label, {
-        fontSize: '20px',
-        fill: '#888888',
-        fontFamily: 'Arial'
-      }).setOrigin(0, 0.5);
-      this.contentContainer.add(text);
-
-      legendX += 140;
-    });
-  }
-
-  getMasteryColor(mastery) {
-    if (mastery >= 90) return 0x58d68d; // Green
-    if (mastery >= 75) return 0xf7dc6f; // Yellow
-    if (mastery >= 50) return 0xf39c12; // Orange
-    if (mastery > 0) return 0xff6b6b;   // Red
-    return 0x2d2d44; // Gray (not attempted)
-  }
-
-  showMostMissedFacts(y) {
-    const missedFacts = progress.getMostMissedFacts(5);
-
-    if (missedFacts.length === 0) {
-      const noData = this.add.text(400, y + 40, 'No data yet - keep playing!', {
+  // ----- COMPANION -----
+  showCompanionTab() {
+    if (!companion.hasStarter()) {
+      const msg = this.add.text(W / 2, H / 2, 'No companion picked yet.\nYour child will choose one\nthe next time they open the game.', style('body', {
         fontSize: '28px',
-        fill: '#555555',
-        fontFamily: 'Arial'
-      }).setOrigin(0.5);
-      this.contentContainer.add(noData);
+        fill: '#cfcfe0',
+        align: 'center'
+      })).setOrigin(0.5);
+      this.contentContainer.add(msg);
       return;
     }
+    const sp = companion.getSpecies();
+    const card = this.add.container(W / 2, 460);
+    const w = 880;
+    const h = 320;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.95);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
+    bg.lineStyle(3, sp.color, 0.85);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
+    card.add(bg);
+    const pet = drawCompanion(this, -w / 2 + 160, 0, { scale: 1.1 });
+    card.add(pet);
+    card.add(this.add.text(-w / 2 + 320, -80, sp.name, style('display', {
+      fontSize: '46px',
+      fill: '#ffffff'
+    })).setOrigin(0, 0.5));
+    card.add(this.add.text(-w / 2 + 320, -28, `Stage: ${companion.getStage()}`, style('subhead', {
+      fontSize: '28px',
+      fill: '#' + sp.accent.toString(16).padStart(6, '0')
+    })).setOrigin(0, 0.5));
+    card.add(this.add.text(-w / 2 + 320, 22, `Pellets fed: ${companion.getTotalPellets()}`, style('body', {
+      fontSize: '22px',
+      fill: '#cfcfe0'
+    })).setOrigin(0, 0.5));
+    const stats = companion.getEvolutionStats();
+    card.add(this.add.text(-w / 2 + 320, 70, `Worlds cleared: ${stats.worldsCleared} / 11`, style('body', {
+      fontSize: '22px',
+      fill: '#cfcfe0'
+    })).setOrigin(0, 0.5));
+    card.add(this.add.text(-w / 2 + 320, 112, `Lifetime correct: ${stats.lifetimeCorrect}`, style('body', {
+      fontSize: '22px',
+      fill: '#cfcfe0'
+    })).setOrigin(0, 0.5));
+    this.contentContainer.add(card);
+  }
 
-    missedFacts.forEach((fact, index) => {
-      const text = this.add.text(400, y + index * 50, `${fact.a} × ${fact.b} = ${fact.a * fact.b}  (${fact.accuracy}% accuracy)`, {
-        fontSize: '28px',
-        fill: fact.accuracy < 50 ? '#ff6b6b' : '#f39c12',
-        fontFamily: 'Arial'
-      }).setOrigin(0.5);
+  // ----- ANALYTICS -----
+  showAnalyticsTab() {
+    const startY = 320;
+    this.contentContainer.add(this.add.text(W / 2, startY, 'Multiplication Mastery', style('subhead', {
+      fontSize: '32px',
+      fill: '#ffd86b'
+    })).setOrigin(0.5));
+    this.createMasteryGrid(startY + 60);
+
+    const missedY = startY + 920;
+    this.contentContainer.add(this.add.text(W / 2, missedY, 'Most Missed Facts', style('subhead', {
+      fontSize: '32px',
+      fill: '#ff6b6b'
+    })).setOrigin(0.5));
+    const missed = progress.getMostMissedFacts(5);
+    if (missed.length === 0) {
+      this.contentContainer.add(this.add.text(W / 2, missedY + 60, 'No data yet — keep playing!', style('caption', {
+        fontSize: '22px',
+        fill: '#7a7a90'
+      })).setOrigin(0.5));
+      return;
+    }
+    missed.forEach((fact, i) => {
+      const text = this.add.text(W / 2, missedY + 60 + i * 50,
+        `${fact.a} × ${fact.b} = ${fact.a * fact.b}  (${fact.accuracy}% accuracy)`,
+        style('body', {
+          fontSize: '24px',
+          fill: fact.accuracy < 50 ? '#ff6b6b' : '#f7dc6f'
+        })).setOrigin(0.5);
       this.contentContainer.add(text);
     });
   }
 
+  createMasteryGrid(startY) {
+    const cellSize = 64;
+    const startX = W / 2 - 6 * cellSize;
+    for (let i = 1; i <= 12; i++) {
+      this.contentContainer.add(this.add.text(startX + (i - 0.5) * cellSize, startY, i.toString(), style('caption', {
+        fontSize: '16px', fill: '#7a7a90'
+      })).setOrigin(0.5));
+    }
+    for (let r = 1; r <= 12; r++) {
+      const rowY = startY + 24 + (r - 1) * cellSize;
+      this.contentContainer.add(this.add.text(startX - 16, rowY + cellSize / 2, r.toString(), style('caption', {
+        fontSize: '16px', fill: '#7a7a90'
+      })).setOrigin(1, 0.5));
+      for (let col = 1; col <= 12; col++) {
+        const m = progress.getFactMastery(r, col);
+        const color = m === 0 ? 0x2d2d44 : m >= 90 ? SUCCESS : m >= 75 ? 0xf7dc6f : m >= 50 ? 0xffb142 : WARN;
+        const cell = this.add.graphics();
+        cell.fillStyle(color, 1);
+        cell.fillRoundedRect(startX + (col - 1) * cellSize + 2, rowY + 2, cellSize - 4, cellSize - 4, 4);
+        this.contentContainer.add(cell);
+      }
+    }
+  }
+
+  // ----- SETTINGS -----
   showSettingsTab() {
-    const startY = 250;
-    let y = startY;
-
-    // Change PIN
-    this.addSettingButton(y, 'Change PIN', () => this.showChangePinDialog());
-    y += 120;
-
-    // Reset Progress
-    this.addSettingButton(y, 'Reset All Progress', () => this.showResetConfirmation(), 0xff6b6b);
-    y += 120;
-
-    // Difficulty adjustment info
-    const diffTitle = this.add.text(400, y, 'Difficulty Adjustment', {
-      fontSize: '32px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-    this.contentContainer.add(diffTitle);
-    y += 60;
-
-    const diffInfo = this.add.text(400, y, 'The game automatically adjusts difficulty\nbased on your child\'s performance.\n\nAfter 4+ failures on a level, it becomes\neasier with more moves and lower targets.', {
-      fontSize: '24px',
-      fill: '#888888',
-      fontFamily: 'Arial',
-      align: 'center',
-      lineSpacing: 10
-    }).setOrigin(0.5, 0);
-    this.contentContainer.add(diffInfo);
-    y += 250;
-
-    // Logout (clear PIN verification)
+    let y = 360;
+    this.addSettingButton(y, 'Change PIN', () => this.showChangePinDialog(), ACCENT); y += 130;
+    this.addSettingButton(y, 'Reset All Progress', () => this.showResetConfirmation(), WARN); y += 130;
     this.addSettingButton(y, 'Lock Dashboard', () => {
       this.registry.set('parentPinVerified', false);
       this.scene.restart();
-    });
+    }, 0x8888a0); y += 160;
+
+    this.contentContainer.add(this.add.text(W / 2, y, 'About difficulty', style('subhead', {
+      fontSize: '28px',
+      fill: '#ffd86b'
+    })).setOrigin(0.5));
+    y += 50;
+    this.contentContainer.add(this.add.text(W / 2, y,
+      'The game adapts to your child automatically — facts they miss\nresurface more often, and timing scales with the world they\'re in.',
+      style('body', {
+        fontSize: '22px',
+        fill: '#cfcfe0',
+        align: 'center',
+        lineSpacing: 8
+      })).setOrigin(0.5, 0));
   }
 
-  addSettingButton(y, label, callback, color = 0x4ecdc4) {
-    const btn = this.add.rectangle(400, y, 600, 90, 0x2d2d44)
-      .setStrokeStyle(4, color)
-      .setInteractive();
-    this.contentContainer.add(btn);
-
-    const text = this.add.text(400, y, label, {
+  addSettingButton(y, label, callback, color = ACCENT) {
+    const w = 700;
+    const c = this.add.container(W / 2, y);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.95);
+    bg.fillRoundedRect(-w / 2, -52, w, 104, 18);
+    bg.lineStyle(3, color, 0.85);
+    bg.strokeRoundedRect(-w / 2, -52, w, 104, 18);
+    c.add(bg);
+    c.add(this.add.text(0, 0, label, style('subhead', {
       fontSize: '32px',
-      fill: '#ffffff',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-    this.contentContainer.add(text);
-
-    btn.on('pointerover', () => btn.setFillStyle(color, 0.3));
-    btn.on('pointerout', () => btn.setFillStyle(0x2d2d44));
-    btn.on('pointerdown', () => {
+      fill: '#ffffff'
+    })).setOrigin(0.5));
+    const hit = this.add.rectangle(0, 0, w, 104, 0x000000, 0).setInteractive({ useHandCursor: true });
+    c.add(hit);
+    hit.on('pointerdown', () => {
       audio.playClick();
       callback();
     });
+    this.contentContainer.add(c);
   }
 
   showChangePinDialog() {
-    // Create overlay
-    const overlay = this.add.rectangle(400, 700, 800, 1400, 0x000000, 0.8)
-      .setInteractive();
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85).setDepth(50).setInteractive();
+    const c = this.add.container(W / 2, H / 2).setDepth(51);
+    const w = 720;
+    const h = 600;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.98);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
+    bg.lineStyle(3, ACCENT, 0.9);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
+    c.add(bg);
+    c.add(this.add.text(0, -h / 2 + 60, 'Change PIN', style('display', {
+      fontSize: '44px',
+      fill: '#ffd86b'
+    })).setOrigin(0.5));
+    c.add(this.add.text(0, -h / 2 + 130, 'Enter new 4-digit PIN', style('body', {
+      fontSize: '24px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5));
 
-    const panel = this.add.rectangle(400, 600, 600, 500, 0x2d2d44)
-      .setStrokeStyle(4, 0x4ecdc4);
+    const newPin = ['', '', '', ''];
+    let idx = 0;
+    const pinDisplay = this.add.text(0, -h / 2 + 230, '_ _ _ _', style('display', {
+      fontSize: '64px',
+      fill: '#ffffff'
+    })).setOrigin(0.5);
+    c.add(pinDisplay);
 
-    const title = this.add.text(400, 400, 'Change PIN', {
-      fontSize: '36px',
-      fill: '#f7dc6f',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    const instruction = this.add.text(400, 480, 'Enter new 4-digit PIN:', {
-      fontSize: '28px',
-      fill: '#ffffff',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5);
-
-    // PIN input display
-    this.newPinDigits = ['', '', '', ''];
-    this.newPinIndex = 0;
-    const pinDisplay = this.add.text(400, 560, '_ _ _ _', {
-      fontSize: '48px',
-      fill: '#ffffff',
-      fontFamily: 'monospace'
-    }).setOrigin(0.5);
-
-    // Simple number buttons
-    const numRow = this.add.text(400, 660, '1 2 3 4 5 6 7 8 9 0', {
-      fontSize: '40px',
-      fill: '#4ecdc4',
-      fontFamily: 'monospace'
-    }).setOrigin(0.5).setInteractive();
-
-    // Cancel button
-    const cancelBtn = this.add.text(260, 780, 'Cancel', {
-      fontSize: '32px',
-      fill: '#ff6b6b',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    // Save button
-    const saveBtn = this.add.text(540, 780, 'Save', {
-      fontSize: '32px',
-      fill: '#58d68d',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    const elements = [overlay, panel, title, instruction, pinDisplay, numRow, cancelBtn, saveBtn];
-
-    const onKey = (event) => {
-      if (event.key >= '0' && event.key <= '9' && this.newPinIndex < 4) {
-        this.newPinDigits[this.newPinIndex] = event.key;
-        this.newPinIndex++;
-        pinDisplay.setText(this.newPinDigits.map(d => d || '_').join(' '));
-      } else if (event.key === 'Backspace' && this.newPinIndex > 0) {
-        this.newPinIndex--;
-        this.newPinDigits[this.newPinIndex] = '';
-        pinDisplay.setText(this.newPinDigits.map(d => d || '_').join(' '));
+    const onKey = e => {
+      if (e.key >= '0' && e.key <= '9' && idx < 4) {
+        newPin[idx] = e.key;
+        idx++;
+        pinDisplay.setText(newPin.map(d => d || '_').join(' '));
+      } else if (e.key === 'Backspace' && idx > 0) {
+        idx--;
+        newPin[idx] = '';
+        pinDisplay.setText(newPin.map(d => d || '_').join(' '));
       }
     };
     this.input.keyboard.on('keydown', onKey);
 
-    const closeDialog = () => {
+    c.add(this.add.text(0, 80, 'Use the keyboard to enter digits', style('caption', {
+      fontSize: '20px',
+      fill: '#7a7a90'
+    })).setOrigin(0.5));
+
+    const cleanup = () => {
       this.input.keyboard.off('keydown', onKey);
-      this.newPinIndex = undefined;
-      elements.forEach(el => el.destroy());
+      overlay.destroy();
+      c.destroy();
     };
 
-    cancelBtn.on('pointerdown', () => {
-      audio.playClick();
-      closeDialog();
-    });
-
-    saveBtn.on('pointerdown', () => {
-      audio.playClick();
-      if (this.newPinIndex === 4) {
-        const newPin = this.newPinDigits.join('');
-        localStorage.setItem('cosmicMathParentPin', newPin);
-        closeDialog();
-
-        // Show confirmation
-        const confirm = this.add.text(400, 700, 'PIN Updated!', {
-          fontSize: '36px',
-          fill: '#58d68d',
-          fontFamily: 'Arial',
-          fontStyle: 'bold'
-        }).setOrigin(0.5);
-
-        this.time.delayedCall(1500, () => confirm.destroy());
+    c.add(createButton(this, {
+      x: -120, y: h / 2 - 80, label: 'Cancel',
+      width: 240, height: 80, color: 0x4a4a6a,
+      onClick: cleanup
+    }));
+    c.add(createButton(this, {
+      x: 120, y: h / 2 - 80, label: 'Save',
+      width: 240, height: 80, color: SUCCESS,
+      onClick: () => {
+        if (idx === 4) {
+          localStorage.setItem('cosmicMathParentPin', newPin.join(''));
+          cleanup();
+          this.flashMessage('PIN updated', SUCCESS);
+        }
       }
-    });
+    }));
   }
 
   showResetConfirmation() {
-    // Create overlay
-    const overlay = this.add.rectangle(400, 700, 800, 1400, 0x000000, 0.8)
-      .setInteractive();
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85).setDepth(50).setInteractive();
+    const c = this.add.container(W / 2, H / 2).setDepth(51);
+    const w = 760;
+    const h = 540;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.98);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
+    bg.lineStyle(3, WARN, 0.9);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
+    c.add(bg);
+    c.add(this.add.text(0, -h / 2 + 70, 'Reset All Progress?', style('display', {
+      fontSize: '44px',
+      fill: '#ff6b6b'
+    })).setOrigin(0.5));
+    c.add(this.add.text(0, 0,
+      'This will delete ALL game progress —\nlevels, stars, pet, ship, and learning data.\n\nThis cannot be undone.',
+      style('body', {
+        fontSize: '24px',
+        fill: '#cfcfe0',
+        align: 'center',
+        lineSpacing: 8
+      })).setOrigin(0.5));
 
-    const panel = this.add.rectangle(400, 600, 640, 400, 0x2d2d44)
-      .setStrokeStyle(4, 0xff6b6b);
+    const cleanup = () => {
+      overlay.destroy();
+      c.destroy();
+    };
 
-    const title = this.add.text(400, 460, 'Reset All Progress?', {
-      fontSize: '36px',
-      fill: '#ff6b6b',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5);
-
-    const warning = this.add.text(400, 560, 'This will delete ALL game progress,\nincluding levels, stars, records,\nand learning data.\n\nThis cannot be undone!', {
-      fontSize: '24px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      align: 'center',
-      lineSpacing: 6
-    }).setOrigin(0.5);
-
-    // Cancel button
-    const cancelBtn = this.add.text(260, 740, 'Cancel', {
-      fontSize: '32px',
-      fill: '#4ecdc4',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5).setInteractive();
-
-    // Confirm button
-    const confirmBtn = this.add.text(540, 740, 'Reset', {
-      fontSize: '32px',
-      fill: '#ff6b6b',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setInteractive();
-
-    const elements = [overlay, panel, title, warning, cancelBtn, confirmBtn];
-
-    cancelBtn.on('pointerdown', () => {
-      audio.playClick();
-      elements.forEach(el => el.destroy());
-    });
-
-    confirmBtn.on('pointerdown', () => {
-      audio.playClick();
-      this.resetAllProgress();
-      elements.forEach(el => el.destroy());
-
-      // Show confirmation and restart
-      const confirm = this.add.text(400, 700, 'Progress Reset!', {
-        fontSize: '36px',
-        fill: '#ff6b6b',
-        fontFamily: 'Arial',
-        fontStyle: 'bold'
-      }).setOrigin(0.5);
-
-      this.time.delayedCall(1500, () => {
-        this.registry.set('parentPinVerified', false);
-        this.scene.start('WorldMapScene');
-      });
-    });
+    c.add(createButton(this, {
+      x: -130, y: h / 2 - 80, label: 'Cancel',
+      width: 240, height: 80, color: ACCENT,
+      onClick: cleanup
+    }));
+    c.add(createButton(this, {
+      x: 130, y: h / 2 - 80, label: 'Reset',
+      width: 240, height: 80, color: WARN,
+      onClick: () => {
+        progress.resetAll();
+        records.reset();
+        cleanup();
+        this.flashMessage('Progress reset', WARN);
+        this.time.delayedCall(900, () => {
+          this.registry.set('parentPinVerified', false);
+          this.scene.start('BootScene');
+        });
+      }
+    }));
   }
 
-  resetAllProgress() {
-    // Reset all localStorage data (keep parent PIN).
-    localStorage.removeItem('cosmicMathProgress');
-    localStorage.removeItem('cosmicMathRecords');
-    localStorage.removeItem('cosmicMathAchievements');  // legacy key from old build
-
-    progress.reset();
-    records.reset();
+  flashMessage(text, color) {
+    const msg = this.add.text(W / 2, H - 220, text, style('display', {
+      fontSize: '40px',
+      fill: '#' + color.toString(16).padStart(6, '0')
+    })).setOrigin(0.5).setDepth(70);
+    this.tweens.add({
+      targets: msg,
+      alpha: 0,
+      delay: 1200,
+      duration: 600,
+      onComplete: () => msg.destroy()
+    });
   }
 
   calculateStats() {
     let totalStars = progress.totalStars || 0;
     let levelsCompleted = 0;
     let currentWorldId = 1;
-
-    // Count completed levels and find current world
     for (let worldId = 1; worldId <= WORLDS.length; worldId++) {
       const wp = progress.getWorldProgress(worldId);
       levelsCompleted += wp.levelsCompleted || 0;
-      if (progress.isWorldUnlocked(worldId)) {
-        currentWorldId = worldId;
-      }
+      if (progress.isWorldUnlocked(worldId)) currentWorldId = worldId;
     }
-
     const currentWorld = WORLDS[currentWorldId - 1]?.name || 'Moon Base';
-
-    // Overall accuracy from RecordsManager
     const accStats = records.getOverallStats();
     const overallAccuracy = accStats.totalAttempts > 0
       ? Math.round((accStats.totalCorrect / accStats.totalAttempts) * 100)
       : 0;
-
-    return {
-      totalStars,
-      levelsCompleted,
-      currentWorld,
-      overallAccuracy
-    };
-  }
-
-  createSoundToggle(x, y) {
-    const container = this.add.container(x, y);
-
-    // Button background
-    const bgGlow = this.add.circle(0, 0, 32, 0x4ecdc4, 0.2);
-    container.add(bgGlow);
-
-    const bg = this.add.circle(0, 0, 28, 0x1a1a2e, 0.8);
-    bg.setStrokeStyle(2, 0x4ecdc4, 0.6);
-    container.add(bg);
-
-    // Sound icon
-    this.soundIcon = this.createSoundIcon(audio.enabled);
-    container.add(this.soundIcon);
-
-    // Interactive
-    bg.setInteractive({ useHandCursor: true });
-    bg.on('pointerover', () => {
-      container.setScale(1.15);
-      bgGlow.setAlpha(0.4);
-    });
-    bg.on('pointerout', () => {
-      container.setScale(1);
-      bgGlow.setAlpha(0.2);
-    });
-    bg.on('pointerdown', () => {
-      audio.playClick();
-      const enabled = audio.toggleEnabled();
-      this.soundIcon.destroy();
-      this.soundIcon = this.createSoundIcon(enabled);
-      container.add(this.soundIcon);
-    });
-  }
-
-  createSoundIcon(isOn) {
-    const g = this.add.graphics();
-    const size = 18;
-
-    // Speaker body
-    g.fillStyle(0x81ecec, 1);
-    g.fillRect(-size * 0.4, -size * 0.25, size * 0.3, size * 0.5);
-
-    // Speaker cone
-    g.beginPath();
-    g.moveTo(-size * 0.1, -size * 0.25);
-    g.lineTo(size * 0.2, -size * 0.5);
-    g.lineTo(size * 0.2, size * 0.5);
-    g.lineTo(-size * 0.1, size * 0.25);
-    g.closePath();
-    g.fillPath();
-
-    if (isOn) {
-      // Sound waves
-      g.lineStyle(2, 0x81ecec, 0.8);
-      g.beginPath();
-      g.arc(size * 0.3, 0, size * 0.3, -Math.PI / 4, Math.PI / 4);
-      g.strokePath();
-
-      g.lineStyle(2, 0x81ecec, 0.5);
-      g.beginPath();
-      g.arc(size * 0.3, 0, size * 0.5, -Math.PI / 4, Math.PI / 4);
-      g.strokePath();
-    } else {
-      // X mark
-      g.lineStyle(3, 0xff6b6b, 1);
-      g.beginPath();
-      g.moveTo(size * 0.3, -size * 0.3);
-      g.lineTo(size * 0.7, size * 0.3);
-      g.moveTo(size * 0.7, -size * 0.3);
-      g.lineTo(size * 0.3, size * 0.3);
-      g.strokePath();
-    }
-
-    return g;
+    return { totalStars, levelsCompleted, currentWorld, overallAccuracy };
   }
 }

@@ -371,13 +371,47 @@ class PlayerProgress {
     this.save();
   }
 
+  // Wipe ALL game data (and the companion picker). Wired to the Reset button
+  // in the parent dashboard. Keeps the parent PIN.
+  resetAll() {
+    try {
+      localStorage.removeItem('cosmicMathProgress');
+      localStorage.removeItem('cosmicMathRecords');
+      localStorage.removeItem('cosmicMathAchievements');
+    } catch (e) {}
+    this.reset();
+  }
+
+  // Lifetime answer totals derived from factMastery — used by evolution gates.
+  getLifetimeTotals() {
+    let correct = 0;
+    let total = 0;
+    for (const fact of Object.values(this.factMastery)) {
+      if (!fact) continue;
+      correct += fact.correct || 0;
+      total += fact.total || 0;
+    }
+    return {
+      correct,
+      total,
+      accuracy: total > 0 ? correct / total : 0
+    };
+  }
+
+  getWorldsClearedCount() {
+    let count = 0;
+    for (const w of WORLDS) {
+      if (this.isWorldFullyCleared(w.id)) count++;
+    }
+    return count;
+  }
+
   getDefaultCompanion() {
     return {
-      speciesId: null,            // 'ember' | 'tide' | 'sprout' — null = needs starter pick
-      stage: 'egg',               // 'egg' | 'baby' | 'teen' | 'adult'
-      totalPellets: 0,            // lifetime food eaten — drives evolution
+      speciesId: null,
+      stage: 'egg',
       lastFedAt: Date.now(),
-      lastVisitedAt: Date.now()   // updated whenever the kid opens the app — drives "missed you" greeting
+      lastVisitedAt: Date.now()
     };
   }
 
@@ -402,8 +436,18 @@ class PlayerProgress {
 
   getDefaultShip() {
     return {
-      parts: { hull: 'hull_default', wings: 'wings_default', paint: 'paint_default', decal: null },
-      ownedParts: ['hull_default', 'wings_default', 'paint_default'],
+      parts: {
+        hull: 'hull_default',
+        wings: 'wings_default',
+        paint: 'paint_default',
+        decal: null,
+        pattern: 'pattern_none',
+        trail: 'trail_default_flame'
+      },
+      ownedParts: [
+        'hull_default', 'wings_default', 'paint_default',
+        'pattern_none', 'trail_default_flame'
+      ],
       newSinceLastView: []
     };
   }
@@ -419,9 +463,14 @@ class PlayerProgress {
   mergeShip(saved) {
     const def = this.getDefaultShip();
     if (!saved) return def;
+    const ownedParts = Array.isArray(saved.ownedParts) ? [...saved.ownedParts] : [...def.ownedParts];
+    // Migration: ensure default pattern + trail are owned for old saves
+    for (const id of ['pattern_none', 'trail_default_flame']) {
+      if (!ownedParts.includes(id)) ownedParts.push(id);
+    }
     return {
       parts: { ...def.parts, ...(saved.parts || {}) },
-      ownedParts: Array.isArray(saved.ownedParts) ? saved.ownedParts : def.ownedParts,
+      ownedParts,
       newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
     };
   }

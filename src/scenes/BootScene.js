@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { generateWorldIcons } from '../WorldArt.js';
 import { style } from '../textStyles.js';
 import { companion } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
@@ -10,15 +9,13 @@ export class BootScene extends Phaser.Scene {
   }
 
   preload() {
-    this.add.text(400, 700, 'Loading…', style('headline', {
-      fontSize: '40px',
+    this.add.text(this.cameras.main.width / 2, this.cameras.main.height / 2, 'Loading…', style('headline', {
+      fontSize: '54px',
       fill: '#cfcfe0'
     })).setOrigin(0.5);
   }
 
   create() {
-    generateWorldIcons(this);
-
     streak.onAppOpen();
     companion.markVisitOpen();
 

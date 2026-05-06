@@ -1,3 +1,6 @@
+// Mission Briefing — the world's biome art fills the background, four mission
+// cards in front (×, ÷, mixed, boss). Locked modes show a lock icon.
+
 import Phaser from 'phaser';
 import { WORLDS, MODES, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
@@ -5,15 +8,16 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
+import { drawWorldNode } from '../WorldNodeArt.js';
+import {
+  drawArrowLeftIcon, drawSoundIcon, drawSkullIcon,
+  drawStarIcon, drawLockIcon
+} from '../StatIcons.js';
 
-const W = 800;
-const H = 1400;
+const W = 1080;
+const H = 1920;
 
-// Level number → mode key. Phase 3: each world is mult/div/mixed + boss.
 const LEVEL_MODES = ['mult', 'div', 'mixed', 'boss'];
-
-const BOSS_LABEL = 'Boss';
-const BOSS_SYMBOL = '☠';
 
 export class LevelSelectScene extends Phaser.Scene {
   constructor() {
@@ -32,109 +36,82 @@ export class LevelSelectScene extends Phaser.Scene {
       this.events.off('resume', this.onSceneWake, this);
     });
 
-    // === Background ===
     createStarfield(this, {
+      width: W, height: H,
       accentColor: this.world.accentColor,
-      accentStrength: 0.18
+      accentStrength: 0.20
     });
 
-    // === Top bar ===
     this.createTopBar();
+    this.createWorldHero();
+    this.createMissionCards();
+    this.createMasteryFooter();
 
-    // === World identity ===
-    this.createWorldHeader();
-
-    // === Mode cards (4 cards in 2x2 grid) ===
-    this.createModeGrid();
-
-    // === Mastery section ===
-    this.createMasterySection();
-
-    new TransitionManager(this).fadeIn(300);
+    new TransitionManager(this).fadeIn(280);
   }
 
   createTopBar() {
     const bg = this.add.graphics().setDepth(4);
-    bg.fillStyle(0x07071a, 0.85);
-    bg.fillRect(0, 0, W, 100);
+    bg.fillStyle(0x07071a, 0.92);
+    bg.fillRect(0, 0, W, 140);
 
     createIconButton(this, {
-      x: 60, y: 50, radius: 28,
+      x: 80, y: 70, radius: 36,
       accentColor: this.world.accentColor,
-      drawIcon: (g, size) => {
-        g.lineStyle(5, 0xffffff, 1);
-        g.lineBetween(size * 0.4, 0, -size * 0.3, 0);
-        g.lineBetween(-size * 0.3, 0, 0, -size * 0.4);
-        g.lineBetween(-size * 0.3, 0, 0, size * 0.4);
-      },
-      onClick: () => {
-        new TransitionManager(this).fadeToScene('WorldMapScene');
-      }
+      drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
+      onClick: () => new TransitionManager(this).fadeToScene('WorldMapScene')
     }).setDepth(15);
 
+    this.add.text(W / 2, 50, 'MISSION BRIEFING', style('caption', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      fontStyle: '900'
+    })).setOrigin(0.5).setDepth(15);
+
+    this.add.text(W / 2, 90, this.world.name, style('display', {
+      fontSize: '52px',
+      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
+    })).setOrigin(0.5).setDepth(15);
+
     createIconButton(this, {
-      x: 740, y: 50, radius: 28,
+      x: W - 80, y: 70, radius: 36,
       accentColor: this.world.accentColor,
-      drawIcon: (g, size) => this.drawSoundIcon(g, size, audio.enabled),
+      drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
       onClick: () => audio.toggleEnabled()
     }).setDepth(15);
   }
 
-  drawSoundIcon(g, size, isOn) {
-    g.fillStyle(0xffffff, 1);
-    g.fillRect(-size * 0.5, -size * 0.25, size * 0.3, size * 0.5);
-    g.beginPath();
-    g.moveTo(-size * 0.2, -size * 0.25);
-    g.lineTo(size * 0.1, -size * 0.5);
-    g.lineTo(size * 0.1, size * 0.5);
-    g.lineTo(-size * 0.2, size * 0.25);
-    g.closePath();
-    g.fillPath();
-    if (isOn) {
-      g.lineStyle(3, 0xffffff, 0.9);
-      g.beginPath();
-      g.arc(size * 0.25, 0, size * 0.35, -Math.PI / 4, Math.PI / 4);
-      g.strokePath();
-    } else {
-      g.lineStyle(3, 0xff6b6b, 1);
-      g.lineBetween(size * 0.25, -size * 0.3, size * 0.6, size * 0.3);
-      g.lineBetween(size * 0.6, -size * 0.3, size * 0.25, size * 0.3);
-    }
-  }
-
-  createWorldHeader() {
-    const icon = this.add.image(400, 200, `world_${this.world.id}`).setScale(2.4).setDepth(10);
+  createWorldHero() {
+    // Big procedural region art behind the cards, dimmed
+    const hero = drawWorldNode(this, W / 2, 480, this.world.id, { scale: 3.0 });
+    hero.setDepth(5).setAlpha(0.75);
     this.tweens.add({
-      targets: icon,
-      y: 188,
+      targets: hero,
+      y: 470,
       duration: 2400,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
 
-    this.add.text(400, 290, this.world.name, style('display', {
-      fontSize: '52px'
-    })).setOrigin(0.5).setDepth(10);
-
-    this.add.text(400, 348, this.world.description, style('body', {
-      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0'),
-      fontSize: '22px',
+    // Description
+    this.add.text(W / 2, 760, this.world.description, style('body', {
+      fontSize: '28px',
+      fill: '#cfcfe0',
       align: 'center',
-      wordWrap: { width: 700 }
-    })).setOrigin(0.5).setDepth(10);
+      wordWrap: { width: W - 160 }
+    })).setOrigin(0.5).setDepth(8);
   }
 
-  createModeGrid() {
-    const startY = 400;
-    const cardW = 230;
-    const cardH = 200;
-    const gapX = 18;
-    const gapY = 22;
-    // 2x2 grid: row 1 = mult/div, row 2 = mixed/boss.
+  createMissionCards() {
+    const startY = 880;
+    const cardW = 460;
+    const cardH = 240;
+    const gapX = 24;
+    const gapY = 28;
     const cols = 2;
     const rowWidth = cols * cardW + (cols - 1) * gapX;
-    const startX = 400 - rowWidth / 2 + cardW / 2;
+    const startX = W / 2 - rowWidth / 2 + cardW / 2;
 
     LEVEL_MODES.forEach((modeKey, i) => {
       const col = i % cols;
@@ -143,149 +120,180 @@ export class LevelSelectScene extends Phaser.Scene {
       const y = startY + row * (cardH + gapY) + cardH / 2;
       const levelNum = i + 1;
       const isBoss = modeKey === 'boss';
-      const mode = isBoss
-        ? { label: BOSS_LABEL, symbol: BOSS_SYMBOL }
-        : MODES[modeKey];
       const stars = this.worldProgress.levelStars[levelNum] || 0;
-      this.createModeCard(x, y, cardW, cardH, levelNum, modeKey, mode, stars, isBoss);
+
+      // Boss is locked until the other 3 are done
+      const others = [1, 2, 3].filter(n => n !== levelNum);
+      const otherStars = others.every(n => (this.worldProgress.levelStars[n] || 0) > 0);
+      const isLocked = isBoss && !otherStars;
+
+      this.createMissionCard(x, y, cardW, cardH, levelNum, modeKey, stars, isBoss, isLocked);
     });
   }
 
-  createModeCard(x, y, w, h, levelNum, modeKey, mode, stars, isBoss) {
-    const container = this.add.container(x, y).setDepth(10);
-
+  createMissionCard(x, y, w, h, levelNum, modeKey, stars, isBoss, isLocked) {
+    const c = this.add.container(x, y).setDepth(10);
     const accent = isBoss ? 0xff6b6b : this.world.accentColor;
 
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.5);
-    shadow.fillRoundedRect(-w / 2 + 2, -h / 2 + 6, w, h, 22);
-    container.add(shadow);
+    shadow.fillRoundedRect(-w / 2 + 2, -h / 2 + 8, w, h, 24);
+    c.add(shadow);
 
     const card = this.add.graphics();
-    card.fillStyle(0x12122a, 0.95);
-    card.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
-    card.lineStyle(3, accent, 0.85);
-    card.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
-    container.add(card);
+    card.fillStyle(0x12122a, 0.94);
+    card.fillRoundedRect(-w / 2, -h / 2, w, h, 24);
+    card.lineStyle(3, accent, isLocked ? 0.4 : 0.9);
+    card.strokeRoundedRect(-w / 2, -h / 2, w, h, 24);
+    c.add(card);
 
-    container.add(this.add.text(0, -h / 2 + 50, mode.symbol, style('display', {
-      fontSize: '64px',
-      fill: '#' + accent.toString(16).padStart(6, '0'),
-      strokeThickness: 0
-    })).setOrigin(0.5));
+    // Mode icon — large pixel-art glyph
+    const iconG = this.add.graphics();
+    iconG.x = -w / 2 + 90;
+    iconG.y = 0;
+    if (isBoss) {
+      drawSkullIcon(iconG, 0, 0, 32);
+    } else {
+      this.drawModeGlyph(iconG, modeKey, accent);
+    }
+    c.add(iconG);
 
-    container.add(this.add.text(0, -h / 2 + 108, mode.label, style('headline', {
-      fontSize: '26px',
+    // Mode title
+    const label = isBoss ? 'BOSS' : MODES[modeKey].label.toUpperCase();
+    c.add(this.add.text(-w / 2 + 170, -h / 2 + 50, label, style('display', {
+      fontSize: '40px',
       fill: '#ffffff',
-      fontStyle: isBoss ? '900' : 'bold'
-    })).setOrigin(0.5));
+      fontStyle: '900'
+    })).setOrigin(0, 0.5));
 
     if (isBoss) {
-      const villain = this.world.villain || 'Boss';
-      container.add(this.add.text(0, -h / 2 + 138, villain.toUpperCase(), style('caption', {
-        fontSize: '14px',
-        fill: '#ff8b8b'
-      })).setOrigin(0.5));
-    }
-
-    const starY = h / 2 - 38;
-    for (let s = 0; s < 3; s++) {
-      const star = this.makeMiniStar(s < stars);
-      star.x = -54 + s * 54;
-      star.y = starY;
-      container.add(star);
-    }
-
-    const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
-    container.add(hit);
-    hit.on('pointerover', () => {
-      this.tweens.add({ targets: container, scaleX: 1.04, scaleY: 1.04, duration: 110 });
-    });
-    hit.on('pointerout', () => {
-      this.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 110 });
-    });
-    hit.on('pointerdown', () => {
-      audio.playClick();
-      this.startLevel(levelNum, modeKey);
-    });
-  }
-
-  makeMiniStar(filled) {
-    const g = this.add.graphics();
-    const points = 5;
-    const outerR = 18;
-    const innerR = 8;
-    g.beginPath();
-    for (let i = 0; i < points * 2; i++) {
-      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-      const r = i % 2 === 0 ? outerR : innerR;
-      const px = Math.cos(angle) * r;
-      const py = Math.sin(angle) * r;
-      if (i === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    g.closePath();
-    if (filled) {
-      g.fillStyle(0xf7dc6f, 1);
-      g.fillPath();
+      c.add(this.add.text(-w / 2 + 170, -h / 2 + 100, this.world.villain || 'BOSS', style('caption', {
+        fontSize: '22px',
+        fill: '#ff8b8b',
+        fontStyle: '900'
+      })).setOrigin(0, 0.5));
     } else {
-      g.lineStyle(2, 0x4a4a60, 1);
-      g.strokePath();
+      const subtitle = {
+        mult: 'Multiplication facts',
+        div: 'Division facts',
+        mixed: 'Mixed × ÷'
+      }[modeKey] || '';
+      c.add(this.add.text(-w / 2 + 170, -h / 2 + 100, subtitle, style('caption', {
+        fontSize: '20px',
+        fill: '#cfcfe0'
+      })).setOrigin(0, 0.5));
     }
-    return g;
+
+    // Stars row
+    const starY = h / 2 - 50;
+    for (let s = 0; s < 3; s++) {
+      const starG = this.add.graphics();
+      drawStarIcon(starG, 0, 0, 22, s < stars ? 0xf7dc6f : 0x4a4a60);
+      starG.x = -w / 2 + 60 + s * 56;
+      starG.y = starY;
+      c.add(starG);
+    }
+
+    if (isLocked) {
+      const lockG = this.add.graphics();
+      drawLockIcon(lockG, 0, 0, 28);
+      lockG.x = w / 2 - 60;
+      lockG.y = 0;
+      c.add(lockG);
+      const overlay = this.add.graphics();
+      overlay.fillStyle(0x000000, 0.5);
+      overlay.fillRoundedRect(-w / 2, -h / 2, w, h, 24);
+      c.add(overlay);
+    } else {
+      const playG = this.add.graphics();
+      playG.fillStyle(accent, 1);
+      playG.fillCircle(w / 2 - 50, 0, 36);
+      playG.fillStyle(0xffffff, 1);
+      playG.fillTriangle(w / 2 - 60, -16, w / 2 - 60, 16, w / 2 - 32, 0);
+      c.add(playG);
+    }
+
+    if (!isLocked) {
+      const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
+      c.add(hit);
+      hit.on('pointerover', () => this.tweens.add({ targets: c, scaleX: 1.04, scaleY: 1.04, duration: 110 }));
+      hit.on('pointerout', () => this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 110 }));
+      hit.on('pointerdown', () => {
+        audio.playClick();
+        this.startLevel(levelNum, modeKey);
+      });
+    }
   }
 
-  createMasterySection() {
-    const y = 1180;
-    // Global 12×12 mastery, averaged across every fact the player has attempted.
-    const masteries = [];
+  drawModeGlyph(g, modeKey, color) {
+    g.lineStyle(8, color, 1);
+    if (modeKey === 'mult') {
+      g.lineBetween(-22, -22, 22, 22);
+      g.lineBetween(22, -22, -22, 22);
+    } else if (modeKey === 'div') {
+      g.fillStyle(color, 1);
+      g.fillCircle(0, -16, 6);
+      g.fillCircle(0, 16, 6);
+      g.lineBetween(-24, 0, 24, 0);
+    } else if (modeKey === 'mixed') {
+      g.lineBetween(-20, -16, 20, 16);
+      g.lineBetween(20, -16, -20, 16);
+      g.fillStyle(color, 1);
+      g.fillCircle(0, 22, 4);
+    }
+  }
+
+  createMasteryFooter() {
+    const y = 1700;
+    let masterySum = 0;
+    let count = 0;
     for (let t = 1; t <= 12; t++) {
       const m = progress.getTableMastery(t);
-      if (m > 0) masteries.push(m);
+      if (m > 0) {
+        masterySum += m;
+        count++;
+      }
     }
-    const avgMastery = masteries.length
-      ? Math.round(masteries.reduce((a, b) => a + b, 0) / masteries.length)
-      : 0;
+    const avg = count > 0 ? Math.round(masterySum / count) : 0;
 
-    this.add.text(400, y, 'Overall Mastery', style('subhead', {
-      fontSize: '24px',
-      fill: '#cfcfe0'
-    })).setOrigin(0.5).setDepth(10);
+    this.add.text(W / 2, y, 'OVERALL MASTERY', style('caption', {
+      fontSize: '22px',
+      fill: '#cfcfe0',
+      fontStyle: '900'
+    })).setOrigin(0.5).setDepth(11);
 
-    const barW = 520;
-    const barX = 400 - barW / 2;
-    const barY = y + 38;
-
-    const trackG = this.add.graphics().setDepth(10);
+    const barW = 720;
+    const barX = W / 2 - barW / 2;
+    const barY = y + 50;
+    const trackG = this.add.graphics().setDepth(11);
     trackG.fillStyle(0x12122a, 1);
-    trackG.fillRoundedRect(barX, barY, barW, 18, 9);
+    trackG.fillRoundedRect(barX, barY, barW, 24, 12);
     trackG.lineStyle(2, 0x2a2a44, 1);
-    trackG.strokeRoundedRect(barX, barY, barW, 18, 9);
+    trackG.strokeRoundedRect(barX, barY, barW, 24, 12);
 
-    const fillW = Math.max(2, Math.round((avgMastery / 100) * barW));
-    const fillG = this.add.graphics().setDepth(11);
-    const fillColor = avgMastery >= 70 ? 0x58d68d : avgMastery >= 40 ? this.world.accentColor : 0xff6b6b;
+    const fillW = Math.max(2, Math.round((avg / 100) * barW));
+    const fillG = this.add.graphics().setDepth(12);
+    const fillColor = avg >= 70 ? 0x58d68d : avg >= 40 ? this.world.accentColor : 0xff6b6b;
     fillG.fillStyle(fillColor, 1);
-    fillG.fillRoundedRect(barX, barY, fillW, 18, 9);
+    fillG.fillRoundedRect(barX, barY, fillW, 24, 12);
 
-    this.add.text(400, barY + 9, `${avgMastery}%`, style('caption', {
-      fontSize: '16px',
+    this.add.text(W / 2, barY + 12, `${avg}%`, style('caption', {
+      fontSize: '20px',
       fill: '#0a0a1a',
       fontStyle: '900'
-    })).setOrigin(0.5).setDepth(12);
+    })).setOrigin(0.5).setDepth(13);
 
     const totalStars = Object.values(this.worldProgress.levelStars).reduce((s, v) => s + v, 0);
-    this.add.text(400, barY + 60, `${totalStars} / 12 stars in this world`, style('caption', {
-      fontSize: '20px',
+    this.add.text(W / 2, barY + 70, `${totalStars} / 12 stars in this world`, style('caption', {
+      fontSize: '24px',
       fill: '#8888a0'
-    })).setOrigin(0.5).setDepth(10);
+    })).setOrigin(0.5).setDepth(11);
   }
 
   startLevel(levelNum, modeKey) {
     this.registry.set('currentWorldId', this.world.id);
     this.registry.set('currentLevel', levelNum);
     this.registry.set('levelMode', modeKey);
-
     this.input.enabled = false;
     new TransitionManager(this).fadeToScene('GameScene');
   }
