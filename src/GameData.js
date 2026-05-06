@@ -143,16 +143,11 @@ export function getProblemSecondsForWorld(worldId) {
 }
 
 // Number of asteroids on screen at once. Worlds 1–5 = 1, 6–8 = 2, 9–11 = 3.
-// Phase 2 ships only worlds 1–5 (single asteroid). Worlds 6–11 are gated
-// behind the multi-asteroid flag below until Phase 3 enables them.
 export function getAsteroidCountForWorld(worldId) {
   if (worldId <= 5) return 1;
   if (worldId <= 8) return 2;
   return 3;
 }
-
-// Phase 3: multi-asteroid is live. Worlds 6–8 = 2 on screen, 9–11 = 3.
-export const MULTI_ASTEROID_ENABLED = true;
 
 // Boss timer adds +1.0s to the world's per-problem timer — boss is rigorous
 // on accuracy, not chaotic on speed.
