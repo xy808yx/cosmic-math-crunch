@@ -152,6 +152,223 @@ export class AudioManager {
     this.playTone(1200, 0.06, 'square', 0.18);
   }
 
+  // ============================================================
+  // ARCADE SFX — Phase 2: asteroid arcade
+  // ============================================================
+
+  // Laser fire on correct answer — quick zappy sweep down.
+  playLaser() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    const osc = this.context.createOscillator();
+    const gain = this.context.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1200, this.context.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(220, this.context.currentTime + 0.12);
+
+    gain.gain.setValueAtTime(0.22, this.context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start();
+    osc.stop(this.context.currentTime + 0.2);
+  }
+
+  // Decaying white-noise burst. Returns nothing; schedules immediately or at
+  // `startOffset` seconds from now. Used by explosions, rumbles, etc.
+  _playNoiseBurst({ duration = 0.35, startOffset = 0, peakGain = 0.3, amplitude = 1 } = {}) {
+    const bufferSize = Math.floor(this.context.sampleRate * duration);
+    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * amplitude * (1 - i / bufferSize);
+    }
+    const noise = this.context.createBufferSource();
+    noise.buffer = buffer;
+    const gain = this.context.createGain();
+    const startAt = this.context.currentTime + startOffset;
+    gain.gain.setValueAtTime(peakGain, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
+    noise.connect(gain);
+    gain.connect(this.sfxGain);
+    noise.start(startAt);
+  }
+
+  // Asteroid explosion — noise burst with a quick low rumble.
+  playAsteroidBoom() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    this._playNoiseBurst({ duration: 0.35, peakGain: 0.3 });
+
+    // Low rumble layer
+    const osc = this.context.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(120, this.context.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(40, this.context.currentTime + 0.3);
+    const oscGain = this.context.createGain();
+    oscGain.gain.setValueAtTime(0.35, this.context.currentTime);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.35);
+    osc.connect(oscGain);
+    oscGain.connect(this.sfxGain);
+    osc.start();
+    osc.stop(this.context.currentTime + 0.4);
+  }
+
+  // Ship damage — clang + crackle.
+  playShipDamage() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    // Metallic clang: two detuned squares
+    const o1 = this.context.createOscillator();
+    o1.type = 'square';
+    o1.frequency.setValueAtTime(440, this.context.currentTime);
+    o1.frequency.exponentialRampToValueAtTime(180, this.context.currentTime + 0.15);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.25, this.context.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.25);
+    o1.connect(g1);
+    g1.connect(this.sfxGain);
+    o1.start();
+    o1.stop(this.context.currentTime + 0.27);
+
+    const o2 = this.context.createOscillator();
+    o2.type = 'sawtooth';
+    o2.frequency.setValueAtTime(620, this.context.currentTime);
+    o2.frequency.exponentialRampToValueAtTime(220, this.context.currentTime + 0.18);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.18, this.context.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.3);
+    o2.connect(g2);
+    g2.connect(this.sfxGain);
+    o2.start();
+    o2.stop(this.context.currentTime + 0.32);
+  }
+
+  // Pet chirp — happy little bird-like blip on streaks / good moments.
+  playPetChirp() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    const osc = this.context.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, this.context.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, this.context.currentTime + 0.07);
+    osc.frequency.exponentialRampToValueAtTime(1100, this.context.currentTime + 0.13);
+
+    const gain = this.context.createGain();
+    gain.gain.setValueAtTime(0.18, this.context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.18);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start();
+    osc.stop(this.context.currentTime + 0.2);
+  }
+
+  // ============================================================
+  // PHASE 3 BOSS / WORLD-CLEAR SFX
+  // ============================================================
+
+  // Boss rumble — a deep, building growl on boss appearance.
+  playBossRumble() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    // Layered low oscillators sweep up then fall — feels heavy and looming.
+    const o1 = this.context.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(40, this.context.currentTime);
+    o1.frequency.exponentialRampToValueAtTime(70, this.context.currentTime + 0.6);
+    o1.frequency.exponentialRampToValueAtTime(35, this.context.currentTime + 1.2);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.001, this.context.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.4, this.context.currentTime + 0.4);
+    g1.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 1.3);
+    o1.connect(g1);
+    g1.connect(this.sfxGain);
+    o1.start();
+    o1.stop(this.context.currentTime + 1.4);
+
+    const o2 = this.context.createOscillator();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(60, this.context.currentTime + 0.05);
+    o2.frequency.exponentialRampToValueAtTime(110, this.context.currentTime + 0.7);
+    o2.frequency.exponentialRampToValueAtTime(50, this.context.currentTime + 1.2);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.001, this.context.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.18, this.context.currentTime + 0.4);
+    g2.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 1.3);
+    o2.connect(g2);
+    g2.connect(this.sfxGain);
+    o2.start();
+    o2.stop(this.context.currentTime + 1.4);
+
+    this._playNoiseBurst({ duration: 0.5, startOffset: 0.2, peakGain: 0.18, amplitude: 0.4 });
+  }
+
+  // Boss impact — meaty hit on each boss HP loss.
+  playBossImpact() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    // Heavy thump
+    const o1 = this.context.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(160, this.context.currentTime);
+    o1.frequency.exponentialRampToValueAtTime(60, this.context.currentTime + 0.18);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.4, this.context.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.22);
+    o1.connect(g1);
+    g1.connect(this.sfxGain);
+    o1.start();
+    o1.stop(this.context.currentTime + 0.25);
+
+    // Bright zap layer (the laser striking)
+    const o2 = this.context.createOscillator();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(900, this.context.currentTime);
+    o2.frequency.exponentialRampToValueAtTime(300, this.context.currentTime + 0.12);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.2, this.context.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.16);
+    o2.connect(g2);
+    g2.connect(this.sfxGain);
+    o2.start();
+    o2.stop(this.context.currentTime + 0.18);
+  }
+
+  // World-clear fanfare — bigger, brassier than the round-complete fanfare.
+  playWorldClearFanfare() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+
+    const melody = [
+      { freq: 392, time: 0, dur: 0.18 },     // G4
+      { freq: 523, time: 0.18, dur: 0.18 },  // C5
+      { freq: 659, time: 0.36, dur: 0.18 },  // E5
+      { freq: 784, time: 0.54, dur: 0.18 },  // G5
+      { freq: 1047, time: 0.72, dur: 0.6 }   // C6 (held)
+    ];
+    melody.forEach(note => {
+      this.playTone(note.freq, note.dur, 'triangle', 0.4, note.time);
+      this.playTone(note.freq * 0.5, note.dur, 'sine', 0.22, note.time);
+      this.playTone(note.freq * 1.5, note.dur, 'sine', 0.16, note.time);
+    });
+    // Long sparkle tail
+    for (let i = 0; i < 14; i++) {
+      const freq = 1200 + Math.random() * 1200;
+      this.playTone(freq, 0.12, 'sine', 0.12, 0.9 + i * 0.06);
+    }
+  }
+
   // Round-over fanfare (timed sprint complete)
   playRoundComplete() {
     if (!this.enabled || !this.initialized) return;
