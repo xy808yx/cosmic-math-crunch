@@ -1,13 +1,11 @@
 // Companion (pet) system — species data, evolution, lore.
 // Singleton; reads/writes through `progress.companion` on GameData.
 //
-// Hunger removed (no guilt trips). Pet is always glad to see the kid.
 // Pixel-art rendering lives in PetRenderer.js — this module is data only.
 
-import { progress } from './GameData.js';
+import { progress, WORLDS } from './GameData.js';
 
 // Each species has 4 evolution stages with distinct names + lore.
-// Stage visuals live in PetRenderer.js; this is the canonical lore source.
 export const SPECIES = {
   ember: {
     id: 'ember',
@@ -101,26 +99,38 @@ export const SPECIES = {
   }
 };
 
-// Pellet thresholds for visible evolution stages.
-const STAGE_THRESHOLDS = {
-  egg:  0,
-  baby: 30,
-  teen: 150,
-  adult: 500
-};
-
 const STAGE_ORDER = ['egg', 'baby', 'teen', 'adult'];
 
-// "Missed you" greeting fires when the kid returns after this much time away.
-const MISSED_YOU_THRESHOLD_MS = 8 * 60 * 60 * 1000; // 8 hours — anything overnight
+// Evolution gates — tuned for ~3 month adult timeline at ~14 sessions/month.
+// Each stage requires (worlds cleared, lifetime correct, lifetime accuracy).
+const STAGE_GATES = {
+  baby: {
+    worldsCleared: 1,
+    lifetimeCorrect: 0,
+    accuracy: 0,
+    description: 'Clear world 1'
+  },
+  teen: {
+    worldsCleared: 5,
+    lifetimeCorrect: 400,
+    accuracy: 0.70,
+    description: 'Clear 5 worlds + 400 correct + 70% accuracy'
+  },
+  adult: {
+    worldsCleared: 11,
+    lifetimeCorrect: 1500,
+    accuracy: 0.85,
+    description: 'Defeat the final boss + 1500 correct + 85% accuracy'
+  }
+};
+
+const MISSED_YOU_THRESHOLD_MS = 8 * 60 * 60 * 1000; // 8h
 
 class CompanionManager {
-  // Set the species on first-launch picker.
   pickStarter(speciesId) {
     if (!SPECIES[speciesId]) return false;
     progress.companion.speciesId = speciesId;
     progress.companion.stage = 'egg';
-    progress.companion.totalPellets = 0;
     progress.companion.lastFedAt = Date.now();
     progress.companion.lastVisitedAt = Date.now();
     progress.save();
@@ -135,15 +145,13 @@ class CompanionManager {
     return SPECIES[progress.companion.speciesId] || null;
   }
 
-  // Lore for the pet's current evolution stage.
   getCurrentLore() {
     const sp = this.getSpecies();
     if (!sp) return null;
     return sp.stages[this.getStage()] || sp.stages.egg;
   }
 
-  // Called when the app opens. Records the visit; surfaces "missed you" state
-  // if the gap since last visit is meaningful. Returns true if greeting should play.
+  // Records the visit; returns true if a "missed you" greeting should play.
   markVisitOpen() {
     const last = progress.companion.lastVisitedAt || Date.now();
     const gap = Date.now() - last;
@@ -153,59 +161,92 @@ class CompanionManager {
     return gap >= MISSED_YOU_THRESHOLD_MS;
   }
 
-  // True if the kid is returning after a gap and hasn't been greeted yet this session.
   shouldShowMissedYou() {
     return (this._lastGapMs || 0) >= MISSED_YOU_THRESHOLD_MS && !this._missedYouShown;
   }
 
-  // Call after the greeting plays, so it doesn't repeat on every scene transition.
   markMissedYouShown() {
     this._missedYouShown = true;
   }
 
-  // Feed N pellets (called per correct answer in GameScene).
-  feed(pellets = 1) {
-    progress.companion.totalPellets += pellets;
+  // Counts a correct answer toward evolution. Save once even if evolution
+  // also fires — checkEvolutionEligibility persists itself only when the
+  // stage actually advances.
+  feed(_pellets = 1) {
     progress.companion.lastFedAt = Date.now();
-    this.recomputeStage();
-    progress.save();
+    const evolved = this.checkEvolutionEligibility();
+    if (!evolved) progress.save();
   }
 
-  recomputeStage() {
-    const total = progress.companion.totalPellets;
-    let next = 'egg';
-    if (total >= STAGE_THRESHOLDS.adult) next = 'adult';
-    else if (total >= STAGE_THRESHOLDS.teen) next = 'teen';
-    else if (total >= STAGE_THRESHOLDS.baby) next = 'baby';
-    progress.companion.stage = next;
+  // Re-evaluates the pet's stage against the new gate criteria. If the next
+  // stage is unlocked, advances and returns the new stage; otherwise returns null.
+  checkEvolutionEligibility() {
+    const stats = this.getEvolutionStats();
+    const currentIdx = STAGE_ORDER.indexOf(progress.companion.stage);
+    if (currentIdx < 0 || currentIdx === STAGE_ORDER.length - 1) return null;
+    const nextStage = STAGE_ORDER[currentIdx + 1];
+    const gate = STAGE_GATES[nextStage];
+    if (!gate) return null;
+    if (stats.worldsCleared >= gate.worldsCleared
+      && stats.lifetimeCorrect >= gate.lifetimeCorrect
+      && stats.accuracy >= gate.accuracy) {
+      progress.companion.stage = nextStage;
+      progress.save();
+      return nextStage;
+    }
+    return null;
   }
 
   getStage() {
     return progress.companion.stage;
   }
 
+  // Lifetime correct answers — derived from factMastery so old per-pellet
+  // counter doesn't drift.
   getTotalPellets() {
-    return progress.companion.totalPellets;
+    return progress.getLifetimeTotals().correct;
   }
 
-  // Pellets-to-next-stage progress for UI roadmap.
+  // Stats used to render evolution progress UI + decide eligibility.
+  getEvolutionStats() {
+    const totals = progress.getLifetimeTotals();
+    const worldsCleared = progress.getWorldsClearedCount();
+    return {
+      worldsCleared,
+      lifetimeCorrect: totals.correct,
+      lifetimeTotal: totals.total,
+      accuracy: totals.accuracy
+    };
+  }
+
+  // Returns null if fully evolved; otherwise an object describing the gate to
+  // the next stage and the player's current progress against each sub-goal.
   getStageProgress() {
-    const total = progress.companion.totalPellets;
     const idx = STAGE_ORDER.indexOf(progress.companion.stage);
     if (idx < 0 || idx === STAGE_ORDER.length - 1) {
-      return { current: total, target: total, nextStage: null };
+      return { nextStage: null };
     }
     const nextStage = STAGE_ORDER[idx + 1];
+    const gate = STAGE_GATES[nextStage];
+    const stats = this.getEvolutionStats();
     return {
-      current: total,
-      target: STAGE_THRESHOLDS[nextStage],
-      nextStage
+      nextStage,
+      description: gate.description,
+      worldsCleared: { current: stats.worldsCleared, target: gate.worldsCleared },
+      lifetimeCorrect: { current: stats.lifetimeCorrect, target: gate.lifetimeCorrect },
+      accuracy: { current: Math.round(stats.accuracy * 100), target: Math.round(gate.accuracy * 100) },
+      // Overall progress 0..1 — the slowest sub-goal is the binding constraint.
+      ratio: Math.min(
+        gate.worldsCleared > 0 ? stats.worldsCleared / gate.worldsCleared : 1,
+        gate.lifetimeCorrect > 0 ? stats.lifetimeCorrect / gate.lifetimeCorrect : 1,
+        gate.accuracy > 0 ? stats.accuracy / gate.accuracy : 1
+      )
     };
   }
 }
 
 export const companion = new CompanionManager();
 
-// Re-export the pixel-art renderer at this path so existing callsites
-// (`import { drawCompanion } from '../CompanionManager.js'`) keep working.
+// Re-export the renderer at this path so existing callsites (`import { drawCompanion }
+// from '../CompanionManager.js'`) keep working.
 export { drawCompanion } from './PetRenderer.js';

@@ -1,3 +1,8 @@
+// Mario-style world map. All 11 worlds share a single non-scrolling 1080×1920
+// screen, connected by an S-curve path. Locked worlds stay hidden; the path
+// reveals progressively. The ship+pet sit on the active world; tapping an
+// unlocked next world animates the ship along the path to it.
+
 import Phaser from 'phaser';
 import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
@@ -5,14 +10,20 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { companion, drawCompanion } from '../CompanionManager.js';
+import { companion, drawCompanion, SPECIES } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
+import { buildMapPath, getNodePositions, drawPath, tForNodeIndex } from '../MapPath.js';
+import { drawWorldNode } from '../WorldNodeArt.js';
+import {
+  drawFlameIcon, drawSparkleIcon, drawStarIcon,
+  drawShopIcon, drawTrophyIcon, drawGearIcon, drawLockIcon
+} from '../StatIcons.js';
 
-const W = 800;
-const H = 1400;
+const W = 1080;
+const H = 1920;
 
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -22,10 +33,18 @@ export class WorldMapScene extends Phaser.Scene {
   create() {
     audio.init();
 
-    createStarfield(this, { accentStrength: 0 });
+    createStarfield(this, { width: W, height: H, accentStrength: 0 });
+
+    this.path = buildMapPath();
+    this.nodePositions = getNodePositions();
+    this.currentWorldIndex = this.findCurrentWorldIndex();
+    this.furthestUnlockedIndex = this.findFurthestUnlockedIndex();
+    this._mapFootprint = this.computeMapFootprint();
 
     this.createHeader();
-    this.createWorldList();
+    this.createMap();
+    this.createShipOnActiveWorld();
+    this.createBottomChrome();
 
     this.events.on('wake', this.onSceneWake, this);
     this.events.on('resume', this.onSceneWake, this);
@@ -38,308 +57,192 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // HEADER (logo + chrome)
+  // HEADER
   // ============================================================
   createHeader() {
-    // Solid header backdrop so cards never bleed through
     const bg = this.add.graphics().setDepth(10);
-    bg.fillStyle(0x07071a, 0.95);
-    bg.fillRect(0, 0, W, 340);
-    bg.fillStyle(0x07071a, 0.7);
-    bg.fillRect(0, 340, W, 30);
+    bg.fillStyle(0x07071a, 0.92);
+    bg.fillRect(0, 0, W, 220);
+    bg.fillStyle(0x07071a, 0.55);
+    bg.fillRect(0, 220, W, 30);
 
-    // Settings (Parent Dashboard) — top-left
-    createIconButton(this, {
-      x: 60, y: 60, radius: 28,
-      accentColor: 0x4ecdc4,
-      drawIcon: (g, size) => this.drawGearIcon(g, size),
-      onClick: () => {
-        this.scene.start('ParentDashboardScene');
-      }
-    }).setDepth(15);
-
-    // Cockpit — top-right (replaces shop + trophy: cockpit holds shop & records)
-    createIconButton(this, {
-      x: 740, y: 60, radius: 28,
-      accentColor: 0xc77eff,
-      drawIcon: (g, size) => this.drawShopIcon(g, size),
-      onClick: () => this.openShop()
-    }).setDepth(15);
-
-    // Logo / wordmark — clean and confident
-    const logo = this.add.container(W / 2, 110).setDepth(14);
-
-    const glow = this.add.graphics();
-    glow.fillStyle(0xf7dc6f, 0.12);
-    glow.fillEllipse(0, 0, 540, 60);
-    logo.add(glow);
-    this.tweens.add({
-      targets: glow,
-      alpha: 0.22,
-      scaleX: 1.06,
-      scaleY: 1.06,
-      duration: 1800,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    const title = this.add.text(0, 0, 'Cosmic Math', style('display', {
-      fontSize: '64px',
+    // Logo / title
+    this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
+      fontSize: '70px',
       fill: '#ffffff',
       stroke: '#0a0a1a',
       strokeThickness: 4
-    })).setOrigin(0.5);
-    logo.add(title);
+    })).setOrigin(0.5).setDepth(14);
 
-    this.tweens.add({
-      targets: logo,
-      y: 116,
-      duration: 2400,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    // Three-chip readout: stardust, streak, total stars
+    this.createChipRow();
 
-    // Stars / Stardust / Streak — three-chip row under the logo
-    this.createStarCounter();
-    this.createStardustChip();
-    this.createStreakChip();
+    // Top-right Shop
+    createIconButton(this, {
+      x: W - 90, y: 88, radius: 38,
+      accentColor: 0xc77eff,
+      drawIcon: (g, size) => drawShopIcon(g, 0, 0, size),
+      onClick: () => {
+        audio.playClick();
+        new TransitionManager(this).fadeToScene('ShopScene');
+      }
+    }).setDepth(15);
 
-    // Pet companion floating below the chips
-    this.createCompanionDisplay();
+    // Top-left Records
+    createIconButton(this, {
+      x: 90, y: 88, radius: 38,
+      accentColor: 0xffd86b,
+      drawIcon: (g, size) => drawTrophyIcon(g, 0, 0, size),
+      onClick: () => {
+        audio.playClick();
+        new TransitionManager(this).fadeToScene('RecordsScene');
+      }
+    }).setDepth(15);
+
+    // Settings (slightly smaller)
+    createIconButton(this, {
+      x: 90, y: 175, radius: 28,
+      accentColor: 0x4ecdc4,
+      drawIcon: (g, size) => drawGearIcon(g, 0, 0, size),
+      onClick: () => {
+        audio.playClick();
+        this.scene.start('ParentDashboardScene');
+      }
+    }).setDepth(15);
   }
 
-  createStarCounter() {
-    const container = this.add.container(W / 2 - 200, 200).setDepth(14);
+  createChipRow() {
+    const cy = 175;
+    const chipW = 200;
+    const gap = 24;
+    const totalW = chipW * 3 + gap * 2;
+    const startX = W / 2 - totalW / 2 + chipW / 2;
+
+    this.starsChip = this.makeChip(startX, cy, chipW, {
+      icon: g => drawStarIcon(g, 0, 0, 18),
+      accent: 0xf7dc6f,
+      value: () => `${progress.totalStars}`
+    });
+    this.stardustChip = this.makeChip(startX + chipW + gap, cy, chipW, {
+      icon: g => drawSparkleIcon(g, 0, 0, 18),
+      accent: 0xc77eff,
+      value: () => `${economy.getStardust()}`
+    });
+    this.streakChip = this.makeChip(startX + (chipW + gap) * 2, cy, chipW, {
+      icon: g => drawFlameIcon(g, 0, 0, 18),
+      accent: 0xff8b3d,
+      value: () => `${streak.getCurrent()}d`
+    });
+  }
+
+  makeChip(x, y, width, opts) {
+    const c = this.add.container(x, y).setDepth(14);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.85);
-    bg.fillRoundedRect(-70, -22, 140, 44, 22);
-    bg.lineStyle(2, 0xf7dc6f, 0.5);
-    bg.strokeRoundedRect(-70, -22, 140, 44, 22);
-    container.add(bg);
+    bg.fillStyle(0x12122a, 0.92);
+    bg.fillRoundedRect(-width / 2, -28, width, 56, 28);
+    bg.lineStyle(2, opts.accent, 0.7);
+    bg.strokeRoundedRect(-width / 2, -28, width, 56, 28);
+    c.add(bg);
 
-    const star = this.makeMiniStar(-46, 0, 12);
-    container.add(star);
+    const iconG = this.add.graphics();
+    iconG.x = -width / 2 + 28;
+    opts.icon(iconG);
+    c.add(iconG);
 
-    this.totalStarsText = this.add.text(12, 0, `${progress.totalStars}`, style('subhead', {
-      fontSize: '24px',
-      fill: '#f7dc6f'
-    })).setOrigin(0.5);
-    container.add(this.totalStarsText);
-  }
-
-  createStardustChip() {
-    const container = this.add.container(W / 2, 200).setDepth(14);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.85);
-    bg.fillRoundedRect(-70, -22, 140, 44, 22);
-    bg.lineStyle(2, 0xc77eff, 0.6);
-    bg.strokeRoundedRect(-70, -22, 140, 44, 22);
-    container.add(bg);
-
-    // Sparkle icon — diamond with a small twinkle
-    const sparkle = this.add.graphics();
-    sparkle.fillStyle(0xc77eff, 1);
-    sparkle.beginPath();
-    sparkle.moveTo(-46, -10);
-    sparkle.lineTo(-38, 0);
-    sparkle.lineTo(-46, 10);
-    sparkle.lineTo(-54, 0);
-    sparkle.closePath();
-    sparkle.fillPath();
-    sparkle.fillStyle(0xffffff, 0.9);
-    sparkle.fillCircle(-46, -2, 2);
-    container.add(sparkle);
-
-    this.stardustText = this.add.text(12, 0, `${economy.getStardust()}`, style('subhead', {
-      fontSize: '24px',
-      fill: '#c77eff'
-    })).setOrigin(0.5);
-    container.add(this.stardustText);
-  }
-
-  createStreakChip() {
-    const container = this.add.container(W / 2 + 200, 200).setDepth(14);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.85);
-    bg.fillRoundedRect(-70, -22, 140, 44, 22);
-    bg.lineStyle(2, 0xff8b3d, 0.6);
-    bg.strokeRoundedRect(-70, -22, 140, 44, 22);
-    container.add(bg);
-
-    // Flame icon
-    const flame = this.add.graphics();
-    flame.fillStyle(0xff8b3d, 1);
-    flame.beginPath();
-    flame.moveTo(-46, -8);
-    flame.lineTo(-54, 4);
-    flame.lineTo(-48, 12);
-    flame.lineTo(-38, 12);
-    flame.lineTo(-32, 4);
-    flame.lineTo(-38, -8);
-    flame.lineTo(-42, -4);
-    flame.closePath();
-    flame.fillPath();
-    flame.fillStyle(0xffd86b, 0.8);
-    flame.fillCircle(-43, 4, 3);
-    container.add(flame);
-
-    const current = streak.getCurrent();
-    this.streakText = this.add.text(14, 0, `${current}d`, style('subhead', {
-      fontSize: '24px',
-      fill: '#ff8b3d'
-    })).setOrigin(0.5);
-    container.add(this.streakText);
-  }
-
-  createCompanionDisplay() {
-    if (!companion.hasStarter()) return;
-    this.companionDisplay = drawCompanion(this, W / 2, 290, {
-      scale: 0.85
-    });
-    this.companionDisplay.setDepth(13);
-
-    // Tap pet → open CompanionScene
-    const petHit = this.add.circle(W / 2, 290, 70, 0x000000, 0)
-      .setInteractive({ useHandCursor: true })
-      .setDepth(16);
-    petHit.on('pointerdown', () => {
-      audio.playClick();
-      new TransitionManager(this).fadeToScene('CompanionScene');
-    });
-    petHit.on('pointerover', () => {
-      this.tweens.add({ targets: this.companionDisplay, scale: 0.92, duration: 120 });
-    });
-    petHit.on('pointerout', () => {
-      this.tweens.add({ targets: this.companionDisplay, scale: 0.85, duration: 120 });
-    });
-
-  }
-
-  drawGearIcon(g, size) {
-    g.lineStyle(3, 0x81ecec, 1);
-    const teeth = 8;
-    const outerR = size;
-    const innerR = size * 0.7;
-    g.beginPath();
-    for (let i = 0; i < teeth * 2; i++) {
-      const angle = (i / (teeth * 2)) * Math.PI * 2 - Math.PI / 2;
-      const r = i % 2 === 0 ? outerR : innerR;
-      const px = Math.cos(angle) * r;
-      const py = Math.sin(angle) * r;
-      if (i === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    g.closePath();
-    g.strokePath();
-    g.fillStyle(0x07071a, 1);
-    g.fillCircle(0, 0, size * 0.35);
-    g.lineStyle(2, 0x81ecec, 1);
-    g.strokeCircle(0, 0, size * 0.35);
-  }
-
-  drawShopIcon(g, size) {
-    // Shopping bag — rounded rectangle body + handle arc
-    g.fillStyle(0xc77eff, 1);
-    g.fillRoundedRect(-size * 0.55, -size * 0.15, size * 1.1, size * 0.85, 6);
-    g.lineStyle(3, 0xc77eff, 1);
-    g.beginPath();
-    g.arc(0, -size * 0.15, size * 0.32, Math.PI, 0);
-    g.strokePath();
-    // Sparkle accent on the bag
-    g.fillStyle(0xffffff, 0.85);
-    g.fillCircle(size * 0.18, size * 0.22, size * 0.1);
-    g.fillStyle(0xc77eff, 1);
-    g.fillCircle(size * 0.18, size * 0.22, size * 0.04);
-  }
-
-  openShop() {
-    audio.playClick();
-    new TransitionManager(this).fadeToScene('CockpitScene');
-  }
-
-  makeMiniStar(x, y, size) {
-    const g = this.add.graphics();
-    g.fillStyle(0xf7dc6f, 1);
-    const points = 5;
-    const outerR = size;
-    const innerR = size * 0.4;
-    g.beginPath();
-    for (let i = 0; i < points * 2; i++) {
-      const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-      const r = i % 2 === 0 ? outerR : innerR;
-      const px = x + Math.cos(angle) * r;
-      const py = y + Math.sin(angle) * r;
-      if (i === 0) g.moveTo(px, py);
-      else g.lineTo(px, py);
-    }
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0xffffff, 0.4);
-    g.fillCircle(x - size * 0.2, y - size * 0.2, size * 0.25);
-    return g;
+    const text = this.add.text(width / 2 - 24, 0, opts.value(), style('subhead', {
+      fontSize: '28px',
+      fill: '#' + opts.accent.toString(16).padStart(6, '0')
+    })).setOrigin(1, 0.5);
+    c.add(text);
+    c.text = text;
+    c.refresh = () => text.setText(opts.value());
+    return c;
   }
 
   // ============================================================
-  // WORLD LIST (scrollable cards)
+  // MAP
   // ============================================================
-  createWorldList() {
-    const startY = 480;
-    const cardHeight = 180;
-    const gap = 20;
+  createMap() {
+    // Subtle accent bloom behind the map for visual interest
+    const bloom = this.add.graphics().setDepth(0);
+    bloom.fillStyle(0x4ecdc4, 0.04);
+    bloom.fillEllipse(W / 2, H * 0.55, W * 1.4, H * 0.55);
 
-    this.cardHeight = cardHeight;
-    this.cardGap = gap;
-    this.startY = startY;
+    // Path — only segments up to (and including) the current world segment
+    // are visible; locked tail is hidden.
+    const visibleSegments = this.furthestUnlockedIndex; // segments equals (idx) since 0-based
+    drawPath(this, this.path, visibleSegments, 0x4ecdc4).setDepth(2);
 
-    this.worldContainer = this.add.container(0, 0).setDepth(5);
-    this.currentWorldIndex = this.findCurrentWorldIndex();
-
-    WORLDS.forEach((world, i) => {
-      const y = startY + i * (cardHeight + gap);
-      this.createWorldCard(world, y, cardHeight, i === this.currentWorldIndex);
-    });
-
-    this.setupScrolling(startY, cardHeight, gap);
-    this.scrollToWorld(this.currentWorldIndex, false);
-  }
-
-  findCurrentWorldIndex() {
+    // Nodes — only render up to furthestUnlocked. Locked beyond stay hidden.
+    this.nodeContainers = {};
     for (let i = 0; i < WORLDS.length; i++) {
+      if (i > this.furthestUnlockedIndex) continue;
       const world = WORLDS[i];
-      if (!progress.isWorldUnlocked(world.id)) {
-        return Math.max(0, i - 1);
-      }
-      const wp = progress.getWorldProgress(world.id);
-      if (wp.levelsCompleted < world.levelsRequired) {
-        return i;
-      }
-    }
-    return WORLDS.length - 1;
-  }
+      const pos = this.nodePositions[i];
+      const isCurrent = i === this.currentWorldIndex;
+      const isCleared = progress.isWorldFullyCleared(world.id);
+      const node = drawWorldNode(this, pos.x, pos.y, world.id, { scale: 0.95 });
+      node.setDepth(5);
+      this.nodeContainers[world.id] = node;
 
-  createWorldCard(world, y, height, isCurrent) {
-    const isUnlocked = progress.isWorldUnlocked(world.id);
-    const wp = progress.getWorldProgress(world.id);
-    const cardWidth = 720;
+      // Idle gentle bob
+      this.tweens.add({
+        targets: node,
+        y: pos.y - 6,
+        duration: 1800 + i * 80,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
 
-    const cardContainer = this.add.container(W / 2, y);
-    this.worldContainer.add(cardContainer);
-
-    if (isUnlocked) {
-      const glow = this.add.graphics();
-      glow.fillStyle(world.accentColor, isCurrent ? 0.22 : 0.1);
-      glow.fillRoundedRect(-cardWidth / 2 - 8, -height / 2 - 8, cardWidth + 16, height + 16, 22);
-      cardContainer.add(glow);
-
-      if (isCurrent) {
+      // Cleared badge: small star
+      if (isCleared) {
+        const badge = this.add.graphics().setDepth(6);
+        badge.x = pos.x + 60;
+        badge.y = pos.y - 60;
+        drawStarIcon(badge, 0, 0, 18);
         this.tweens.add({
-          targets: glow,
-          alpha: 0.32,
+          targets: badge,
+          scale: { from: 0.9, to: 1.1 },
+          duration: 1200,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
+
+      // World label
+      const label = this.add.text(pos.x, pos.y + 90, world.name.toUpperCase(), style('caption', {
+        fontSize: '22px',
+        fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
+        fontStyle: '900',
+        stroke: '#0a0a1a',
+        strokeThickness: 3
+      })).setOrigin(0.5).setDepth(6);
+
+      // Tap hit area
+      const hit = this.add.circle(pos.x, pos.y, 90, 0x000000, 0)
+        .setInteractive({ useHandCursor: true })
+        .setDepth(7);
+      hit.on('pointerdown', () => this.handleNodeTap(i));
+      hit.on('pointerover', () => {
+        this.tweens.add({ targets: node, scale: 1.06, duration: 120 });
+      });
+      hit.on('pointerout', () => {
+        this.tweens.add({ targets: node, scale: 0.95, duration: 120 });
+      });
+
+      // Pulsing ring for the current world
+      if (isCurrent) {
+        const ring = this.add.graphics().setDepth(4);
+        ring.lineStyle(4, world.accentColor, 0.85);
+        ring.strokeCircle(pos.x, pos.y, 80);
+        this.tweens.add({
+          targets: ring,
+          scaleX: 1.18,
+          scaleY: 1.18,
+          alpha: 0.3,
           duration: 1200,
           yoyo: true,
           repeat: -1,
@@ -347,298 +250,286 @@ export class WorldMapScene extends Phaser.Scene {
         });
       }
     }
+  }
 
-    const card = this.add.graphics();
-    const fillColor = isUnlocked ? 0x12122a : 0x0c0c1c;
-    card.fillStyle(fillColor, isUnlocked ? 0.95 : 0.7);
-    card.fillRoundedRect(-cardWidth / 2, -height / 2, cardWidth, height, 18);
-    card.lineStyle(isCurrent ? 4 : 3, isUnlocked ? world.accentColor : 0x3a3a4a, isUnlocked ? 0.85 : 0.4);
-    card.strokeRoundedRect(-cardWidth / 2, -height / 2, cardWidth, height, 18);
-    cardContainer.add(card);
+  // ============================================================
+  // SHIP + PET ON ACTIVE WORLD
+  // ============================================================
+  createShipOnActiveWorld() {
+    const pos = this.nodePositions[this.currentWorldIndex];
+    this.shipPet = this.add.container(pos.x, pos.y - 30).setDepth(20);
 
-    const hit = this.add.rectangle(0, 0, cardWidth, height, 0x000000, 0);
-    cardContainer.add(hit);
+    const shipG = drawShip(this, 0, 0, {
+      scale: 1.2,
+      parts: ship.getCurrentParts()
+    });
+    this.shipPet.add(shipG);
+    this.shipPet.shipG = shipG;
 
-    if (isUnlocked) {
-      hit.setInteractive({ useHandCursor: true });
-      hit.on('pointerover', () => {
-        this.tweens.add({ targets: cardContainer, scaleX: 1.02, scaleY: 1.02, duration: 100 });
-      });
-      hit.on('pointerout', () => {
-        this.tweens.add({ targets: cardContainer, scaleX: 1, scaleY: 1, duration: 100 });
-      });
-      hit.on('pointerdown', () => {
-        audio.playClick();
-        this.selectWorldWithFeedback(world, cardContainer);
-      });
+    if (companion.hasStarter()) {
+      const pc = shipG.portholeCenter;
+      const pet = drawCompanion(this, pc.x, pc.y, { scale: 0.42 });
+      shipG.add(pet);
+      this.shipPet.pet = pet;
+
+      // Pet hit area for lore card
+      const hit = this.add.circle(pc.x, pc.y, shipG.portholeRadius + 10, 0x000000, 0)
+        .setInteractive({ useHandCursor: true });
+      shipG.add(hit);
+      hit.on('pointerdown', () => this.showLoreCard());
     }
 
-    // World icon
-    const iconX = -cardWidth / 2 + 90;
-    const icon = this.add.image(iconX, 0, `world_${world.id}`).setScale(2.4);
-    if (!isUnlocked) {
-      icon.setTint(0x000000);
-      icon.setAlpha(0.5);
+    // Idle bob
+    this.tweens.add({
+      targets: this.shipPet,
+      y: pos.y - 30 - 8,
+      duration: 1600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
+
+  // ============================================================
+  // BOTTOM CHROME
+  // ============================================================
+  createBottomChrome() {
+    // Subtle starfield band hint at bottom
+    const fade = this.add.graphics().setDepth(0);
+    fade.fillStyle(0x07071a, 0.7);
+    fade.fillRect(0, 1700, W, 220);
+
+    // Current world label / play hint
+    const world = WORLDS[this.currentWorldIndex];
+    const wp = progress.getWorldProgress(world.id);
+    const fullyCleared = progress.isWorldFullyCleared(world.id);
+
+    this.add.text(W / 2, 1760, world.name, style('display', {
+      fontSize: '54px',
+      fill: '#ffffff'
+    })).setOrigin(0.5).setDepth(11);
+
+    const subtitle = fullyCleared
+      ? 'World cleared — replay any mission'
+      : world.description;
+    this.add.text(W / 2, 1815, subtitle, style('body', {
+      fontSize: '24px',
+      fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
+      align: 'center',
+      wordWrap: { width: W - 160 }
+    })).setOrigin(0.5).setDepth(11);
+
+    this.add.text(W / 2, 1870, `${wp.levelsCompleted}/${world.levelsRequired} missions complete`, style('caption', {
+      fontSize: '22px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5).setDepth(11);
+  }
+
+  // ============================================================
+  // INTERACTION
+  // ============================================================
+  handleNodeTap(targetIndex) {
+    audio.playClick();
+    if (targetIndex > this.furthestUnlockedIndex) return;
+
+    if (targetIndex === this.currentWorldIndex) {
+      // Already there — go to mission briefing
+      this.enterWorld(targetIndex);
+      return;
     }
-    cardContainer.add(icon);
 
-    // World name & subtitle
-    const textX = -cardWidth / 2 + 190;
-    const textW = cardWidth - 280;
+    // Animate ship along path to the new world
+    this.travelTo(targetIndex);
+  }
 
-    cardContainer.add(this.add.text(textX, -34, world.name, style('headline', {
-      fontSize: '38px',
-      fill: isUnlocked ? '#ffffff' : '#5a5a72'
-    })).setOrigin(0, 0.5));
+  travelTo(targetIndex) {
+    if (this._traveling) return;
+    this._traveling = true;
+    this.input.enabled = false;
 
-    const prevWorld = WORLDS.find(w => w.id === world.id - 1);
-    const subtitle = isUnlocked
-      ? world.description
-      : prevWorld
-        ? `Clear ${prevWorld.name} to unlock`
-        : 'Locked';
-    cardContainer.add(this.add.text(textX, 22, subtitle, style('body', {
-      fontSize: isUnlocked ? 18 : 22,
-      fill: isUnlocked ? '#' + world.accentColor.toString(16).padStart(6, '0') : '#7a7a90',
-      wordWrap: { width: textW }
-    })).setOrigin(0, 0.5));
+    const startT = tForNodeIndex(this.currentWorldIndex);
+    const endT = tForNodeIndex(targetIndex);
 
-    // Right-side stats
-    const rightX = cardWidth / 2 - 80;
-    if (isUnlocked) {
-      const starContainer = this.add.container(rightX, -28);
-      starContainer.add(this.makeMiniStar(-26, 0, 14));
-      starContainer.add(this.add.text(8, 0, `${wp.starsEarned}`, style('headline', {
-        fontSize: '32px',
-        fill: '#f7dc6f'
-      })).setOrigin(0, 0.5));
-      cardContainer.add(starContainer);
+    audio.playLaser?.();
 
-      cardContainer.add(this.add.text(rightX, 22, `${wp.levelsCompleted}/${world.levelsRequired}`, style('body', {
-        fontSize: '24px',
-        fill: '#' + world.accentColor.toString(16).padStart(6, '0')
+    const tween = { t: startT };
+    this.tweens.add({
+      targets: tween,
+      t: endT,
+      duration: 1500,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const pt = this.path.getPoint(tween.t);
+        this.shipPet.x = pt.x;
+        this.shipPet.y = pt.y - 30;
+        // Tilt the ship in the direction of travel
+        const ahead = this.path.getPoint(Math.min(1, tween.t + 0.02));
+        const dx = ahead.x - pt.x;
+        const dy = ahead.y - pt.y;
+        const angle = Math.atan2(dy, dx) - Math.PI / 2;
+        this.shipPet.rotation = angle * 0.3;
+      },
+      onComplete: () => {
+        this.shipPet.rotation = 0;
+        this.currentWorldIndex = targetIndex;
+        this._traveling = false;
+        this.input.enabled = true;
+        // Subtle landing shake
+        this.cameras.main.shake(180, 0.004);
+        this.time.delayedCall(180, () => this.enterWorld(targetIndex));
+      }
+    });
+  }
+
+  enterWorld(idx) {
+    const world = WORLDS[idx];
+    this.registry.set('selectedWorld', world.id);
+    new TransitionManager(this).fadeToScene('LevelSelectScene');
+  }
+
+  // ============================================================
+  // PET LORE CARD
+  // ============================================================
+  showLoreCard() {
+    audio.playClick();
+    const sp = companion.getSpecies();
+    const lore = companion.getCurrentLore();
+    if (!sp || !lore) return;
+
+    const ov = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85)
+      .setDepth(80).setInteractive();
+    const card = this.add.container(W / 2, H / 2).setDepth(81);
+
+    const cw = 880;
+    const ch = 1100;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 1);
+    bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 28);
+    bg.lineStyle(4, sp.accent, 0.95);
+    bg.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 28);
+    card.add(bg);
+
+    // Portrait
+    const portrait = drawCompanion(this, 0, -ch / 2 + 220, { scale: 1.6 });
+    card.add(portrait);
+
+    card.add(this.add.text(0, -ch / 2 + 460, lore.name.toUpperCase(), style('display', {
+      fontSize: '52px',
+      fill: '#ffffff'
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -ch / 2 + 510, lore.type, style('caption', {
+      fontSize: '22px',
+      fill: '#' + sp.accent.toString(16).padStart(6, '0')
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -ch / 2 + 580, lore.lore, style('body', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      align: 'center',
+      wordWrap: { width: cw - 100 }
+    })).setOrigin(0.5));
+
+    // Evolution progress
+    const prog = companion.getStageProgress();
+    const py = ch / 2 - 380;
+    if (prog.nextStage) {
+      const nextLore = sp.stages[prog.nextStage];
+      card.add(this.add.text(0, py, `Next stage: ${nextLore.name}`, style('subhead', {
+        fontSize: '28px',
+        fill: '#ffffff'
       })).setOrigin(0.5));
 
-      if (isCurrent) {
-        // Park the ship in the upper-right of the kid's current world card.
-        const parkedShip = drawShip(this, rightX - 30, -height / 2 - 20, {
-          scale: 0.55,
-          parts: ship.getCurrentParts()
-        });
-        cardContainer.add(parkedShip);
-        this.tweens.add({
-          targets: parkedShip,
-          y: -height / 2 - 28,
-          duration: 1600,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut'
-        });
-      }
+      // Silhouette of next stage (a darker pet drawn at the next stage)
+      const sil = drawCompanion(this, 0, py + 100, { scale: 0.8, stage: prog.nextStage });
+      sil.setAlpha(0.35);
+      sil.list.forEach(child => child.setTint?.(0x000000));
+      card.add(sil);
 
-      if (isCurrent && wp.levelsCompleted < world.levelsRequired) {
-        const playBadge = this.add.container(rightX, 60);
-        const badgeBg = this.add.graphics();
-        badgeBg.fillStyle(0x58d68d, 1);
-        badgeBg.fillRoundedRect(-44, -14, 88, 28, 14);
-        playBadge.add(badgeBg);
-        playBadge.add(this.add.text(0, 0, 'PLAY', style('caption', {
-          fontSize: '18px',
-          fill: '#0a1f0a',
-          fontStyle: '900'
+      // Sub-goals
+      const goals = [
+        `${prog.worldsCleared.current}/${prog.worldsCleared.target} worlds cleared`,
+        `${prog.lifetimeCorrect.current}/${prog.lifetimeCorrect.target} correct answers`,
+        `${prog.accuracy.current}%/${prog.accuracy.target}% accuracy`
+      ];
+      goals.forEach((g, i) => {
+        const gy = py + 240 + i * 40;
+        card.add(this.add.text(0, gy, g, style('caption', {
+          fontSize: '22px',
+          fill: '#cfcfe0'
         })).setOrigin(0.5));
-        cardContainer.add(playBadge);
-
-        this.tweens.add({
-          targets: playBadge,
-          y: 54,
-          duration: 700,
-          yoyo: true,
-          repeat: -1,
-          ease: 'Sine.easeInOut'
-        });
-      }
-    } else {
-      const lock = this.add.graphics();
-      lock.fillStyle(0x4a4a60, 1);
-      lock.fillRoundedRect(rightX - 18, -8, 36, 26, 4);
-      lock.lineStyle(4, 0x4a4a60, 1);
-      lock.beginPath();
-      lock.arc(rightX, -10, 12, Math.PI, 0);
-      lock.strokePath();
-      cardContainer.add(lock);
-    }
-  }
-
-  selectWorldWithFeedback(world, cardContainer) {
-    this.input.enabled = false;
-    this.tweens.add({
-      targets: cardContainer,
-      scaleX: 1.06,
-      scaleY: 1.06,
-      duration: 120,
-      ease: 'Back.easeOut'
-    });
-    this.time.delayedCall(180, () => {
-      this.registry.set('selectedWorld', world.id);
-      new TransitionManager(this).fadeToScene('LevelSelectScene');
-    });
-  }
-
-  // ============================================================
-  // SCROLLING
-  // ============================================================
-  setupScrolling(startY, cardHeight, gap) {
-    const totalHeight = WORLDS.length * (cardHeight + gap);
-    const viewHeight = 1100;
-    this.maxScroll = Math.max(0, totalHeight - viewHeight);
-    this.scrollVelocity = 0;
-    this.isScrolling = false;
-
-    if (this.maxScroll <= 0) return;
-
-    this.input.on('wheel', (_p, _g, _dx, dy) => {
-      this.worldContainer.y = Phaser.Math.Clamp(
-        this.worldContainer.y - dy * 0.8,
-        -this.maxScroll,
-        0
-      );
-      this.scrollVelocity = -dy * 0.5;
-      this.isScrolling = true;
-    });
-
-    let dragStart = 0;
-    let containerStart = 0;
-    let lastY = 0;
-    let lastTime = 0;
-
-    this.input.on('pointerdown', p => {
-      if (p.y > 370 && p.y < 1300) {
-        dragStart = p.y;
-        containerStart = this.worldContainer.y;
-        lastY = p.y;
-        lastTime = Date.now();
-        this.scrollVelocity = 0;
-        this.isScrolling = true;
-      }
-    });
-
-    this.input.on('pointermove', p => {
-      if (p.isDown && dragStart > 0) {
-        const delta = p.y - dragStart;
-        this.worldContainer.y = Phaser.Math.Clamp(
-          containerStart + delta,
-          -this.maxScroll - 50,
-          50
-        );
-        const now = Date.now();
-        const dt = now - lastTime;
-        if (dt > 0) this.scrollVelocity = (p.y - lastY) / dt * 16;
-        lastY = p.y;
-        lastTime = now;
-      }
-    });
-
-    this.input.on('pointerup', () => {
-      if (dragStart > 0) {
-        dragStart = 0;
-        this.applyScrollMomentum();
-      }
-    });
-  }
-
-  applyScrollMomentum() {
-    const friction = 0.95;
-    const minVelocity = 0.5;
-
-    const update = () => {
-      if (!this.isScrolling) return;
-      this.worldContainer.y += this.scrollVelocity;
-      this.scrollVelocity *= friction;
-
-      if (this.worldContainer.y > 0) {
-        this.worldContainer.y *= 0.8;
-        this.scrollVelocity *= 0.5;
-      } else if (this.worldContainer.y < -this.maxScroll) {
-        const overscroll = this.worldContainer.y + this.maxScroll;
-        this.worldContainer.y = -this.maxScroll + overscroll * 0.8;
-        this.scrollVelocity *= 0.5;
-      }
-
-      if (Math.abs(this.scrollVelocity) < minVelocity) {
-        this.isScrolling = false;
-        this.snapToNearestCard();
-        return;
-      }
-
-      this.time.delayedCall(16, update);
-    };
-    update();
-  }
-
-  snapToNearestCard() {
-    const currentY = -this.worldContainer.y;
-    const cardTotal = this.cardHeight + this.cardGap;
-    const nearestIndex = Math.round(currentY / cardTotal);
-    const targetY = -Phaser.Math.Clamp(nearestIndex * cardTotal, 0, this.maxScroll);
-    this.tweens.add({
-      targets: this.worldContainer,
-      y: targetY,
-      duration: 220,
-      ease: 'Back.easeOut'
-    });
-  }
-
-  scrollToWorld(worldIndex, animate = true) {
-    const targetY = -Phaser.Math.Clamp(
-      worldIndex * (this.cardHeight + this.cardGap),
-      0,
-      this.maxScroll
-    );
-    if (animate) {
-      this.tweens.add({
-        targets: this.worldContainer,
-        y: targetY,
-        duration: 500,
-        ease: 'Cubic.easeOut'
       });
+
+      // Overall progress bar
+      const barW = cw - 200;
+      const barG = this.add.graphics();
+      barG.fillStyle(0x2a2a44, 1);
+      barG.fillRoundedRect(-barW / 2, ch / 2 - 90, barW, 18, 9);
+      barG.fillStyle(sp.accent, 1);
+      barG.fillRoundedRect(-barW / 2, ch / 2 - 90, barW * Math.min(1, prog.ratio), 18, 9);
+      card.add(barG);
     } else {
-      this.worldContainer.y = targetY;
+      card.add(this.add.text(0, py + 100, 'FULLY EVOLVED', style('subhead', {
+        fontSize: '36px',
+        fill: '#ffd86b'
+      })).setOrigin(0.5));
     }
+
+    const closeBtn = this.add.text(0, ch / 2 - 40, 'tap anywhere to close', style('caption', {
+      fontSize: '20px',
+      fill: '#7a7a90'
+    })).setOrigin(0.5);
+    card.add(closeBtn);
+
+    const cleanup = () => {
+      audio.playClick();
+      ov.destroy();
+      card.destroy();
+    };
+    ov.on('pointerdown', cleanup);
+    bg.setInteractive(new Phaser.Geom.Rectangle(-cw / 2, -ch / 2, cw, ch), Phaser.Geom.Rectangle.Contains);
+    bg.on('pointerdown', cleanup);
   }
 
   // ============================================================
-  // LIFECYCLE
+  // PROGRESS HELPERS
   // ============================================================
+  findCurrentWorldIndex() {
+    for (let i = 0; i < WORLDS.length; i++) {
+      const w = WORLDS[i];
+      if (!progress.isWorldUnlocked(w.id)) return Math.max(0, i - 1);
+      const wp = progress.getWorldProgress(w.id);
+      if (wp.levelsCompleted < w.levelsRequired) return i;
+    }
+    return WORLDS.length - 1;
+  }
+
+  findFurthestUnlockedIndex() {
+    let idx = 0;
+    for (let i = 0; i < WORLDS.length; i++) {
+      if (progress.isWorldUnlocked(WORLDS[i].id)) idx = i;
+    }
+    return idx;
+  }
+
   onSceneWake() {
-    if (this.totalStarsText) this.totalStarsText.setText(`${progress.totalStars}`);
-
-    if (this.stardustText) this.stardustText.setText(`${economy.getStardust()}`);
-
-    if (this.streakText) {
-      const current = streak.getCurrent();
-      this.streakText.setText(`${current}d`);
+    // Restart only if the map's unlock/clear footprint changed; otherwise
+    // refresh the live chips in place. Avoids tearing down + rebuilding all
+    // node graphics on every back-from-shop / back-from-records.
+    const newFootprint = this.computeMapFootprint();
+    if (newFootprint !== this._mapFootprint) {
+      this.scene.restart();
+      return;
     }
-
-    // Rebuild companion display so the stage updates
-    if (this.companionDisplay) {
-      this.companionDisplay.destroy();
-      this.companionDisplay = null;
-    }
-    if (companion.hasStarter()) {
-      this.companionDisplay = drawCompanion(this, W / 2, 290, { scale: 0.85 });
-      this.companionDisplay.setDepth(13);
-    }
-
-    this.worldContainer.removeAll(true);
-    this.currentWorldIndex = this.findCurrentWorldIndex();
-
-    WORLDS.forEach((world, i) => {
-      const y = this.startY + i * (this.cardHeight + this.cardGap);
-      this.createWorldCard(world, y, this.cardHeight, i === this.currentWorldIndex);
-    });
-
-    this.scrollToWorld(this.currentWorldIndex, true);
+    this.starsChip?.refresh();
+    this.stardustChip?.refresh();
+    this.streakChip?.refresh();
   }
 
+  computeMapFootprint() {
+    let s = '';
+    for (const w of WORLDS) {
+      const wp = progress.getWorldProgress(w.id);
+      s += `${wp?.unlocked ? '1' : '0'}${wp?.levelsCompleted || 0};`;
+    }
+    return s;
+  }
 }

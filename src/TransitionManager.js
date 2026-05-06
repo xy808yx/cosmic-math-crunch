@@ -1,20 +1,22 @@
-// TransitionManager - Handles smooth scene transitions
+// Smooth scene transitions using a fade overlay sized to the camera viewport.
 export class TransitionManager {
   constructor(scene) {
     this.scene = scene;
   }
 
-  // Fade out current scene, then start target scene
   fadeToScene(targetScene, data = {}, duration = 400) {
     this.scene.input.enabled = false;
 
-    const overlay = this.scene.add.rectangle(400, 700, 800, 1400, 0x0a0a1a, 0);
+    const cam = this.scene.cameras.main;
+    const w = cam.width;
+    const h = cam.height;
+    const overlay = this.scene.add.rectangle(w / 2, h / 2, w, h, 0x0a0a1a, 0);
     overlay.setDepth(1000);
 
     this.scene.tweens.add({
       targets: overlay,
       alpha: 1,
-      duration: duration,
+      duration,
       ease: 'Quad.easeIn',
       onComplete: () => {
         this.scene.scene.start(targetScene, data);
@@ -22,19 +24,19 @@ export class TransitionManager {
     });
   }
 
-  // Call in scene's create() for fade-in effect
   fadeIn(duration = 300) {
-    const overlay = this.scene.add.rectangle(400, 700, 800, 1400, 0x0a0a1a, 1);
+    const cam = this.scene.cameras.main;
+    const w = cam.width;
+    const h = cam.height;
+    const overlay = this.scene.add.rectangle(w / 2, h / 2, w, h, 0x0a0a1a, 1);
     overlay.setDepth(1000);
 
     this.scene.tweens.add({
       targets: overlay,
       alpha: 0,
-      duration: duration,
+      duration,
       ease: 'Quad.easeOut',
-      onComplete: () => {
-        overlay.destroy();
-      }
+      onComplete: () => overlay.destroy()
     });
   }
 }
