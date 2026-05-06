@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
-import { achievements } from '../AchievementManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
@@ -59,20 +58,12 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }).setDepth(15);
 
-    // Shop — top-right cluster, left of trophy
+    // Cockpit — top-right (replaces shop + trophy: cockpit holds shop & records)
     createIconButton(this, {
-      x: 660, y: 60, radius: 28,
+      x: 740, y: 60, radius: 28,
       accentColor: 0xc77eff,
       drawIcon: (g, size) => this.drawShopIcon(g, size),
       onClick: () => this.openShop()
-    }).setDepth(15);
-
-    // Trophy — top-right
-    createIconButton(this, {
-      x: 740, y: 60, radius: 28,
-      accentColor: 0xf7dc6f,
-      drawIcon: (g, size) => this.drawTrophyIcon(g, size),
-      onClick: () => this.showAchievements()
     }).setDepth(15);
 
     // Logo / wordmark — clean and confident
@@ -227,30 +218,6 @@ export class WorldMapScene extends Phaser.Scene {
       this.tweens.add({ targets: this.companionDisplay, scale: 0.85, duration: 120 });
     });
 
-    // Hunger bar underneath
-    const hungerY = 330;
-    const hungerW = 160;
-    const hungerH = 8;
-    const bg = this.add.graphics().setDepth(14);
-    bg.fillStyle(0x2a2a44, 0.9);
-    bg.fillRoundedRect(W / 2 - hungerW / 2, hungerY, hungerW, hungerH, 4);
-
-    const fill = this.add.graphics().setDepth(15);
-    this.drawHungerFill(fill, hungerW, hungerH, hungerY);
-    this.hungerFill = fill;
-    this.hungerBarW = hungerW;
-    this.hungerBarH = hungerH;
-    this.hungerBarY = hungerY;
-  }
-
-  drawHungerFill(g, w, h, y) {
-    g.clear();
-    const hunger = companion.getHunger();
-    const fullness = 1 - hunger / 100;
-    const fw = Math.max(2, w * fullness);
-    const color = hunger < 30 ? 0x58d68d : hunger < 60 ? 0xf7dc6f : hunger < 85 ? 0xff8b3d : 0xff6b6b;
-    g.fillStyle(color, 1);
-    g.fillRoundedRect(W / 2 - w / 2, y, fw, h, 4);
   }
 
   drawGearIcon(g, size) {
@@ -292,33 +259,7 @@ export class WorldMapScene extends Phaser.Scene {
 
   openShop() {
     audio.playClick();
-    new TransitionManager(this).fadeToScene('ShopScene');
-  }
-
-  drawTrophyIcon(g, size) {
-    g.fillStyle(0xf7dc6f, 1);
-    g.beginPath();
-    g.moveTo(-size * 0.5, -size * 0.5);
-    g.lineTo(size * 0.5, -size * 0.5);
-    g.lineTo(size * 0.35, size * 0.1);
-    g.lineTo(-size * 0.35, size * 0.1);
-    g.closePath();
-    g.fillPath();
-
-    g.lineStyle(3, 0xf7dc6f, 1);
-    g.beginPath();
-    g.arc(-size * 0.55, -size * 0.2, size * 0.2, -Math.PI / 2, Math.PI / 2);
-    g.strokePath();
-    g.beginPath();
-    g.arc(size * 0.55, -size * 0.2, size * 0.2, Math.PI / 2, -Math.PI / 2);
-    g.strokePath();
-
-    g.fillStyle(0xf7dc6f, 1);
-    g.fillRect(-size * 0.15, size * 0.1, size * 0.3, size * 0.2);
-    g.fillRect(-size * 0.3, size * 0.3, size * 0.6, size * 0.15);
-
-    g.fillStyle(0xffffff, 0.4);
-    g.fillRect(-size * 0.3, -size * 0.4, size * 0.15, size * 0.35);
+    new TransitionManager(this).fadeToScene('CockpitScene');
   }
 
   makeMiniStar(x, y, size) {
@@ -676,13 +617,7 @@ export class WorldMapScene extends Phaser.Scene {
       this.streakText.setText(`${current}d`);
     }
 
-    // Refresh hunger bar with newly-decayed value
-    companion.tickHunger();
-    if (this.hungerFill) {
-      this.drawHungerFill(this.hungerFill, this.hungerBarW, this.hungerBarH, this.hungerBarY);
-    }
-
-    // Rebuild companion display so the mood/stage updates
+    // Rebuild companion display so the stage updates
     if (this.companionDisplay) {
       this.companionDisplay.destroy();
       this.companionDisplay = null;
@@ -703,65 +638,4 @@ export class WorldMapScene extends Phaser.Scene {
     this.scrollToWorld(this.currentWorldIndex, true);
   }
 
-  // ============================================================
-  // ACHIEVEMENTS OVERLAY
-  // ============================================================
-  showAchievements() {
-    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.9)
-      .setInteractive().setDepth(100);
-
-    const panel = this.add.graphics().setDepth(101);
-    panel.fillStyle(0x12122a, 1);
-    panel.fillRoundedRect(40, 150, 720, 1100, 22);
-    panel.lineStyle(3, 0xf7dc6f, 0.9);
-    panel.strokeRoundedRect(40, 150, 720, 1100, 22);
-
-    const title = this.add.text(W / 2, 210, 'Achievements', style('display', {
-      fontSize: '46px',
-      fill: '#f7dc6f'
-    })).setOrigin(0.5).setDepth(102);
-
-    const closeBtn = this.add.text(720, 200, '✕', {
-      fontSize: '46px',
-      fill: '#ff6b6b',
-      fontFamily: '"Nunito", system-ui, Arial'
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setDepth(102);
-
-    const elements = [overlay, panel, title, closeBtn];
-
-    const allAch = achievements.getAllAchievements();
-    let yPos = 290;
-
-    allAch.forEach(ach => {
-      if (yPos > 1180) return;
-      const row = this.add.graphics().setDepth(102);
-      row.fillStyle(ach.earned ? 0x1a3a1a : 0x1a1a30, 1);
-      row.fillRoundedRect(70, yPos - 45, 660, 90, 14);
-      row.lineStyle(2, ach.earned ? 0x58d68d : 0x3a3a4a, 1);
-      row.strokeRoundedRect(70, yPos - 45, 660, 90, 14);
-      elements.push(row);
-
-      elements.push(this.add.text(120, yPos, ach.icon, { fontSize: '38px' })
-        .setOrigin(0.5).setAlpha(ach.earned ? 1 : 0.4).setDepth(102));
-
-      elements.push(this.add.text(170, yPos - 14, ach.name, style('subhead', {
-        fontSize: '24px',
-        fill: ach.earned ? '#ffffff' : '#7a7a90'
-      })).setOrigin(0, 0.5).setDepth(102));
-
-      elements.push(this.add.text(170, yPos + 18, ach.description, style('caption', {
-        fontSize: '18px',
-        fill: ach.earned ? '#81ecec' : '#5a5a72'
-      })).setOrigin(0, 0.5).setDepth(102));
-
-      yPos += 100;
-    });
-
-    closeBtn.on('pointerdown', () => {
-      audio.playClick();
-      elements.forEach(el => el.destroy());
-    });
-    closeBtn.on('pointerover', () => closeBtn.setScale(1.2));
-    closeBtn.on('pointerout', () => closeBtn.setScale(1));
-  }
 }

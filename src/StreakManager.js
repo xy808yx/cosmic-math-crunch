@@ -39,6 +39,8 @@ class StreakManager {
         progress.streak.current += 1;
       } else if (diff <= 0) {
         // Clock skew — be conservative, don't reset, just keep current.
+      } else if (diff === 2) {
+        // Soft pause: skipping a single day holds the streak (no increment, no reset).
       } else {
         progress.streak.current = 1;
       }
@@ -54,10 +56,11 @@ class StreakManager {
   // (e.g. if kid opens the app but doesn't play, we still want the counter to
   // reflect a missed day so the visible number is honest.)
   onAppOpen() {
+    // Soft pause: streak only breaks after 2+ days off (3-day gap).
     const last = progress.streak.lastPlayDate;
     if (!last) return;
     const diff = daysBetween(last, todayString());
-    if (diff > 1) {
+    if (diff > 2) {
       progress.streak.current = 0;
       progress.save();
     }

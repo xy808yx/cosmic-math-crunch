@@ -20,7 +20,7 @@ export class BootScene extends Phaser.Scene {
     generateWorldIcons(this);
 
     streak.onAppOpen();
-    companion.tickHunger();
+    companion.markVisitOpen();
 
     if (!companion.hasStarter()) {
       this.scene.start('StarterPickerScene');

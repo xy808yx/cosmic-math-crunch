@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { progress, WORLDS } from '../GameData.js';
-import { achievements } from '../AchievementManager.js';
+import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
@@ -322,45 +322,15 @@ export class ParentDashboardScene extends Phaser.Scene {
     });
     this.contentContainer.add(stageText);
 
-    const moodText = this.add.text(340, startY + 140, `Mood: ${companion.getMood()}`, {
-      fontSize: '24px',
-      fill: '#cfcfe0',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(moodText);
-
-    const fedText = this.add.text(340, startY + 180, `Total fed: ${companion.getTotalPellets()} pellets`, {
+    const fedText = this.add.text(340, startY + 140, `Total fed: ${companion.getTotalPellets()} pellets`, {
       fontSize: '22px',
       fill: '#cfcfe0',
       fontFamily: 'Arial'
     });
     this.contentContainer.add(fedText);
 
-    // Hunger bar with label
-    const hungerY = startY + 280;
-    const hungerLabel = this.add.text(80, hungerY, 'Hunger', {
-      fontSize: '24px',
-      fill: '#cfcfe0',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(hungerLabel);
-
-    const hungerPct = companion.getHunger();
-    const hungerColor = hungerPct < 30 ? 0x58d68d : hungerPct < 60 ? 0xf7dc6f : hungerPct < 85 ? 0xff8b3d : 0xff6b6b;
-    const barBg = this.add.rectangle(400, hungerY + 50, 640, 24, 0x1a1a2e).setStrokeStyle(2, 0x4a4a60);
-    this.contentContainer.add(barBg);
-    const barFillW = Math.max(2, 636 * (1 - hungerPct / 100));
-    const barFill = this.add.rectangle(82, hungerY + 50, barFillW, 20, hungerColor).setOrigin(0, 0.5);
-    this.contentContainer.add(barFill);
-    const hungerNum = this.add.text(720, hungerY + 50, `${hungerPct}%`, {
-      fontSize: '22px',
-      fill: '#ffffff',
-      fontFamily: 'Arial'
-    }).setOrigin(1, 0.5);
-    this.contentContainer.add(hungerNum);
-
     // Streak readout
-    const streakY = startY + 380;
+    const streakY = startY + 240;
     const streakHeader = this.add.text(80, streakY, 'Daily Streak', {
       fontSize: '24px',
       fill: '#cfcfe0',
@@ -375,49 +345,6 @@ export class ParentDashboardScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(1, 0);
     this.contentContainer.add(streakNum);
-
-    // Vacation pause toggle
-    this.addVacationToggle(startY + 470);
-  }
-
-  addVacationToggle(y) {
-    const isPaused = progress.parentSettings.pauseHunger;
-
-    const card = this.add.rectangle(400, y + 50, 720, 130, 0x2d2d44, 0.9)
-      .setStrokeStyle(4, isPaused ? 0xf7dc6f : 0x4ecdc4)
-      .setInteractive();
-    this.contentContainer.add(card);
-
-    const title = this.add.text(80, y + 20, 'Vacation Mode', {
-      fontSize: '28px',
-      fill: '#ffffff',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    });
-    this.contentContainer.add(title);
-
-    const description = this.add.text(80, y + 60, 'Pauses hunger so the pet doesn\'t starve while away.', {
-      fontSize: '20px',
-      fill: '#888888',
-      fontFamily: 'Arial'
-    });
-    this.contentContainer.add(description);
-
-    const stateText = this.add.text(720, y + 50, isPaused ? 'ON' : 'OFF', {
-      fontSize: '36px',
-      fill: isPaused ? '#f7dc6f' : '#888888',
-      fontFamily: 'Arial',
-      fontStyle: 'bold'
-    }).setOrigin(1, 0.5);
-    this.contentContainer.add(stateText);
-
-    card.on('pointerdown', () => {
-      audio.playClick();
-      progress.parentSettings.pauseHunger = !progress.parentSettings.pauseHunger;
-      progress.save();
-      this.contentContainer.removeAll(true);
-      this.showCompanionTab();
-    });
   }
 
   showSummaryTab() {
@@ -444,8 +371,6 @@ export class ParentDashboardScene extends Phaser.Scene {
     this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accuracyColor);
     y += 140;
 
-    // Achievements
-    this.addStatCard(y, 'Achievements', `${stats.achievementsEarned} / ${stats.achievementsTotal}`, 0xff6b9d);
   }
 
   addStatCard(y, label, value, accentColor) {
@@ -777,7 +702,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       fontStyle: 'bold'
     }).setOrigin(0.5);
 
-    const warning = this.add.text(400, 560, 'This will delete ALL game progress,\nincluding levels, stars, achievements,\nand learning data.\n\nThis cannot be undone!', {
+    const warning = this.add.text(400, 560, 'This will delete ALL game progress,\nincluding levels, stars, records,\nand learning data.\n\nThis cannot be undone!', {
       fontSize: '24px',
       fill: '#ffffff',
       fontFamily: 'Arial',
@@ -830,10 +755,11 @@ export class ParentDashboardScene extends Phaser.Scene {
   resetAllProgress() {
     // Reset all localStorage data (keep parent PIN).
     localStorage.removeItem('cosmicMathProgress');
-    localStorage.removeItem('cosmicMathAchievements');
+    localStorage.removeItem('cosmicMathRecords');
+    localStorage.removeItem('cosmicMathAchievements');  // legacy key from old build
 
     progress.reset();
-    achievements.reset();
+    records.reset();
   }
 
   calculateStats() {
@@ -852,20 +778,17 @@ export class ParentDashboardScene extends Phaser.Scene {
 
     const currentWorld = WORLDS[currentWorldId - 1]?.name || 'Moon Base';
 
-    // Overall accuracy from achievements stats
-    const achStats = achievements.stats || {};
-    const totalCorrect = achStats.totalCorrect || 0;
-    const totalWrong = achStats.totalWrong || 0;
-    const totalAttempts = totalCorrect + totalWrong;
-    const overallAccuracy = totalAttempts > 0 ? Math.round((totalCorrect / totalAttempts) * 100) : 0;
+    // Overall accuracy from RecordsManager
+    const accStats = records.getOverallStats();
+    const overallAccuracy = accStats.totalAttempts > 0
+      ? Math.round((accStats.totalCorrect / accStats.totalAttempts) * 100)
+      : 0;
 
     return {
       totalStars,
       levelsCompleted,
       currentWorld,
-      overallAccuracy,
-      achievementsEarned: achievements.getEarnedCount(),
-      achievementsTotal: achievements.getTotalCount()
+      overallAccuracy
     };
   }
 
