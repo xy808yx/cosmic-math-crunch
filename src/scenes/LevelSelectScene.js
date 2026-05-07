@@ -13,6 +13,7 @@ import {
   drawArrowLeftIcon, drawSoundIcon, drawSkullIcon,
   drawStarIcon, drawLockIcon
 } from '../StatIcons.js';
+import { COLORS } from '../colorPalette.js';
 
 const W = 1080;
 const H = 1920;
@@ -52,7 +53,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   createTopBar() {
     const bg = this.add.graphics().setDepth(4);
-    bg.fillStyle(0x07071a, 0.92);
+    bg.fillStyle(COLORS.bgDark, 0.92);
     bg.fillRect(0, 0, W, 220);
 
     createIconButton(this, {
@@ -131,7 +132,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
   createMissionCard(x, y, w, h, levelNum, modeKey, stars, isBoss, isLocked) {
     const c = this.add.container(x, y).setDepth(10);
-    const accent = isBoss ? 0xff6b6b : this.world.accentColor;
+    const accent = isBoss ? COLORS.error : this.world.accentColor;
 
     // Drop shadow
     const shadow = this.add.graphics();
@@ -141,7 +142,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     // Card body
     const card = this.add.graphics();
-    card.fillStyle(0x12122a, 0.96);
+    card.fillStyle(COLORS.bgPanel, 0.96);
     card.fillRoundedRect(-w / 2, -h / 2, w, h, 24);
     card.lineStyle(3, accent, isLocked ? 0.4 : 0.9);
     card.strokeRoundedRect(-w / 2, -h / 2, w, h, 24);
@@ -204,12 +205,12 @@ export class LevelSelectScene extends Phaser.Scene {
       const earned = s < stars;
       if (earned) {
         const glow = this.add.graphics();
-        glow.fillStyle(0xf7dc6f, 0.22);
+        glow.fillStyle(COLORS.warning, 0.22);
         glow.fillCircle((s - 1) * starGap, starY, 22);
         c.add(glow);
       }
       const starG = this.add.graphics();
-      drawStarIcon(starG, 0, 0, 26, earned ? 0xf7dc6f : 0x3a3a50);
+      drawStarIcon(starG, 0, 0, 26, earned ? COLORS.warning : 0x3a3a50);
       starG.x = (s - 1) * starGap;
       starG.y = starY;
       c.add(starG);
@@ -217,7 +218,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     if (isLocked) {
       const lockBg = this.add.graphics();
-      lockBg.fillStyle(0x07071a, 0.85);
+      lockBg.fillStyle(COLORS.bgDark, 0.85);
       lockBg.fillCircle(w / 2 - 40, -h / 2 + 40, 28);
       lockBg.lineStyle(2, accent, 0.5);
       lockBg.strokeCircle(w / 2 - 40, -h / 2 + 40, 28);
@@ -297,7 +298,7 @@ export class LevelSelectScene extends Phaser.Scene {
     const barW = 820;
     const barH = 56;
     const barY = y + 90;
-    const fillColor = avg >= 70 ? 0x58d68d : avg >= 40 ? this.world.accentColor : 0xff6b6b;
+    const fillColor = avg >= 70 ? COLORS.success : avg >= 40 ? this.world.accentColor : COLORS.error;
 
     createProgressBar(this, {
       x: W / 2,

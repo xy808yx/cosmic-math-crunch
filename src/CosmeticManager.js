@@ -1,9 +1,10 @@
-// Pet cosmetic items (hats + accessories). Ownership and equip live on
-// `progress.cosmetics`. Items have a single slot.
+// Pet cosmetic items (hats + accessories + auras). Ownership and equip live
+// on `progress.cosmetics`. Items have a single slot.
 //
-// `animationHook` indicates a special animation method on the pet container
-// that the GameScene fires when relevant: 'streak' (on milestone streaks),
-// 'correct' (on each correct answer), or 'always' (idle background loop).
+// Optional fields on an item:
+//   `animation` — name of a method on the pet container to invoke.
+//   `trigger`   — when to invoke it: 'correct' (per correct answer),
+//                 'streak' (on streak events), or 'always' (idle loop).
 
 import { progress } from './GameData.js';
 

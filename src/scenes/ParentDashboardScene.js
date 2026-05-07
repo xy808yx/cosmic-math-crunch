@@ -10,13 +10,14 @@ import { style } from '../textStyles.js';
 import { createIconButton, createButton } from '../buttonHelper.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { drawArrowLeftIcon, drawSoundIcon } from '../StatIcons.js';
+import { COLORS } from '../colorPalette.js';
 
 const W = 1080;
 const H = 1920;
 
-const ACCENT = 0x4ecdc4;
-const WARN = 0xff6b6b;
-const SUCCESS = 0x58d68d;
+const ACCENT = COLORS.accentTeal;
+const WARN = COLORS.error;
+const SUCCESS = COLORS.success;
 
 export class ParentDashboardScene extends Phaser.Scene {
   constructor() {
@@ -25,7 +26,7 @@ export class ParentDashboardScene extends Phaser.Scene {
 
   create() {
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
-    this.add.rectangle(W / 2, H / 2, W, H, 0x07071a, 0.65).setDepth(0);
+    this.add.rectangle(W / 2, H / 2, W, H, COLORS.bgDark, 0.65).setDepth(0);
 
     const pinVerified = this.registry.get('parentPinVerified');
     if (!pinVerified) {
@@ -92,7 +93,7 @@ export class ParentDashboardScene extends Phaser.Scene {
   makePadButton(x, y, size, label, callback, color = ACCENT) {
     const c = this.add.container(x, y).setDepth(10);
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
     bg.lineStyle(3, color, 0.8);
     bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
@@ -116,7 +117,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     });
     hit.on('pointerout', () => {
       bg.clear();
-      bg.fillStyle(0x12122a, 0.95);
+      bg.fillStyle(COLORS.bgPanel, 0.95);
       bg.fillRoundedRect(-size / 2, -size / 2, size, size, 16);
       bg.lineStyle(3, color, 0.8);
       bg.strokeRoundedRect(-size / 2, -size / 2, size, size, 16);
@@ -172,7 +173,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     this.currentTab = 'summary';
 
     const headerBg = this.add.graphics().setDepth(10);
-    headerBg.fillStyle(0x07071a, 0.92);
+    headerBg.fillStyle(COLORS.bgDark, 0.92);
     headerBg.fillRect(0, 0, W, 160);
 
     createIconButton(this, {
@@ -269,10 +270,10 @@ export class ParentDashboardScene extends Phaser.Scene {
   showSummaryTab() {
     const stats = this.calculateStats();
     let y = 360;
-    this.addStatCard(y, 'Total Stars', `${stats.totalStars}`, 0xf7dc6f); y += 152;
+    this.addStatCard(y, 'Total Stars', `${stats.totalStars}`, COLORS.warning); y += 152;
     this.addStatCard(y, 'Levels Completed', `${stats.levelsCompleted}`, ACCENT); y += 152;
     this.addStatCard(y, 'Current World', stats.currentWorld, 0xa29bfe); y += 152;
-    const accColor = stats.overallAccuracy >= 80 ? SUCCESS : stats.overallAccuracy >= 60 ? 0xf7dc6f : WARN;
+    const accColor = stats.overallAccuracy >= 80 ? SUCCESS : stats.overallAccuracy >= 60 ? COLORS.warning : WARN;
     this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accColor);
   }
 
@@ -280,7 +281,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const w = 880;
     const c = this.add.container(W / 2, y);
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-w / 2, -64, w, 128, 18);
     bg.lineStyle(3, accentColor, 0.85);
     bg.strokeRoundedRect(-w / 2, -64, w, 128, 18);
@@ -313,7 +314,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const w = 880;
     const h = 320;
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
     bg.lineStyle(3, sp.color, 0.85);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
@@ -392,7 +393,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       })).setOrigin(1, 0.5));
       for (let col = 1; col <= 12; col++) {
         const m = progress.getFactMastery(r, col);
-        const color = m === 0 ? 0x2d2d44 : m >= 90 ? SUCCESS : m >= 75 ? 0xf7dc6f : m >= 50 ? 0xffb142 : WARN;
+        const color = m === 0 ? 0x2d2d44 : m >= 90 ? SUCCESS : m >= 75 ? COLORS.warning : m >= 50 ? 0xffb142 : WARN;
         const cell = this.add.graphics();
         cell.fillStyle(color, 1);
         cell.fillRoundedRect(startX + (col - 1) * cellSize + 2, rowY + 2, cellSize - 4, cellSize - 4, 4);
@@ -430,7 +431,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const w = 700;
     const c = this.add.container(W / 2, y);
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-w / 2, -52, w, 104, 18);
     bg.lineStyle(3, color, 0.85);
     bg.strokeRoundedRect(-w / 2, -52, w, 104, 18);
@@ -454,7 +455,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const w = 720;
     const h = 600;
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
+    bg.fillStyle(COLORS.bgPanel, 0.98);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
     bg.lineStyle(3, ACCENT, 0.9);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
@@ -524,7 +525,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const w = 760;
     const h = 540;
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
+    bg.fillStyle(COLORS.bgPanel, 0.98);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
     bg.lineStyle(3, WARN, 0.9);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);

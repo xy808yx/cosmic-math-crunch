@@ -29,6 +29,8 @@ import { cosmetics } from '../CosmeticManager.js';
 import { drawQuestionBody, drawBossBody as drawWorldBoss } from '../QuestionObjectArt.js';
 import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
 import { darken, lighten } from '../colorUtils.js';
+import { COLORS } from '../colorPalette.js';
+import { createTopBar, drawTimeBar } from '../GameTopBar.js';
 
 const W = 1080;
 const H = 1920;
@@ -99,7 +101,7 @@ export class GameScene extends Phaser.Scene {
       accentStrength: 0.18
     });
 
-    this.createTopBar();
+    createTopBar(this, TOP_BAR_H);
     this.createPlayArea();
     this.createMcButtons();
 
@@ -133,127 +135,6 @@ export class GameScene extends Phaser.Scene {
       }
       this.time.delayedCall(450, () => { this.state = 'playing'; });
     }
-  }
-
-  // ============================================================
-  // TOP BAR — two rows + HP hearts + time bar at very bottom
-  // ============================================================
-  createTopBar() {
-    const bg = this.add.graphics().setDepth(4);
-    bg.fillStyle(0x07071a, 0.92);
-    bg.fillRect(0, 0, W, TOP_BAR_H);
-
-    // Back button
-    createIconButton(this, {
-      x: 80, y: 70, radius: 36,
-      accentColor: this.world.accentColor,
-      drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
-      onClick: () => this.exitToLevelSelect()
-    }).setDepth(15);
-
-    // World name + mode in upper-right area
-    const titleX = W / 2;
-    this.add.text(titleX, 50, this.world.name, style('subhead', {
-      fontSize: '36px',
-      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
-    })).setOrigin(0.5).setDepth(15);
-
-    const modeRow = this.add.container(titleX, 100).setDepth(15);
-    if (this.isBoss) {
-      const skullG = this.add.graphics();
-      drawSkullIcon(skullG, -120, 0, 16);
-      modeRow.add(skullG);
-    }
-    modeRow.add(this.add.text(0, 0, this.modeConfig.label.toUpperCase(), style('caption', {
-      fontSize: '26px',
-      fill: '#cfcfe0',
-      fontStyle: '900'
-    })).setOrigin(0.5));
-
-    // Sound toggle (top-right)
-    createIconButton(this, {
-      x: W - 80, y: 70, radius: 36,
-      accentColor: this.world.accentColor,
-      drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
-      onClick: () => audio.toggleEnabled()
-    }).setDepth(15);
-
-    // Row 1: STREAK / SCORE / TIME with pixel icons
-    const row1Y = 170;
-    this.streakIcon = this.add.graphics().setDepth(10);
-    drawFlameIcon(this.streakIcon, 0, 0, 18);
-    this.streakIcon.x = W * 0.18 - 60;
-    this.streakIcon.y = row1Y;
-    this.streakText = this.add.text(W * 0.18, row1Y, '0', style('display', {
-      fontSize: '52px',
-      fill: '#ff8b3d'
-    })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.18 - 60, row1Y + 42, 'STREAK', style('caption', {
-      fontSize: '22px',
-      fill: '#7a7a90',
-      fontStyle: '900'
-    })).setOrigin(0, 0.5).setDepth(10);
-
-    this.scoreIcon = this.add.graphics().setDepth(10);
-    drawStarIcon(this.scoreIcon, 0, 0, 18);
-    this.scoreIcon.x = W * 0.50 - 60;
-    this.scoreIcon.y = row1Y;
-    this.scoreText = this.add.text(W * 0.50, row1Y, '0', style('display', {
-      fontSize: '52px',
-      fill: '#ffffff'
-    })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.50 - 60, row1Y + 42, 'SCORE', style('caption', {
-      fontSize: '22px',
-      fill: '#7a7a90',
-      fontStyle: '900'
-    })).setOrigin(0, 0.5).setDepth(10);
-
-    this.timeIcon = this.add.graphics().setDepth(10);
-    drawHourglassIcon(this.timeIcon, 0, 0, 16);
-    this.timeIcon.x = W * 0.78 - 60;
-    this.timeIcon.y = row1Y;
-    this.timeText = this.add.text(W * 0.78, row1Y, this.formatTime(this.timeLeft), style('display', {
-      fontSize: '52px',
-      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
-    })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.78 - 60, row1Y + 42, 'TIME', style('caption', {
-      fontSize: '22px',
-      fill: '#7a7a90',
-      fontStyle: '900'
-    })).setOrigin(0, 0.5).setDepth(10);
-
-    // Row 2: HP hearts (5)
-    const row2Y = 260;
-    const hpStartX = W / 2 - 4 * 60;
-    this.hpIcons = [];
-    for (let i = 0; i < SHIP_HP_MAX; i++) {
-      const ix = hpStartX + i * 120;
-      const c = this.add.container(ix, row2Y).setDepth(20);
-      const heart = this.add.graphics();
-      drawHeartIcon(heart, 0, 0, 28, true);
-      c.add(heart);
-      c.fullColor = true;
-      c.heart = heart;
-      this.hpIcons.push(c);
-    }
-
-    // Time bar at very bottom of the top bar
-    this.timeBarBg = this.add.graphics().setDepth(5);
-    this.timeBarBg.fillStyle(0x1a1a2e, 0.85);
-    this.timeBarBg.fillRect(0, TOP_BAR_H - 12, W, 12);
-    this.timeBar = this.add.graphics().setDepth(6);
-    this.drawTimeBar(1);
-  }
-
-  drawTimeBar(pct) {
-    const fillW = Math.max(0, Math.floor(W * pct));
-    const color = pct > 0.4 ? this.world.accentColor : pct > 0.2 ? 0xf7dc6f : 0xff6b6b;
-    if (fillW === this._lastTimeBarW && color === this._lastTimeBarColor) return;
-    this._lastTimeBarW = fillW;
-    this._lastTimeBarColor = color;
-    this.timeBar.clear();
-    this.timeBar.fillStyle(color, 1);
-    this.timeBar.fillRect(0, TOP_BAR_H - 12, fillW, 12);
   }
 
   setHp(newHp) {
@@ -428,7 +309,7 @@ export class GameScene extends Phaser.Scene {
     const track = this.add.graphics();
     track.fillStyle(0x1a0a18, 1);
     track.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
-    track.fillStyle(0x07071a, 0.7);
+    track.fillStyle(COLORS.bgDark, 0.7);
     track.fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.32, {
       tl: radius - 2, tr: radius - 2, bl: 6, br: 6
     });
@@ -459,7 +340,7 @@ export class GameScene extends Phaser.Scene {
     const pct = Math.max(0, this.bossHp / this.bossMaxHp);
     if (pct <= 0) return;
     const fillW = Math.max(barH, Math.floor(barW * pct));
-    const color = pct > 0.5 ? 0xff6b6b : pct > 0.25 ? 0xffaa44 : 0xff3030;
+    const color = pct > 0.5 ? COLORS.error : pct > 0.25 ? 0xffaa44 : 0xff3030;
     const lighten = Phaser.Display.Color.ValueToColor(color).lighten(35).color;
     const darken = Phaser.Display.Color.ValueToColor(color).darken(25).color;
 
@@ -477,7 +358,7 @@ export class GameScene extends Phaser.Scene {
       tl: barRadius - 2, tr: barRadius - 2, bl: 4, br: 4
     });
     // Quartile dividers — readable regardless of total HP.
-    fillG.lineStyle(2, 0x07071a, 0.55);
+    fillG.lineStyle(2, COLORS.bgDark, 0.55);
     for (let i = 1; i < 4; i++) {
       const x = -barW / 2 + (barW / 4) * i;
       if (x - (-barW / 2) <= fillW) {
@@ -671,7 +552,7 @@ export class GameScene extends Phaser.Scene {
       ease: 'Back.easeOut'
     });
 
-    this.flashMcButton(btn, 0x58d68d);
+    this.flashMcButton(btn, COLORS.success);
 
     this.cockpitPet?.bounceHappy?.();
     companion.feed();
@@ -723,7 +604,7 @@ export class GameScene extends Phaser.Scene {
   // asteroid). Boss problems instead cost ship HP and let the boss counter-attack.
   handleWrong(asteroid, btn) {
     const pickedValue = btn.value;
-    this.flashMcButton(btn, 0xff6b6b);
+    this.flashMcButton(btn, COLORS.error);
     audio.playWrong?.();
 
     this.streak = 0;
@@ -1048,7 +929,7 @@ export class GameScene extends Phaser.Scene {
   playPetVictoryDance() {
     if (!this.shipContainer || !companion.hasStarter()) return;
     const sp = companion.getSpecies();
-    const accent = sp ? sp.accent : 0xc77eff;
+    const accent = sp ? sp.accent : COLORS.accentPurple;
 
     const portholeX = this.shipContainer.x + (this.shipContainer.portholeCenter?.x || 0);
     const portholeY = this.shipContainer.y + (this.shipContainer.portholeCenter?.y || -120);
@@ -1323,7 +1204,7 @@ export class GameScene extends Phaser.Scene {
 
   damageShip() {
     const flash = this.add.graphics().setDepth(10);
-    flash.fillStyle(0xff6b6b, 0.6);
+    flash.fillStyle(COLORS.error, 0.6);
     flash.fillCircle(0, 0, 110);
     this.shipContainer.add(flash);
     this.tweens.add({
@@ -1354,7 +1235,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     const pct = this.timeLeft / (this.duration * 1000);
-    this.drawTimeBar(pct);
+    drawTimeBar(this, TOP_BAR_H, pct);
     this.timeText.setText(this.formatTime(this.timeLeft));
 
     if (this.timeLeft <= 5000) {
@@ -1399,9 +1280,9 @@ export class GameScene extends Phaser.Scene {
     const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
+    bg.fillStyle(COLORS.bgPanel, 0.98);
     bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
-    bg.lineStyle(3, 0xff6b6b, 0.9);
+    bg.lineStyle(3, COLORS.error, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
     panel.add(bg);
 
@@ -1544,9 +1425,9 @@ export class GameScene extends Phaser.Scene {
     const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
+    bg.fillStyle(COLORS.bgPanel, 0.98);
     bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
-    bg.lineStyle(3, bossWin ? 0xff6b6b : this.world.accentColor, 0.9);
+    bg.lineStyle(3, bossWin ? COLORS.error : this.world.accentColor, 0.9);
     bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
     panel.add(bg);
 
@@ -1622,7 +1503,7 @@ export class GameScene extends Phaser.Scene {
     if (evolvedTo) {
       const banner = this.add.container(0, -panelH / 2 + 30);
       const bg2 = this.add.graphics();
-      bg2.fillStyle(0xc77eff, 1);
+      bg2.fillStyle(COLORS.accentPurple, 1);
       bg2.fillRoundedRect(-320, -32, 640, 64, 32);
       banner.add(bg2);
       const sp = companion.getSpecies();
@@ -1638,13 +1519,13 @@ export class GameScene extends Phaser.Scene {
     if (firstMastery) {
       const banner = this.add.container(0, -panelH / 2 + (evolvedTo ? 90 : 30));
       const bg2 = this.add.graphics();
-      bg2.fillStyle(0xf7dc6f, 1);
+      bg2.fillStyle(COLORS.warning, 1);
       bg2.fillRoundedRect(-340, -34, 680, 68, 34);
       bg2.lineStyle(3, 0xffae3a, 1);
       bg2.strokeRoundedRect(-340, -34, 680, 68, 34);
       banner.add(bg2);
       const starG = this.add.graphics();
-      drawStarIcon(starG, -290, 0, 16, 0x12122a, 0xffffff);
+      drawStarIcon(starG, -290, 0, 16, COLORS.bgPanel, 0xffffff);
       banner.add(starG);
       banner.add(this.add.text(0, 0, 'FIRST MASTERY! +5 STARDUST', style('subhead', {
         fontSize: '26px',
@@ -1704,28 +1585,28 @@ export class GameScene extends Phaser.Scene {
       const chip = this.add.container(0, dustY);
 
       const halo = this.add.graphics();
-      halo.fillStyle(0xc77eff, 0.20);
+      halo.fillStyle(COLORS.accentPurple, 0.20);
       halo.fillRoundedRect(-chipW / 2 - 8, -chipH / 2 - 4, chipW + 16, chipH + 8, r + 4);
       chip.add(halo);
 
       const pill = this.add.graphics();
-      pill.fillStyle(0x1a1a2e, 1);
+      pill.fillStyle(COLORS.bgTrack, 1);
       pill.fillRoundedRect(-chipW / 2, -chipH / 2, chipW, chipH, r);
       pill.fillStyle(0xffffff, 0.06);
       pill.fillRoundedRect(-chipW / 2 + 4, -chipH / 2 + 3, chipW - 8, chipH * 0.30, {
         tl: r - 2, tr: r - 2, bl: 6, br: 6
       });
-      pill.fillStyle(0x07071a, 0.40);
+      pill.fillStyle(COLORS.bgDark, 0.40);
       pill.fillRoundedRect(-chipW / 2 + 4, chipH / 2 - chipH * 0.30 - 3, chipW - 8, chipH * 0.30, {
         tl: 6, tr: 6, bl: r - 2, br: r - 2
       });
-      pill.lineStyle(2, 0xc77eff, 0.85);
+      pill.lineStyle(2, COLORS.accentPurple, 0.85);
       pill.strokeRoundedRect(-chipW / 2, -chipH / 2, chipW, chipH, r);
       chip.add(pill);
 
       const iconG = this.add.graphics();
       iconG.x = groupLeft + iconBoxW / 2;
-      drawSparkleIcon(iconG, 0, 0, 22, 0xc77eff);
+      drawSparkleIcon(iconG, 0, 0, 22, COLORS.accentPurple);
       chip.add(iconG);
 
       const labelObj = this.add.text(groupLeft + iconBoxW + gap, 0, `+0 STARDUST`, style('subhead', {
@@ -1803,7 +1684,7 @@ export class GameScene extends Phaser.Scene {
 
   makeStarShape(filled) {
     const g = this.add.graphics();
-    drawStarIcon(g, 0, 0, 44, filled ? 0xf7dc6f : 0x6a6a80, 0xffffff);
+    drawStarIcon(g, 0, 0, 44, filled ? COLORS.warning : 0x6a6a80, 0xffffff);
     if (!filled) {
       g.clear();
       g.lineStyle(3, 0x6a6a80, 1);
@@ -1878,7 +1759,7 @@ export class GameScene extends Phaser.Scene {
       const cardH = 280;
       const card = this.add.container(0, 30);
       const bg = this.add.graphics();
-      bg.fillStyle(0x12122a, 0.92);
+      bg.fillStyle(COLORS.bgPanel, 0.92);
       bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 28);
       bg.lineStyle(3, 0xffeaa7, 0.95);
       bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 28);
