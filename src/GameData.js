@@ -12,8 +12,8 @@ export const WORLDS = [
   {
     id: 1,
     name: 'Moon Base',
-    color: 0x4a4a6a,
-    accentColor: 0x81ecec,
+    color: 0x6f7ec4,
+    accentColor: 0xb5e6ff,
     description: 'Where it all begins — your first hop into the dark.',
     villain: 'Cratershade',
     flavorText: 'Moon Base reclaimed. The Void recoils into deeper space.',
@@ -22,8 +22,8 @@ export const WORLDS = [
   {
     id: 2,
     name: 'Asteroid Belt',
-    color: 0x6b4423,
-    accentColor: 0xf39c12,
+    color: 0xc77a4a,
+    accentColor: 0xffb38a,
     description: 'Dodging the rubble of long-gone planets.',
     villain: 'Boulderlord',
     flavorText: 'Asteroid Belt cleared. The rubble drifts quiet again.',
@@ -32,8 +32,8 @@ export const WORLDS = [
   {
     id: 3,
     name: 'Crystal Planet',
-    color: 0x4a235a,
-    accentColor: 0xa29bfe,
+    color: 0x7a4eaa,
+    accentColor: 0xd5a6ff,
     description: 'A world where time chimes like glass.',
     villain: 'Shardmaw',
     flavorText: 'Crystal Planet rings free. Light pours through the facets.',
@@ -42,8 +42,8 @@ export const WORLDS = [
   {
     id: 4,
     name: 'Nebula Gardens',
-    color: 0x1e4d2b,
-    accentColor: 0x58d68d,
+    color: 0x4f956b,
+    accentColor: 0x9be8a3,
     description: 'Drifting clouds of color and quiet warmth.',
     villain: 'Mistshroud',
     flavorText: 'Nebula Gardens bloom. Color rolls back across the dark.',
@@ -52,8 +52,8 @@ export const WORLDS = [
   {
     id: 5,
     name: 'Robot Station',
-    color: 0x2c3e50,
-    accentColor: 0x5dade2,
+    color: 0x4c7ab5,
+    accentColor: 0x9bd4ff,
     description: 'An automated outpost humming with ancient code.',
     villain: 'Coregrinder',
     flavorText: 'Robot Station reboots. Ancient lights blink awake.',
@@ -62,8 +62,8 @@ export const WORLDS = [
   {
     id: 6,
     name: 'Black Hole Edge',
-    color: 0x1a1a2e,
-    accentColor: 0xff6b9d,
+    color: 0x4a2a55,
+    accentColor: 0xff9ec7,
     description: 'Light bends. So does logic.',
     villain: 'Eventhorror',
     flavorText: 'The Black Hole Edge holds. Light bends back toward home.',
@@ -72,8 +72,8 @@ export const WORLDS = [
   {
     id: 7,
     name: 'Ice Comet',
-    color: 0x2e4a62,
-    accentColor: 0x74b9ff,
+    color: 0x6e95c2,
+    accentColor: 0xb6e0ff,
     description: 'A frozen tail blazing across the sky.',
     villain: 'Frostfang',
     flavorText: 'Ice Comet streaks free. Its tail blazes a path forward.',
@@ -82,8 +82,8 @@ export const WORLDS = [
   {
     id: 8,
     name: 'Supernova',
-    color: 0x4a1a1a,
-    accentColor: 0xff7675,
+    color: 0xc44b5e,
+    accentColor: 0xffae8a,
     description: "A star's last brilliant breath.",
     villain: 'Pyrewraith',
     flavorText: 'Supernova settles. Its embers seed new constellations.',
@@ -92,8 +92,8 @@ export const WORLDS = [
   {
     id: 9,
     name: 'Galactic Core',
-    color: 0x2d132c,
-    accentColor: 0xf7dc6f,
+    color: 0xc88a3a,
+    accentColor: 0xffe07a,
     description: 'The bright, dense heart of your home galaxy.',
     villain: 'Corecrusher',
     flavorText: 'Galactic Core pulses gold. The galaxy turns on its axis once more.',
@@ -102,8 +102,8 @@ export const WORLDS = [
   {
     id: 10,
     name: 'Parallel Dimension',
-    color: 0x0a3d62,
-    accentColor: 0x82ccdd,
+    color: 0x55858a,
+    accentColor: 0xa6f0e8,
     description: 'Familiar yet strange — the rules feel sideways.',
     villain: 'Mirrorshade',
     flavorText: 'Parallel Dimension snaps back. The rules feel right again.',
@@ -112,8 +112,8 @@ export const WORLDS = [
   {
     id: 11,
     name: "Universe's End",
-    color: 0x1e1e1e,
-    accentColor: 0xffeaa7,
+    color: 0x4a4a8c,
+    accentColor: 0xfff3b8,
     description: 'The last horizon. Beyond, only theories.',
     villain: 'The Void Devourer',
     flavorText: 'The Void shatters. Stars relight across every world.',
@@ -138,7 +138,7 @@ const WORLD_PROBLEM_SECONDS = {
   6: 4.0,  7: 3.5,  8: 3.0,  9: 2.5,  10: 2.0,  11: 1.5
 };
 
-export function getProblemSecondsForWorld(worldId) {
+function getProblemSecondsForWorld(worldId) {
   return WORLD_PROBLEM_SECONDS[worldId] ?? 6.0;
 }
 
@@ -157,12 +157,20 @@ export function getProblemSecondsForWorldAndMode(worldId, mode) {
   return mode === 'boss' ? base + BOSS_TIMER_BONUS_S : base;
 }
 
-// Boss config — same for every world.
+// Boss config — buttonCount/asteroidScale are fixed; HP scales by world
+// (see getBossHpForWorld). Boss is meant to be a real fight, not a 5-tap
+// formality, so even world 1 is 10 HP.
 export const BOSS_CONFIG = {
-  hp: 5,
   buttonCount: 6,
   asteroidScale: 3.4
 };
+
+// Boss HP per world: 10 at world 1, +2 per world, 30 at world 11.
+// Stays inside the 90s timer at every world (world 1 ≈ 8s/problem × 10 = 80s;
+// world 11 ≈ 2.5s/problem × 30 = 75s).
+export function getBossHpForWorld(worldId) {
+  return 8 + worldId * 2;
+}
 
 // Smart distractors: build 3 wrong answers that mimic real kid mistakes for
 // the given problem. Always pulls from this fact family, never random.
@@ -345,7 +353,6 @@ class PlayerProgress {
         this.currentWorld = data.currentWorld || 1;
         this.companion = { ...this.getDefaultCompanion(), ...(data.companion || {}) };
         this.streak = { ...this.getDefaultStreak(), ...(data.streak || {}) };
-        this.parentSettings = { ...this.getDefaultParentSettings(), ...(data.parentSettings || {}) };
         this.economy = { ...this.getDefaultEconomy(), ...(data.economy || {}) };
         this.ship = this.mergeShip(data.ship);
         this.cosmetics = this.mergeCosmetics(data.cosmetics);
@@ -364,7 +371,6 @@ class PlayerProgress {
     this.currentWorld = 1;
     this.companion = this.getDefaultCompanion();
     this.streak = this.getDefaultStreak();
-    this.parentSettings = this.getDefaultParentSettings();
     this.economy = this.getDefaultEconomy();
     this.ship = this.getDefaultShip();
     this.cosmetics = this.getDefaultCosmetics();
@@ -410,8 +416,9 @@ class PlayerProgress {
     return {
       speciesId: null,
       stage: 'egg',
-      lastFedAt: Date.now(),
-      lastVisitedAt: Date.now()
+      // Trophy shelf: pets the player has fully raised. Each entry is
+      // { speciesId, retiredAt }. Read-only — not re-equippable.
+      completed: []
     };
   }
 
@@ -422,10 +429,6 @@ class PlayerProgress {
       lastPlayDate: null,         // 'YYYY-MM-DD'
       milestonesEarned: []        // [3, 7, 30] etc.
     };
-  }
-
-  getDefaultParentSettings() {
-    return {};
   }
 
   getDefaultEconomy() {
@@ -454,8 +457,8 @@ class PlayerProgress {
 
   getDefaultCosmetics() {
     return {
-      pet: { hat: null, accessory: null },
-      ownedIds: [],
+      pet: { hat: null, accessory: null, aura: 'aura_none' },
+      ownedIds: ['aura_none'],
       newSinceLastView: []
     };
   }
@@ -468,8 +471,14 @@ class PlayerProgress {
     for (const id of ['pattern_none', 'trail_default_flame']) {
       if (!ownedParts.includes(id)) ownedParts.push(id);
     }
+    const parts = { ...def.parts, ...(saved.parts || {}) };
+    // Patterns are now folded into paints. Reset any non-default pattern slot
+    // to pattern_none so the legacy slot doesn't paint over the new system.
+    if (parts.pattern && parts.pattern !== 'pattern_none') {
+      parts.pattern = 'pattern_none';
+    }
     return {
-      parts: { ...def.parts, ...(saved.parts || {}) },
+      parts,
       ownedParts,
       newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
     };
@@ -478,9 +487,14 @@ class PlayerProgress {
   mergeCosmetics(saved) {
     const def = this.getDefaultCosmetics();
     if (!saved) return def;
+    const ownedIds = Array.isArray(saved.ownedIds) ? [...saved.ownedIds] : [];
+    if (!ownedIds.includes('aura_none')) ownedIds.push('aura_none');
+    const pet = { hat: null, accessory: null, aura: 'aura_none', ...(saved.pet || {}) };
+    delete pet.outfit;
+    if (!pet.aura) pet.aura = 'aura_none';
     return {
-      pet: { ...def.pet, ...(saved.pet || {}) },
-      ownedIds: Array.isArray(saved.ownedIds) ? saved.ownedIds : [],
+      pet,
+      ownedIds,
       newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
     };
   }
@@ -524,7 +538,6 @@ class PlayerProgress {
         currentWorld: this.currentWorld,
         companion: this.companion,
         streak: this.streak,
-        parentSettings: this.parentSettings,
         economy: this.economy,
         ship: this.ship,
         cosmetics: this.cosmetics
@@ -575,50 +588,6 @@ class PlayerProgress {
     }
 
     this.save();
-  }
-
-  // Get facts that are due for review
-  getFactsDueForReview() {
-    const now = Date.now();
-    const dueFacts = [];
-
-    for (const [key, fact] of Object.entries(this.factMastery)) {
-      if (fact.nextReview <= now) {
-        const [a, b] = key.split('x').map(Number);
-        dueFacts.push({
-          key,
-          a,
-          b,
-          product: a * b,
-          priority: this.getFactPriority(fact)
-        });
-      }
-    }
-
-    // Sort by priority (higher = more urgent)
-    return dueFacts.sort((x, y) => y.priority - x.priority);
-  }
-
-  // Calculate priority for a fact (higher = needs more practice)
-  getFactPriority(fact) {
-    let priority = 0;
-
-    // Recently wrong = high priority
-    if (fact.streak === 0 && fact.total > 0) {
-      priority += 100;
-    }
-
-    // Low accuracy = higher priority
-    const accuracy = fact.total > 0 ? fact.correct / fact.total : 0.5;
-    priority += (1 - accuracy) * 50;
-
-    // Overdue = higher priority
-    const overdueDays = (Date.now() - fact.nextReview) / (24 * 60 * 60 * 1000);
-    if (overdueDays > 0) {
-      priority += Math.min(overdueDays * 10, 50);
-    }
-
-    return priority;
   }
 
   // Get mastery percentage for a table (partners 1..12)

@@ -115,12 +115,6 @@ export function drawCheckIcon(g, x, y, size, color = 0x58d68d) {
   g.strokePath();
 }
 
-export function drawXIcon(g, x, y, size, color = 0xff6b6b) {
-  g.lineStyle(Math.max(3, size * 0.18), color, 1);
-  g.lineBetween(x - size * 0.7, y - size * 0.7, x + size * 0.7, y + size * 0.7);
-  g.lineBetween(x + size * 0.7, y - size * 0.7, x - size * 0.7, y + size * 0.7);
-}
-
 export function drawLockIcon(g, x, y, size, color = 0x8888a0, locked = true) {
   g.fillStyle(color, 1);
   g.fillRoundedRect(x - size * 0.6, y, size * 1.2, size, size * 0.15);
@@ -152,38 +146,6 @@ export function drawSparkleIcon(g, x, y, size, color = 0xc77eff) {
   g.fillCircle(x, y - size * 0.15, size * 0.15);
 }
 
-export function drawShopIcon(g, x, y, size, color = 0xc77eff) {
-  g.fillStyle(color, 1);
-  g.fillRoundedRect(x - size * 0.7, y - size * 0.2, size * 1.4, size * 1.0, size * 0.2);
-  g.lineStyle(Math.max(3, size * 0.18), color, 1);
-  g.beginPath();
-  g.arc(x, y - size * 0.20, size * 0.4, Math.PI, 0);
-  g.strokePath();
-  g.fillStyle(0xffffff, 0.85);
-  g.fillCircle(x + size * 0.20, y + size * 0.30, size * 0.10);
-}
-
-export function drawTrophyIcon(g, x, y, size, color = 0xffd86b) {
-  // Cup
-  g.fillStyle(color, 1);
-  g.fillRoundedRect(x - size * 0.55, y - size * 0.55, size * 1.1, size * 0.95, size * 0.1);
-  // Handles
-  g.lineStyle(Math.max(3, size * 0.16), color, 1);
-  g.beginPath();
-  g.arc(x - size * 0.85, y - size * 0.08, size * 0.40, -Math.PI * 0.5, Math.PI * 0.5);
-  g.strokePath();
-  g.beginPath();
-  g.arc(x + size * 0.85, y - size * 0.08, size * 0.40, Math.PI * 0.5, -Math.PI * 0.5, true);
-  g.strokePath();
-  // Stem and base
-  g.fillStyle(0x8b6f1a, 1);
-  g.fillRect(x - size * 0.15, y + size * 0.4, size * 0.30, size * 0.30);
-  g.fillRoundedRect(x - size * 0.55, y + size * 0.7, size * 1.1, size * 0.20, size * 0.05);
-  // Highlight
-  g.fillStyle(0xffffff, 0.45);
-  g.fillRect(x - size * 0.4, y - size * 0.35, size * 0.18, size * 0.55);
-}
-
 export function drawGearIcon(g, x, y, size, color = 0x81ecec) {
   g.lineStyle(Math.max(3, size * 0.18), color, 1);
   const teeth = 8;
@@ -204,6 +166,56 @@ export function drawGearIcon(g, x, y, size, color = 0x81ecec) {
   g.fillCircle(x, y, size * 0.35);
   g.lineStyle(Math.max(2, size * 0.12), color, 1);
   g.strokeCircle(x, y, size * 0.35);
+}
+
+export function drawShoppingBagIcon(g, x, y, size, color = 0xc77eff) {
+  // Bag body — rounded rect with a flat top
+  g.fillStyle(color, 1);
+  g.fillRoundedRect(x - size * 0.7, y - size * 0.35, size * 1.4, size * 1.05, size * 0.16);
+  // Handles — two arcs above the bag
+  g.lineStyle(Math.max(3, size * 0.14), color, 1);
+  g.beginPath();
+  g.arc(x - size * 0.32, y - size * 0.45, size * 0.22, Math.PI, 0);
+  g.strokePath();
+  g.beginPath();
+  g.arc(x + size * 0.32, y - size * 0.45, size * 0.22, Math.PI, 0);
+  g.strokePath();
+  // Star on the bag body
+  const sx = x;
+  const sy = y + size * 0.18;
+  const sr = size * 0.28;
+  g.fillStyle(0xffffff, 0.95);
+  g.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = (i / 10) * Math.PI * 2 - Math.PI / 2;
+    const r = i % 2 === 0 ? sr : sr * 0.45;
+    const px = sx + Math.cos(a) * r;
+    const py = sy + Math.sin(a) * r;
+    if (i === 0) g.moveTo(px, py);
+    else g.lineTo(px, py);
+  }
+  g.closePath();
+  g.fillPath();
+}
+
+export function drawHelmetIcon(g, x, y, size, color = 0xffd86b) {
+  // Dome — top half rounded, body fills more
+  g.fillStyle(color, 1);
+  g.beginPath();
+  g.arc(x, y - size * 0.05, size * 0.78, Math.PI, 0);
+  g.fillPath();
+  // Lower body rectangle
+  g.fillRoundedRect(x - size * 0.78, y - size * 0.05, size * 1.56, size * 0.7, size * 0.18);
+  // Visor — darker arc cutout (drawn on top)
+  g.fillStyle(0x07071a, 1);
+  g.fillRoundedRect(x - size * 0.55, y - size * 0.18, size * 1.1, size * 0.55, size * 0.14);
+  // Visor highlight
+  g.fillStyle(0xffffff, 0.65);
+  g.fillRoundedRect(x - size * 0.45, y - size * 0.10, size * 0.30, size * 0.16, size * 0.06);
+  // Antenna nub on top
+  g.fillStyle(color, 1);
+  g.fillRect(x - size * 0.06, y - size * 0.95, size * 0.12, size * 0.18);
+  g.fillCircle(x, y - size * 1.0, size * 0.12);
 }
 
 export function drawArrowLeftIcon(g, x, y, size, color = 0xffffff) {

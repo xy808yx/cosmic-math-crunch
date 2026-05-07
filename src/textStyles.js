@@ -19,19 +19,19 @@ const PRESETS = {
   },
   subhead: {
     fontFamily: FONT_STACK,
-    fontSize: '32px',
+    fontSize: '34px',
     fontStyle: '700',
     fill: '#ffffff'
   },
   body: {
     fontFamily: FONT_STACK,
-    fontSize: '26px',
+    fontSize: '28px',
     fontStyle: '500',
     fill: '#cfcfe0'
   },
   caption: {
     fontFamily: FONT_STACK,
-    fontSize: '20px',
+    fontSize: '22px',
     fontStyle: '500',
     fill: '#8888a0'
   },
@@ -67,7 +67,7 @@ const PRESETS = {
   },
   statLabel: {
     fontFamily: FONT_STACK,
-    fontSize: '18px',
+    fontSize: '22px',
     fontStyle: '700',
     fill: '#8888a0'
   }

@@ -3,7 +3,7 @@
 //
 // Pixel-art rendering lives in PetRenderer.js — this module is data only.
 
-import { progress, WORLDS } from './GameData.js';
+import { progress } from './GameData.js';
 
 // Each species has 4 evolution stages with distinct names + lore.
 export const SPECIES = {
@@ -28,12 +28,12 @@ export const SPECIES = {
       teen: {
         name: 'Blazewisp',
         type: 'Solar / Wisp',
-        lore: 'Streaked itself with a flame tail and grew tiny mitten-paws. Sometimes leaves scorch marks on the dashboard.'
+        lore: 'Sprouted ember wings and a crescent comet tail. Streaks across the cockpit when its pilot nails a tough problem.'
       },
       adult: {
         name: 'Solfire',
         type: 'Solar / Drake',
-        lore: 'A small dragon-form with a blazing mane and crescent wings. Said to lead lost pilots back through nebulae.'
+        lore: 'A pixel star-dragon with curled horns, broad wings, and a long tail. Said to lead lost pilots back through the dark.'
       }
     }
   },
@@ -58,12 +58,12 @@ export const SPECIES = {
       teen: {
         name: 'Wavemite',
         type: 'Aqua / Drifter',
-        lore: 'Sprouted little fins and learned to coast on the air-current of a quick laugh.'
+        lore: 'Grew side fins and a flicking tail. Coasts on the air-current of a quick correct answer.'
       },
       adult: {
         name: 'Tidalord',
         type: 'Aqua / Whale',
-        lore: 'A small cosmic whale with luminous fins. Older than the Asteroid Belt, calmer than the void.'
+        lore: 'A long cosmic whale with a tall dorsal fin and tail flukes. Older than the Asteroid Belt, calmer than the void.'
       }
     }
   },
@@ -88,12 +88,12 @@ export const SPECIES = {
       teen: {
         name: 'Vinepup',
         type: 'Verdant / Bloom',
-        lore: 'Vines instead of legs, a fresh bloom in its hair. Tiny enough to perch in the cockpit.'
+        lore: 'Vines instead of legs and a bright cheek-bloom. Hops the dashboard like it owns the place.'
       },
       adult: {
         name: 'Cosmoss',
         type: 'Verdant / Treant',
-        lore: 'A small treant in flower. Where it walks, ferns grow. Has been known to plant moons.'
+        lore: 'A walking treant with bark legs, branching arms, and a flower crown. Where it stands, ferns grow.'
       }
     }
   }
@@ -124,21 +124,45 @@ const STAGE_GATES = {
   }
 };
 
-const MISSED_YOU_THRESHOLD_MS = 8 * 60 * 60 * 1000; // 8h
-
 class CompanionManager {
   pickStarter(speciesId) {
     if (!SPECIES[speciesId]) return false;
     progress.companion.speciesId = speciesId;
     progress.companion.stage = 'egg';
-    progress.companion.lastFedAt = Date.now();
-    progress.companion.lastVisitedAt = Date.now();
     progress.save();
     return true;
   }
 
   hasStarter() {
     return !!progress.companion.speciesId;
+  }
+
+  // ---------------- Trophy shelf -------------------------------------------
+  // Once a pet hits adult, the player can retire it and raise a new one.
+  // Retired pets land in `progress.companion.completed[]` as a permanent
+  // collection (read-only — they are not re-equippable).
+  isFullyEvolved() {
+    return progress.companion.stage === 'adult';
+  }
+
+  getCompletedPets() {
+    return progress.companion.completed || [];
+  }
+
+  // Retires the current pet (if adult) into the completed list and resets
+  // companion state so the StarterPickerScene can pick a new species.
+  retireAndStartNew() {
+    if (!this.isFullyEvolved() || !progress.companion.speciesId) return false;
+    const completed = progress.companion.completed || [];
+    completed.push({
+      speciesId: progress.companion.speciesId,
+      retiredAt: Date.now()
+    });
+    progress.companion.completed = completed;
+    progress.companion.speciesId = null;
+    progress.companion.stage = null;
+    progress.save();
+    return true;
   }
 
   getSpecies() {
@@ -151,31 +175,10 @@ class CompanionManager {
     return sp.stages[this.getStage()] || sp.stages.egg;
   }
 
-  // Records the visit; returns true if a "missed you" greeting should play.
-  markVisitOpen() {
-    const last = progress.companion.lastVisitedAt || Date.now();
-    const gap = Date.now() - last;
-    this._lastGapMs = gap;
-    progress.companion.lastVisitedAt = Date.now();
-    progress.save();
-    return gap >= MISSED_YOU_THRESHOLD_MS;
-  }
-
-  shouldShowMissedYou() {
-    return (this._lastGapMs || 0) >= MISSED_YOU_THRESHOLD_MS && !this._missedYouShown;
-  }
-
-  markMissedYouShown() {
-    this._missedYouShown = true;
-  }
-
-  // Counts a correct answer toward evolution. Save once even if evolution
-  // also fires — checkEvolutionEligibility persists itself only when the
-  // stage actually advances.
-  feed(_pellets = 1) {
-    progress.companion.lastFedAt = Date.now();
-    const evolved = this.checkEvolutionEligibility();
-    if (!evolved) progress.save();
+  // Counts a correct answer toward evolution. checkEvolutionEligibility
+  // saves only when the stage actually advances.
+  feed() {
+    this.checkEvolutionEligibility();
   }
 
   // Re-evaluates the pet's stage against the new gate criteria. If the next

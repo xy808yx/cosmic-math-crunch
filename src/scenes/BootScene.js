@@ -17,7 +17,6 @@ export class BootScene extends Phaser.Scene {
 
   create() {
     streak.onAppOpen();
-    companion.markVisitOpen();
 
     if (!companion.hasStarter()) {
       this.scene.start('StarterPickerScene');

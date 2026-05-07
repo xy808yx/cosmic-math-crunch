@@ -132,7 +132,7 @@ export class RecordsScene extends Phaser.Scene {
 
     if (card.sub) {
       c.add(this.add.text(0, h / 2 - 32, card.sub, style('caption', {
-        fontSize: '18px',
+        fontSize: '22px',
         fill: '#7a7a90'
       })).setOrigin(0.5));
     }
@@ -164,7 +164,7 @@ export class RecordsScene extends Phaser.Scene {
     // Column headers
     for (let i = 1; i <= 12; i++) {
       this.add.text(startX + (i - 0.5) * cellSize, startY + 4, i.toString(), style('caption', {
-        fontSize: '16px',
+        fontSize: '20px',
         fill: '#7a7a90'
       })).setOrigin(0.5).setDepth(11);
     }
@@ -172,7 +172,7 @@ export class RecordsScene extends Phaser.Scene {
     const grid = this.add.graphics().setDepth(11);
     for (let r = 1; r <= 12; r++) {
       this.add.text(startX - 16, startY + 30 + (r - 0.5) * cellSize, r.toString(), style('caption', {
-        fontSize: '16px',
+        fontSize: '20px',
         fill: '#7a7a90'
       })).setOrigin(1, 0.5).setDepth(11);
 
