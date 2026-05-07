@@ -19,6 +19,8 @@ import {
   drawArrowLeftIcon, drawSparkleIcon, drawCheckIcon
 } from '../StatIcons.js';
 import { RARITY_COLOR, RARITY_LABEL, rarityOf, compareForShop } from '../Rarity.js';
+import { COLORS } from '../colorPalette.js';
+import { createModal } from '../modalHelper.js';
 
 const W = 1080;
 const H = 1920;
@@ -74,12 +76,12 @@ export class ShopScene extends Phaser.Scene {
 
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
-    bg.fillStyle(0x07071a, 0.95);
+    bg.fillStyle(COLORS.bgDark, 0.95);
     bg.fillRect(0, 0, W, 240);
 
     createIconButton(this, {
       x: 90, y: 90, radius: 38,
-      accentColor: 0xc77eff,
+      accentColor: COLORS.accentPurple,
       drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
@@ -105,8 +107,8 @@ export class ShopScene extends Phaser.Scene {
     const shipCx = W - 90;
     this.avatarRadius = radius;
 
-    this.petBadge = this.makeAvatarBadge(petCx, cy, radius, 0xffd86b, 'PET');
-    this.shipBadge = this.makeAvatarBadge(shipCx, cy, radius, 0xc77eff, 'SHIP');
+    this.petBadge = this.makeAvatarBadge(petCx, cy, radius, COLORS.accentWarm, 'PET');
+    this.shipBadge = this.makeAvatarBadge(shipCx, cy, radius, COLORS.accentPurple, 'SHIP');
 
     this.refreshPlayerAvatar();
   }
@@ -120,7 +122,7 @@ export class ShopScene extends Phaser.Scene {
     container.add(halo);
 
     const bgCircle = this.add.graphics();
-    bgCircle.fillStyle(0x07071a, 0.95);
+    bgCircle.fillStyle(COLORS.bgDark, 0.95);
     bgCircle.fillCircle(0, 0, radius);
     bgCircle.lineStyle(3, accent, 0.9);
     bgCircle.strokeCircle(0, 0, radius);
@@ -186,9 +188,9 @@ export class ShopScene extends Phaser.Scene {
 
     // Solid backing strip behind tabs so scrolling cards never bleed through.
     const backing = this.add.graphics().setDepth(28);
-    backing.fillStyle(0x07071a, 1);
+    backing.fillStyle(COLORS.bgDark, 1);
     backing.fillRect(0, 240, W, 110);
-    backing.fillStyle(0x07071a, 0.6);
+    backing.fillStyle(COLORS.bgDark, 0.6);
     backing.fillRect(0, 350, W, 12);
 
     this.tabContainers = {};
@@ -373,8 +375,8 @@ export class ShopScene extends Phaser.Scene {
     const rarityColor = RARITY_COLOR[rarity];
 
     let borderColor = rarityColor;
-    if (equipped) borderColor = 0x58d68d;
-    else if (owned) borderColor = 0x4ecdc4;
+    if (equipped) borderColor = COLORS.success;
+    else if (owned) borderColor = COLORS.accentTeal;
 
     // Legendary halo behind the card
     if (rarity === 'legendary') {
@@ -389,7 +391,7 @@ export class ShopScene extends Phaser.Scene {
     }
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
     bg.lineStyle(equipped || owned ? 4 : 3, borderColor, owned || canAfford ? 1 : 0.7);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
@@ -398,7 +400,7 @@ export class ShopScene extends Phaser.Scene {
     // Status wash so equipped vs owned reads at a glance, not just on the border.
     if (equipped || owned) {
       const wash = this.add.graphics();
-      wash.fillStyle(equipped ? 0x58d68d : 0x4ecdc4, equipped ? 0.12 : 0.08);
+      wash.fillStyle(equipped ? COLORS.success : COLORS.accentTeal, equipped ? 0.12 : 0.08);
       wash.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
       c.add(wash);
     }
@@ -448,15 +450,15 @@ export class ShopScene extends Phaser.Scene {
     // Status badge
     const badgeY = h / 2 - 50;
     let badgeText = '';
-    let badgeColor = 0x4ecdc4;
+    let badgeColor = COLORS.accentTeal;
     let badgeFill = '#0a0a1a';
     // Default items can't be "unequipped" — they ARE the unequipped state.
     const isDefault = !!item.isDefault;
-    if (equipped && isDefault) { badgeText = 'EQUIPPED'; badgeColor = 0x58d68d; }
-    else if (equipped) { badgeText = 'TAP TO UNEQUIP'; badgeColor = 0x58d68d; }
-    else if (owned) { badgeText = 'TAP TO EQUIP'; badgeColor = 0x4ecdc4; }
-    else if (item.price === 0) { badgeText = 'FREE'; badgeColor = 0xc77eff; }
-    else { badgeText = `${item.price} STARDUST`; badgeColor = canAfford ? 0xc77eff : 0x3a3a4a; if (!canAfford) badgeFill = '#7a7a90'; }
+    if (equipped && isDefault) { badgeText = 'EQUIPPED'; badgeColor = COLORS.success; }
+    else if (equipped) { badgeText = 'TAP TO UNEQUIP'; badgeColor = COLORS.success; }
+    else if (owned) { badgeText = 'TAP TO EQUIP'; badgeColor = COLORS.accentTeal; }
+    else if (item.price === 0) { badgeText = 'FREE'; badgeColor = COLORS.accentPurple; }
+    else { badgeText = `${item.price} STARDUST`; badgeColor = canAfford ? COLORS.accentPurple : 0x3a3a4a; if (!canAfford) badgeFill = '#7a7a90'; }
 
     const badge = this.add.graphics();
     badge.fillStyle(badgeColor, 0.95);
@@ -552,20 +554,16 @@ export class ShopScene extends Phaser.Scene {
   }
 
   showPurchaseConfirm(item, tabId) {
-    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
-      .setDepth(80).setInteractive();
-    this.tweens.add({ targets: overlay, alpha: 0.7, duration: 200 });
-
     const mw = 760;
     const mh = 540;
-    const modal = this.add.container(W / 2, H / 2).setDepth(85);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
-    bg.fillRoundedRect(-mw / 2, -mh / 2, mw, mh, 28);
-    bg.lineStyle(3, 0xc77eff, 0.9);
-    bg.strokeRoundedRect(-mw / 2, -mh / 2, mw, mh, 28);
-    modal.add(bg);
+    const { card: modal, close } = createModal(this, {
+      width: mw, height: mh,
+      depth: 80,
+      overlayAlpha: 0.7,
+      overlayFadeMs: 200,
+      accentColor: COLORS.accentPurple,
+      showCloseHint: false,
+    });
 
     modal.add(this.add.text(0, -mh / 2 + 60, 'Buy this item?', style('display', {
       fontSize: '46px', fill: '#ffffff'
@@ -590,23 +588,23 @@ export class ShopScene extends Phaser.Scene {
     const chipY = -mh / 2 + 250;
 
     const chipHalo = this.add.graphics();
-    chipHalo.fillStyle(0xc77eff, 0.20);
+    chipHalo.fillStyle(COLORS.accentPurple, 0.20);
     chipHalo.fillRoundedRect(-chipW / 2 - 8, chipY - chipH / 2 - 4, chipW + 16, chipH + 8, r + 4);
     modal.add(chipHalo);
 
     const chipBg = this.add.graphics();
-    chipBg.fillStyle(0x1a1a2e, 1);
+    chipBg.fillStyle(COLORS.bgTrack, 1);
     chipBg.fillRoundedRect(-chipW / 2, chipY - chipH / 2, chipW, chipH, r);
     chipBg.fillStyle(0xffffff, 0.06);
     chipBg.fillRoundedRect(-chipW / 2 + 4, chipY - chipH / 2 + 3, chipW - 8, chipH * 0.30, {
       tl: r - 2, tr: r - 2, bl: 6, br: 6
     });
-    chipBg.lineStyle(2, 0xc77eff, 0.85);
+    chipBg.lineStyle(2, COLORS.accentPurple, 0.85);
     chipBg.strokeRoundedRect(-chipW / 2, chipY - chipH / 2, chipW, chipH, r);
     modal.add(chipBg);
 
     const sparkle = this.add.graphics();
-    drawSparkleIcon(sparkle, 0, 0, 26, 0xc77eff);
+    drawSparkleIcon(sparkle, 0, 0, 26, COLORS.accentPurple);
     sparkle.x = groupLeft + iconBoxW / 2;
     sparkle.y = chipY;
     modal.add(sparkle);
@@ -621,12 +619,6 @@ export class ShopScene extends Phaser.Scene {
       fontSize: '26px', fill: '#aaaac0'
     })).setOrigin(0.5));
 
-    const close = () => {
-      modal.destroy();
-      overlay.destroy();
-    };
-    overlay.on('pointerdown', close);
-
     modal.add(createButton(this, {
       x: -160, y: mh / 2 - 80, width: 280, height: 92,
       label: 'Cancel',
@@ -637,7 +629,7 @@ export class ShopScene extends Phaser.Scene {
     modal.add(createButton(this, {
       x: 160, y: mh / 2 - 80, width: 280, height: 92,
       label: 'Buy',
-      color: 0xc77eff,
+      color: COLORS.accentPurple,
       onClick: () => {
         close();
         if (!economy.spendStardust(item.price)) return;
@@ -660,7 +652,7 @@ export class ShopScene extends Phaser.Scene {
   // ============================================================
   createBalanceFooter() {
     const bg = this.add.graphics().setDepth(15);
-    bg.fillStyle(0x07071a, 0.92);
+    bg.fillStyle(COLORS.bgDark, 0.92);
     bg.fillRect(0, H - 110, W, 110);
 
     const c = this.add.container(W / 2, H - 55).setDepth(16);

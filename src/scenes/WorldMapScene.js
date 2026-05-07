@@ -21,6 +21,8 @@ import {
   drawSparkleIcon, drawStarIcon,
   drawGearIcon, drawShoppingBagIcon, drawHelmetIcon
 } from '../StatIcons.js';
+import { COLORS } from '../colorPalette.js';
+import { createModal } from '../modalHelper.js';
 
 const W = 1080;
 const H = 1920;
@@ -62,20 +64,20 @@ export class WorldMapScene extends Phaser.Scene {
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
     // Layered gradient strip — three bands of decreasing opacity for depth
-    bg.fillStyle(0x12122a, 0.96);
+    bg.fillStyle(COLORS.bgPanel, 0.96);
     bg.fillRect(0, 0, W, 220);
-    bg.fillStyle(0x07071a, 0.45);
+    bg.fillStyle(COLORS.bgDark, 0.45);
     bg.fillRect(0, 0, W, 220);
     // Soft top accent glow
-    bg.fillStyle(0x4ecdc4, 0.05);
+    bg.fillStyle(COLORS.accentTeal, 0.05);
     bg.fillRect(0, 0, W, 90);
     // Bottom hairline
-    bg.fillStyle(0x4ecdc4, 0.30);
+    bg.fillStyle(COLORS.accentTeal, 0.30);
     bg.fillRect(0, 218, W, 2);
     // Soft fade below the bar
-    bg.fillStyle(0x07071a, 0.50);
+    bg.fillStyle(COLORS.bgDark, 0.50);
     bg.fillRect(0, 220, W, 24);
-    bg.fillStyle(0x07071a, 0.20);
+    bg.fillStyle(COLORS.bgDark, 0.20);
     bg.fillRect(0, 244, W, 16);
 
     this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
@@ -90,7 +92,7 @@ export class WorldMapScene extends Phaser.Scene {
     // Top-left cluster: Gear | Logbook
     createIconButton(this, {
       x: 90, y: 88, radius: 38,
-      accentColor: 0x4ecdc4,
+      accentColor: COLORS.accentTeal,
       drawIcon: (g, size) => drawGearIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
@@ -100,7 +102,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     createIconButton(this, {
       x: 186, y: 88, radius: 38,
-      accentColor: 0xffd86b,
+      accentColor: COLORS.accentWarm,
       drawIcon: (g, size) => drawHelmetIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
@@ -110,7 +112,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Top-right cluster: Pet | Shop
     const sp = companion.getSpecies();
-    const petAccent = sp ? sp.accent : 0xc77eff;
+    const petAccent = sp ? sp.accent : COLORS.accentPurple;
     createPetPortraitButton(this, {
       x: W - 186, y: 88, radius: 38,
       accentColor: petAccent,
@@ -120,7 +122,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     createIconButton(this, {
       x: W - 90, y: 88, radius: 38,
-      accentColor: 0xc77eff,
+      accentColor: COLORS.accentPurple,
       drawIcon: (g, size) => drawShoppingBagIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
@@ -138,10 +140,10 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.starsChip = this.makeChip(startX, cy, chipW, {
       icon: g => drawStarIcon(g, 0, 0, 18),
-      accent: 0xf7dc6f,
+      accent: COLORS.warning,
       value: () => `${progress.totalStars}`,
       onClick: () => this.showInfoPopup({
-        accent: 0xf7dc6f,
+        accent: COLORS.warning,
         drawIcon: (g, size) => drawStarIcon(g, 0, 0, size),
         title: 'STARS',
         body: 'You earn up to 3 stars on every mission — more answers right, more stars. They track how well you\'re mastering each math fact.'
@@ -149,10 +151,10 @@ export class WorldMapScene extends Phaser.Scene {
     });
     this.stardustChip = this.makeChip(startX + chipW + gap, cy, chipW, {
       icon: g => drawSparkleIcon(g, 0, 0, 18),
-      accent: 0xc77eff,
+      accent: COLORS.accentPurple,
       value: () => `${economy.getStardust()}`,
       onClick: () => this.showInfoPopup({
-        accent: 0xc77eff,
+        accent: COLORS.accentPurple,
         drawIcon: (g, size) => drawSparkleIcon(g, 0, 0, size),
         title: 'STARDUST',
         body: 'Stardust is your space money. You earn it from missions and your daily login bonus, then spend it in the Shop on hats, ship parts, and other cosmetics.'
@@ -173,13 +175,13 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Track — pill body with inset highlight + bottom shadow
     const bg = this.add.graphics();
-    bg.fillStyle(0x1a1a2e, 1);
+    bg.fillStyle(COLORS.bgTrack, 1);
     bg.fillRoundedRect(-width / 2, -h / 2, width, h, r);
     bg.fillStyle(0xffffff, 0.06);
     bg.fillRoundedRect(-width / 2 + 4, -h / 2 + 3, width - 8, h * 0.32, {
       tl: r - 2, tr: r - 2, bl: 6, br: 6
     });
-    bg.fillStyle(0x07071a, 0.40);
+    bg.fillStyle(COLORS.bgDark, 0.40);
     bg.fillRoundedRect(-width / 2 + 4, h / 2 - h * 0.32 - 3, width - 8, h * 0.32, {
       tl: 6, tr: 6, bl: r - 2, br: r - 2
     });
@@ -195,7 +197,7 @@ export class WorldMapScene extends Phaser.Scene {
     halo.fillCircle(badgeX, 0, badgeR + 6);
     c.add(halo);
     const badge = this.add.graphics();
-    badge.fillStyle(0x07071a, 1);
+    badge.fillStyle(COLORS.bgDark, 1);
     badge.fillCircle(badgeX, 0, badgeR);
     badge.lineStyle(2, opts.accent, 0.9);
     badge.strokeCircle(badgeX, 0, badgeR);
@@ -241,18 +243,11 @@ export class WorldMapScene extends Phaser.Scene {
   // INFO POPUP (chip tooltips)
   // ============================================================
   showInfoPopup({ accent, drawIcon, title, body }) {
-    const ov = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.80)
-      .setDepth(80).setInteractive();
-    const card = this.add.container(W / 2, H / 2).setDepth(81);
-
     const cw = 760;
     const ch = 520;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 1);
-    bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 24);
-    bg.lineStyle(4, accent, 0.95);
-    bg.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 24);
-    card.add(bg);
+    const { card } = createModal(this, {
+      width: cw, height: ch, accentColor: accent, radius: 24, strokeWidth: 4
+    });
 
     // Icon badge with halo
     const iconY = -ch / 2 + 110;
@@ -264,7 +259,7 @@ export class WorldMapScene extends Phaser.Scene {
     card.add(halo);
 
     const badge = this.add.graphics();
-    badge.fillStyle(0x07071a, 1);
+    badge.fillStyle(COLORS.bgDark, 1);
     badge.fillCircle(0, iconY, 56);
     badge.lineStyle(3, accent, 0.95);
     badge.strokeCircle(0, iconY, 56);
@@ -275,7 +270,6 @@ export class WorldMapScene extends Phaser.Scene {
     drawIcon(iconG, 56);
     card.add(iconG);
 
-    // Title
     card.add(this.add.text(0, iconY + 110, title, style('display', {
       fontSize: '52px',
       fill: '#ffffff',
@@ -283,7 +277,6 @@ export class WorldMapScene extends Phaser.Scene {
       strokeThickness: 3
     })).setOrigin(0.5));
 
-    // Body copy
     card.add(this.add.text(0, iconY + 200, body, style('body', {
       fontSize: '30px',
       fill: '#cfcfe0',
@@ -291,18 +284,6 @@ export class WorldMapScene extends Phaser.Scene {
       wordWrap: { width: cw - 80 },
       lineSpacing: 8
     })).setOrigin(0.5, 0));
-
-    const closeHint = this.add.text(W / 2, H / 2 + ch / 2 + 50, 'tap anywhere to close', style('caption', {
-      fontSize: '26px',
-      fill: '#9a9aae'
-    })).setOrigin(0.5).setDepth(81);
-
-    ov.on('pointerdown', () => {
-      audio.playClick();
-      ov.destroy();
-      card.destroy();
-      closeHint.destroy();
-    });
   }
 
   // ============================================================
@@ -311,7 +292,7 @@ export class WorldMapScene extends Phaser.Scene {
   createMap() {
     // Subtle accent bloom behind the map for visual interest
     const bloom = this.add.graphics().setDepth(0);
-    bloom.fillStyle(0x4ecdc4, 0.04);
+    bloom.fillStyle(COLORS.accentTeal, 0.04);
     bloom.fillEllipse(W / 2, H * 0.55, W * 1.4, H * 0.55);
 
     // Layered ambience: stars, drifting nebulae, shooting stars, theme particles
@@ -326,7 +307,7 @@ export class WorldMapScene extends Phaser.Scene {
     // Path — only segments up to (and including) the current world segment
     // are visible; locked tail is hidden.
     const visibleSegments = this.furthestUnlockedIndex; // segments equals (idx) since 0-based
-    drawPath(this, this.path, visibleSegments, 0x4ecdc4).setDepth(2);
+    drawPath(this, this.path, visibleSegments, COLORS.accentTeal).setDepth(2);
 
     // Nodes — unlocked render in full color, locked render as silhouette+?.
     this.nodeContainers = {};
@@ -477,7 +458,7 @@ export class WorldMapScene extends Phaser.Scene {
   createBottomChrome() {
     // Subtle starfield band hint at bottom
     const fade = this.add.graphics().setDepth(0);
-    fade.fillStyle(0x07071a, 0.7);
+    fade.fillStyle(COLORS.bgDark, 0.7);
     fade.fillRect(0, 1700, W, 220);
 
     const world = WORLDS[this.currentWorldIndex];
@@ -597,18 +578,15 @@ export class WorldMapScene extends Phaser.Scene {
     const lore = companion.getCurrentLore();
     if (!sp || !lore) return;
 
-    const ov = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.85)
-      .setDepth(80).setInteractive();
-    const card = this.add.container(W / 2, H / 2).setDepth(81);
-
     const cw = 920;
     const ch = 1440;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 1);
-    bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 28);
-    bg.lineStyle(4, sp.accent, 0.95);
-    bg.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 28);
-    card.add(bg);
+    const { card, close } = createModal(this, {
+      width: cw, height: ch,
+      accentColor: sp.accent,
+      radius: 28, strokeWidth: 4,
+      overlayAlpha: 0.85,
+      closeOnCardTap: true,
+    });
 
     // Portrait
     const portrait = drawCompanion(this, 0, -ch / 2 + 240, { scale: 1.8 });
@@ -696,36 +674,17 @@ export class WorldMapScene extends Phaser.Scene {
       const btn = createButton(this, {
         x: 0, y: py + 200, width: 580, height: 96,
         label: 'RAISE ANOTHER COMPANION',
-        color: 0xffd86b,
+        color: COLORS.accentWarm,
         textStyle: 'subhead',
         textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
         onClick: () => {
           companion.retireAndStartNew();
-          ov.destroy();
-          card.destroy();
-          closeBtn.destroy();
+          close();
           this.scene.start('StarterPickerScene');
         }
       });
       card.add(btn);
     }
-
-    // Close hint — placed OUTSIDE the card on the dim backdrop, eliminating
-    // overlap with stat lines/progress bar inside the card.
-    const closeBtn = this.add.text(W / 2, H / 2 + ch / 2 + 50, 'tap anywhere to close', style('caption', {
-      fontSize: '26px',
-      fill: '#9a9aae'
-    })).setOrigin(0.5).setDepth(81);
-
-    const cleanup = () => {
-      audio.playClick();
-      ov.destroy();
-      card.destroy();
-      closeBtn.destroy();
-    };
-    ov.on('pointerdown', cleanup);
-    bg.setInteractive(new Phaser.Geom.Rectangle(-cw / 2, -ch / 2, cw, ch), Phaser.Geom.Rectangle.Contains);
-    bg.on('pointerdown', cleanup);
   }
 
   // ============================================================

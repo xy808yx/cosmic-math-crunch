@@ -10,6 +10,7 @@ import { style } from '../textStyles.js';
 import { progress, WORLDS } from '../GameData.js';
 import { records, formatFactKey } from '../RecordsManager.js';
 import { drawArrowLeftIcon, drawStarIcon } from '../StatIcons.js';
+import { COLORS } from '../colorPalette.js';
 
 const W = 1080;
 const H = 1920;
@@ -35,12 +36,12 @@ export class RecordsScene extends Phaser.Scene {
 
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
-    bg.fillStyle(0x07071a, 0.95);
+    bg.fillStyle(COLORS.bgDark, 0.95);
     bg.fillRect(0, 0, W, 160);
 
     createIconButton(this, {
       x: 90, y: 80, radius: 38,
-      accentColor: 0xffd86b,
+      accentColor: COLORS.accentWarm,
       drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
@@ -73,12 +74,12 @@ export class RecordsScene extends Phaser.Scene {
       {
         label: 'WORLDS CLEARED',
         value: `${records.getWorldsCleared()} / ${WORLDS.length}`,
-        accent: 0x4ecdc4
+        accent: COLORS.accentTeal
       },
       {
         label: 'TOTAL STARS',
         value: `${progress.totalStars}`,
-        accent: 0xf7dc6f,
+        accent: COLORS.warning,
         showStar: true
       },
       {
@@ -87,7 +88,7 @@ export class RecordsScene extends Phaser.Scene {
           ? `${(records.getTodayAvgMs() / 1000).toFixed(2)}s`
           : '—',
         sub: records.getTodaySamples() > 0 ? `${records.getTodaySamples()} answers` : 'No plays today',
-        accent: 0xc77eff
+        accent: COLORS.accentPurple
       }
     ];
 
@@ -105,7 +106,7 @@ export class RecordsScene extends Phaser.Scene {
     const c = this.add.container(x, y).setDepth(11);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, 22);
     bg.lineStyle(3, card.accent, 0.85);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 22);
@@ -186,9 +187,9 @@ export class RecordsScene extends Phaser.Scene {
     const legendY = startY + 30 + 12 * cellSize + 24;
     const legendItems = [
       { color: 0x2d2d44, label: 'Unseen' },
-      { color: 0xff6b6b, label: '<60%' },
-      { color: 0xf7dc6f, label: '60-85%' },
-      { color: 0x58d68d, label: '85%+' }
+      { color: COLORS.error, label: '<60%' },
+      { color: COLORS.warning, label: '60-85%' },
+      { color: COLORS.success, label: '85%+' }
     ];
     const legendW = legendItems.length * 200;
     let lx = W / 2 - legendW / 2 + 20;
@@ -212,9 +213,9 @@ export class RecordsScene extends Phaser.Scene {
   colorForFact(fact) {
     if (!fact || fact.total === 0) return 0x2d2d44;
     const acc = fact.correct / fact.total;
-    if (acc >= 0.85) return 0x58d68d;
-    if (acc >= 0.60) return 0xf7dc6f;
-    return 0xff6b6b;
+    if (acc >= 0.85) return COLORS.success;
+    if (acc >= 0.60) return COLORS.warning;
+    return COLORS.error;
   }
 
   // ============================================================

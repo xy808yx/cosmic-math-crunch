@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from './AudioManager.js';
 import { style } from './textStyles.js';
+import { COLORS } from './colorPalette.js';
 
 // Standard rounded-rect button. Returns the container.
 // onClick fires on pointerup if the pointer is still inside.
@@ -11,7 +12,7 @@ export function createButton(scene, opts) {
     label = '',
     width = 280,
     height = 80,
-    color = 0x4ecdc4,
+    color = COLORS.accentTeal,
     textStyle = 'subhead',
     textOverrides = {},
     onClick = () => {},
@@ -88,8 +89,8 @@ export function createIconButton(scene, opts) {
     x = 0,
     y = 0,
     radius = 28,
-    color = 0x1a1a2e,
-    accentColor = 0x4ecdc4,
+    color = COLORS.bgTrack,
+    accentColor = COLORS.accentTeal,
     drawIcon, // function(graphics, size) — caller draws into graphics
     onClick = () => {}
   } = opts;
@@ -146,8 +147,8 @@ export function createProgressBar(scene, opts) {
     width = 600,
     height = 54,
     ratio = 0,
-    color = 0x4ecdc4,
-    trackColor = 0x1a1a2e,
+    color = COLORS.accentTeal,
+    trackColor = COLORS.bgTrack,
     borderColor = 0x3a3a55,
     label = null,
     labelOverrides = {},
@@ -173,7 +174,7 @@ export function createProgressBar(scene, opts) {
   track.fillStyle(trackColor, 1);
   track.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
   // Inner top shadow stripe (makes the bar feel inset)
-  track.fillStyle(0x07071a, 0.55);
+  track.fillStyle(COLORS.bgDark, 0.55);
   track.fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.30, {
     tl: radius - 2, tr: radius - 2, bl: 6, br: 6
   });
@@ -247,7 +248,7 @@ export function createPetPortraitButton(scene, opts) {
     x = 0,
     y = 0,
     radius = 38,
-    accentColor = 0xffd86b,
+    accentColor = COLORS.accentWarm,
     drawPet, // function(scene, x, y, opts) → container
     onClick = () => {}
   } = opts;
@@ -257,7 +258,7 @@ export function createPetPortraitButton(scene, opts) {
   const glow = scene.add.circle(0, 0, radius + 4, accentColor, 0.2);
   container.add(glow);
 
-  const bg = scene.add.circle(0, 0, radius, 0x1a1a2e, 0.85);
+  const bg = scene.add.circle(0, 0, radius, COLORS.bgTrack, 0.85);
   container.add(bg);
 
   if (drawPet) {

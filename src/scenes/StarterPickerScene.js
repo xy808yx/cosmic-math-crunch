@@ -5,6 +5,7 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
+import { COLORS } from '../colorPalette.js';
 
 const W = 1080;
 const H = 1920;
@@ -67,7 +68,7 @@ export class StarterPickerScene extends Phaser.Scene {
     card.add(glow);
 
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.95);
+    bg.fillStyle(COLORS.bgPanel, 0.95);
     bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 22);
     bg.lineStyle(3, sp.color, 0.6);
     bg.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 22);
@@ -126,7 +127,7 @@ export class StarterPickerScene extends Phaser.Scene {
     Object.entries(this.cards).forEach(([cid, card]) => {
       const isSelected = cid === id;
       card.bg.clear();
-      card.bg.fillStyle(0x12122a, 0.95);
+      card.bg.fillStyle(COLORS.bgPanel, 0.95);
       card.bg.fillRoundedRect(-card.cw / 2, -card.ch / 2, card.cw, card.ch, 22);
       card.bg.lineStyle(isSelected ? 5 : 3, card.color, isSelected ? 1 : 0.6);
       card.bg.strokeRoundedRect(-card.cw / 2, -card.ch / 2, card.cw, card.ch, 22);
