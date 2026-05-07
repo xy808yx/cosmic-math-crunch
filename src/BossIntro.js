@@ -61,7 +61,9 @@ export function playBossIntro(scene, worldId, onDone) {
   barG.alpha = 0.97;
   root.add(barG);
 
-  // Boss name — heavy bold, white with red drop shadow
+  // Boss name — heavy bold, white with red drop shadow.
+  // Long villain names (e.g. "THE VOID DEVOURER", "CRATERSHADE") would overflow
+  // the canvas at 170px; auto-shrink the X scale to fit with side padding.
   const nameShadow = scene.add.text(W / 2 + 8, H / 2 - 60 + 8, villainName, style('display', {
     fontSize: '170px', fill: '#a40015', fontStyle: '900'
   })).setOrigin(0.5);
@@ -73,8 +75,14 @@ export function playBossIntro(scene, worldId, onDone) {
     stroke: '#0a0000', strokeThickness: 8
   })).setOrigin(0.5);
   nameText.alpha = 0;
-  nameText.scaleY = 0.2;
   root.add(nameText);
+
+  const maxNameWidth = W - 80;
+  const nameScale = Math.min(1, maxNameWidth / nameText.width);
+  nameText.scaleX = nameScale;
+  nameShadow.scaleX = nameScale;
+  nameShadow.scaleY = nameScale;
+  nameText.scaleY = nameScale * 0.2;
 
   // Epithet — smaller red text
   const epithetText = scene.add.text(W / 2, H / 2 + 100, epithet, style('subhead', {
@@ -125,7 +133,7 @@ export function playBossIntro(scene, worldId, onDone) {
     if (dismissed) return;
     scene.tweens.add({
       targets: [nameText, nameShadow],
-      alpha: 1, scaleY: 1,
+      alpha: 1, scaleY: nameScale,
       duration: 140, ease: 'Back.easeOut'
     });
     scene.cameras.main.shake(280, 0.012);
