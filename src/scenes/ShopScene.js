@@ -13,6 +13,8 @@ import { ship, SHIP_PARTS } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
 import { cosmetics, PET_COSMETICS } from '../CosmeticManager.js';
 import { drawCompanion } from '../PetRenderer.js';
+import { companion } from '../CompanionManager.js';
+import { createButton } from '../buttonHelper.js';
 import {
   drawArrowLeftIcon, drawSparkleIcon, drawLockIcon, drawCheckIcon
 } from '../StatIcons.js';
@@ -57,7 +59,7 @@ export class ShopScene extends Phaser.Scene {
   // Cards render into `scrollLayer`; `scrollMask` clips so cards never
   // visually punch through the tabs (which sit on a higher depth + opaque bg).
   createScrollViewport() {
-    this.scrollTop = 320;
+    this.scrollTop = 360;
     this.scrollBottom = 1780;
     this.scrollLayer = this.add.container(0, 0).setDepth(11);
 
@@ -73,7 +75,7 @@ export class ShopScene extends Phaser.Scene {
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
     bg.fillStyle(0x07071a, 0.95);
-    bg.fillRect(0, 0, W, 180);
+    bg.fillRect(0, 0, W, 240);
 
     createIconButton(this, {
       x: 90, y: 90, radius: 38,
@@ -89,10 +91,93 @@ export class ShopScene extends Phaser.Scene {
       fontSize: '64px',
       fill: '#ffffff'
     })).setOrigin(0.5).setDepth(14);
+
+    this.createPlayerAvatar();
+  }
+
+  // Side-by-side preview of currently-equipped pet and ship, top-right.
+  // Separate badges so the player can clearly read each layer of cosmetics
+  // they have equipped — no need to squint at the porthole.
+  createPlayerAvatar() {
+    const radius = 65;
+    const cy = 130;
+    const petCx = W - 230;
+    const shipCx = W - 90;
+    this.avatarRadius = radius;
+
+    this.petBadge = this.makeAvatarBadge(petCx, cy, radius, 0xffd86b, 'PET');
+    this.shipBadge = this.makeAvatarBadge(shipCx, cy, radius, 0xc77eff, 'SHIP');
+
+    this.refreshPlayerAvatar();
+  }
+
+  makeAvatarBadge(cx, cy, radius, accent, label) {
+    const container = this.add.container(cx, cy).setDepth(15);
+
+    const halo = this.add.graphics();
+    halo.fillStyle(accent, 0.22);
+    halo.fillCircle(0, 0, radius + 8);
+    container.add(halo);
+
+    const bgCircle = this.add.graphics();
+    bgCircle.fillStyle(0x07071a, 0.95);
+    bgCircle.fillCircle(0, 0, radius);
+    bgCircle.lineStyle(3, accent, 0.9);
+    bgCircle.strokeCircle(0, 0, radius);
+    container.add(bgCircle);
+
+    const preview = this.add.container(0, 0);
+    container.add(preview);
+
+    const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
+    maskShape.fillStyle(0xffffff, 1);
+    maskShape.fillCircle(cx, cy, radius - 4);
+    preview.setMask(maskShape.createGeometryMask());
+
+    container.preview = preview;
+    container.accent = accent;
+
+    // Caption strip just below the badge
+    container.add(this.add.text(0, radius + 18, label, style('caption', {
+      fontSize: '20px',
+      fill: '#ffffff',
+      fontStyle: '900',
+      stroke: '#0a0a18',
+      strokeThickness: 3
+    })).setOrigin(0.5));
+
+    return container;
+  }
+
+  refreshPlayerAvatar() {
+    // Pet — show as it would appear in the world, with all equipped cosmetics
+    if (this.petBadge) {
+      this.petBadge.preview.removeAll(true);
+      if (companion.hasStarter()) {
+        const pet = drawCompanion(this, 0, 8, {
+          scale: 0.85,
+          preview: true,
+          cosmeticsOverride: cosmetics.getEquipped()
+        });
+        this.petBadge.preview.add(pet);
+      }
+    }
+
+    // Ship — equipped parts, no trail, no pet inside the porthole (this is
+    // about the ship loadout itself, not the composite portrait).
+    if (this.shipBadge) {
+      this.shipBadge.preview.removeAll(true);
+      const shipG = drawShip(this, 0, 8, {
+        scale: 0.85,
+        parts: ship.getCurrentParts(),
+        showTrail: false
+      });
+      this.shipBadge.preview.add(shipG);
+    }
   }
 
   createTabBar() {
-    const tabY = 220;
+    const tabY = 280;
     const tabW = 180;
     const tabH = 80;
     const gap = 10;
@@ -102,9 +187,9 @@ export class ShopScene extends Phaser.Scene {
     // Solid backing strip behind tabs so scrolling cards never bleed through.
     const backing = this.add.graphics().setDepth(28);
     backing.fillStyle(0x07071a, 1);
-    backing.fillRect(0, 180, W, 130);
+    backing.fillRect(0, 240, W, 110);
     backing.fillStyle(0x07071a, 0.6);
-    backing.fillRect(0, 310, W, 12);
+    backing.fillRect(0, 350, W, 12);
 
     this.tabContainers = {};
     TABS.forEach((tab, i) => {
@@ -397,35 +482,154 @@ export class ShopScene extends Phaser.Scene {
   }
 
   handleTap(item, tabId, owned, equipped, canAfford) {
-    audio.playClick();
     const isPetItem = TAB_BY_ID[tabId]?.kind === 'pet';
     const isShipItem = !isPetItem;
 
     // Tap an equipped non-default item → unequip (resets to default or null).
     if (equipped) {
+      audio.playClick();
       if (item.isDefault) return; // already at default; nothing to unequip
       if (isShipItem) ship.unequipSlot(item.slot);
       else cosmetics.unequipSlot(item.slot);
       this.refreshBalance();
       this.renderActiveTab();
+      this.refreshPlayerAvatar();
       return;
     }
 
     if (owned) {
+      audio.playClick();
       if (isShipItem) ship.equipPart(item.id);
       else cosmetics.equipItem(item.id);
       this.refreshBalance();
       this.renderActiveTab();
+      this.refreshPlayerAvatar();
       return;
     }
     if (item.unlock) return; // milestone-only
-    if (item.price > 0 && !canAfford) return;
-    if (item.price > 0) economy.spendStardust(item.price);
-    if (isShipItem) ship.addAndEquip(item.id);
-    else cosmetics.addAndEquip(item.id);
-    audio.playLevelComplete?.();
-    this.refreshBalance();
-    this.renderActiveTab();
+    if (item.price > 0 && !canAfford) {
+      audio.playClick();
+      return;
+    }
+
+    // Free items (price 0, but not isDefault) — claim instantly, no confirm.
+    if (item.price === 0) {
+      audio.playClick();
+      if (isShipItem) ship.addAndEquip(item.id);
+      else cosmetics.addAndEquip(item.id);
+      this.refreshBalance();
+      this.renderActiveTab();
+      this.refreshPlayerAvatar();
+      return;
+    }
+
+    // Paid purchase — confirm before spending.
+    audio.playClick();
+    this.showPurchaseConfirm(item, tabId);
+  }
+
+  showPurchaseConfirm(item, tabId) {
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
+      .setDepth(80).setInteractive();
+    this.tweens.add({ targets: overlay, alpha: 0.7, duration: 200 });
+
+    const mw = 760;
+    const mh = 540;
+    const modal = this.add.container(W / 2, H / 2).setDepth(85);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.98);
+    bg.fillRoundedRect(-mw / 2, -mh / 2, mw, mh, 28);
+    bg.lineStyle(3, 0xc77eff, 0.9);
+    bg.strokeRoundedRect(-mw / 2, -mh / 2, mw, mh, 28);
+    modal.add(bg);
+
+    modal.add(this.add.text(0, -mh / 2 + 60, 'Buy this item?', style('display', {
+      fontSize: '46px', fill: '#ffffff'
+    })).setOrigin(0.5));
+
+    modal.add(this.add.text(0, -mh / 2 + 150, item.name, style('subhead', {
+      fontSize: '38px', fill: '#cfcfe0', fontStyle: '900'
+    })).setOrigin(0.5));
+
+    // Stardust price chip — same visual language as the summary chip.
+    const priceLabel = this.add.text(0, 0, `${item.price} STARDUST`, style('subhead', {
+      fontSize: '36px', fill: '#ffffff', fontStyle: '900',
+      stroke: '#0a0a18', strokeThickness: 3
+    })).setOrigin(0, 0.5);
+    const iconBoxW = 50;
+    const gap = 14;
+    const totalW = iconBoxW + gap + priceLabel.width;
+    const groupLeft = -totalW / 2;
+    const chipW = Math.max(360, totalW + 80);
+    const chipH = 80;
+    const r = chipH / 2;
+    const chipY = -mh / 2 + 250;
+
+    const chipHalo = this.add.graphics();
+    chipHalo.fillStyle(0xc77eff, 0.20);
+    chipHalo.fillRoundedRect(-chipW / 2 - 8, chipY - chipH / 2 - 4, chipW + 16, chipH + 8, r + 4);
+    modal.add(chipHalo);
+
+    const chipBg = this.add.graphics();
+    chipBg.fillStyle(0x1a1a2e, 1);
+    chipBg.fillRoundedRect(-chipW / 2, chipY - chipH / 2, chipW, chipH, r);
+    chipBg.fillStyle(0xffffff, 0.06);
+    chipBg.fillRoundedRect(-chipW / 2 + 4, chipY - chipH / 2 + 3, chipW - 8, chipH * 0.30, {
+      tl: r - 2, tr: r - 2, bl: 6, br: 6
+    });
+    chipBg.lineStyle(2, 0xc77eff, 0.85);
+    chipBg.strokeRoundedRect(-chipW / 2, chipY - chipH / 2, chipW, chipH, r);
+    modal.add(chipBg);
+
+    const sparkle = this.add.graphics();
+    drawSparkleIcon(sparkle, 0, 0, 26, 0xc77eff);
+    sparkle.x = groupLeft + iconBoxW / 2;
+    sparkle.y = chipY;
+    modal.add(sparkle);
+
+    priceLabel.x = groupLeft + iconBoxW + gap;
+    priceLabel.y = chipY;
+    modal.add(priceLabel);
+
+    // Balance after purchase
+    const remaining = economy.getStardust() - item.price;
+    modal.add(this.add.text(0, chipY + 80, `Balance after: ${remaining}`, style('caption', {
+      fontSize: '26px', fill: '#aaaac0'
+    })).setOrigin(0.5));
+
+    const close = () => {
+      modal.destroy();
+      overlay.destroy();
+    };
+    overlay.on('pointerdown', close);
+
+    modal.add(createButton(this, {
+      x: -160, y: mh / 2 - 80, width: 280, height: 92,
+      label: 'Cancel',
+      color: 0x4a4a6a,
+      onClick: close
+    }));
+
+    modal.add(createButton(this, {
+      x: 160, y: mh / 2 - 80, width: 280, height: 92,
+      label: 'Buy',
+      color: 0xc77eff,
+      onClick: () => {
+        close();
+        if (!economy.spendStardust(item.price)) return;
+        const isPetItem = TAB_BY_ID[tabId]?.kind === 'pet';
+        if (isPetItem) cosmetics.addAndEquip(item.id);
+        else ship.addAndEquip(item.id);
+        audio.playLevelComplete?.();
+        this.refreshBalance();
+        this.renderActiveTab();
+        this.refreshPlayerAvatar();
+      }
+    }));
+
+    modal.setScale(0);
+    this.tweens.add({ targets: modal, scale: 1, duration: 250, ease: 'Back.easeOut' });
   }
 
   // ============================================================

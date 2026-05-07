@@ -20,11 +20,11 @@ import { drawShip } from '../ShipRenderer.js';
 import { streak } from '../StreakManager.js';
 import { economy } from '../EconomyManager.js';
 import { grantStreakRewards } from '../MilestoneRewards.js';
-import { rollLevelEndDrop } from '../RandomDrops.js';
 import { records } from '../RecordsManager.js';
 import {
   drawFlameIcon, drawStarIcon, drawHourglassIcon,
-  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon
+  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon,
+  drawSparkleIcon
 } from '../StatIcons.js';
 import { cosmetics } from '../CosmeticManager.js';
 import { drawQuestionBody, drawBossBody as drawWorldBoss } from '../QuestionObjectArt.js';
@@ -73,6 +73,7 @@ export class GameScene extends Phaser.Scene {
     this.attempts = 0;
     this.streak = 0;
     this.bestStreak = 0;
+    this.stardustEarned = 0;
     this.history = [];
     this.problemStartedAtMs = 0;
 
@@ -680,6 +681,7 @@ export class GameScene extends Phaser.Scene {
     this.fireLaserAt(asteroid);
 
     economy.addStardust(1);
+    this.stardustEarned += 1;
 
     if (asteroid.isBoss) {
       this.bossHp = Math.max(0, this.bossHp - 1);
@@ -1149,12 +1151,15 @@ export class GameScene extends Phaser.Scene {
 
     progress.completeLevel(this.worldId, this.currentLevel, stars);
 
-    if (stars > 0) economy.addStardust(stars * 5);
+    if (stars > 0) {
+      const bonus = stars * 5;
+      economy.addStardust(bonus);
+      this.stardustEarned += bonus;
+    }
 
     streak.registerPlayDay();
     this.newStreakMilestones = streak.consumeNewMilestones();
     this.streakRewards = grantStreakRewards(this.newStreakMilestones || []);
-    this.randomDrop = stars > 0 ? rollLevelEndDrop(stars) : null;
     records.recordLevelComplete(this.worldId, stars, this.bestStreak);
 
     // Check for evolution after this round
@@ -1284,23 +1289,6 @@ export class GameScene extends Phaser.Scene {
       panel.add(banner);
     }
 
-    if (this.randomDrop) {
-      const dropY = (this.newStreakMilestones && this.newStreakMilestones.length > 0)
-        ? -panelH / 2 + 152
-        : -panelH / 2 + 90;
-      const banner = this.add.container(0, dropY);
-      const bg2 = this.add.graphics();
-      bg2.fillStyle(0xc77eff, 1);
-      bg2.fillRoundedRect(-300, -28, 600, 56, 28);
-      banner.add(bg2);
-      banner.add(this.add.text(0, 0, `Surprise drop: ${this.randomDrop.item.name}!`, style('subhead', {
-        fontSize: '22px',
-        fill: '#1a0a26',
-        fontStyle: '900'
-      })).setOrigin(0.5));
-      panel.add(banner);
-    }
-
     const weakFacts = this.getWeakFactsFromHistory();
     const reviewY = statY + 170;
     panel.add(this.add.text(0, reviewY, weakFacts.length ? 'Practice these' : 'No tricky facts!', style('subhead', {
@@ -1317,6 +1305,67 @@ export class GameScene extends Phaser.Scene {
     });
 
     const btnY = panelH / 2 - 110;
+
+    // Stardust earned — pill chip sits between the practice list and the
+    // buttons so the player can see what they earned this round.
+    if (this.stardustEarned > 0) {
+      // Sits roughly halfway between the practice list (which ends ~y=270 if
+      // three weak facts are shown) and the buttons (y=490), giving ~70px of
+      // breathing room on either side.
+      const dustY = btnY - 170;
+      const labelStr = `+${this.stardustEarned} STARDUST`;
+      const labelObj = this.add.text(0, 0, labelStr, style('subhead', {
+        fontSize: '34px', fill: '#ffffff', fontStyle: '900',
+        stroke: '#0a0a18', strokeThickness: 3
+      })).setOrigin(0, 0.5);
+
+      const iconBoxW = 50;
+      const gap = 14;
+      const totalW = iconBoxW + gap + labelObj.width;
+      const chipW = Math.max(360, totalW + 70);
+      const chipH = 76;
+      const r = chipH / 2;
+      const groupLeft = -totalW / 2;
+
+      const chip = this.add.container(0, dustY);
+
+      const halo = this.add.graphics();
+      halo.fillStyle(0xc77eff, 0.20);
+      halo.fillRoundedRect(-chipW / 2 - 8, -chipH / 2 - 4, chipW + 16, chipH + 8, r + 4);
+      chip.add(halo);
+
+      const pill = this.add.graphics();
+      pill.fillStyle(0x1a1a2e, 1);
+      pill.fillRoundedRect(-chipW / 2, -chipH / 2, chipW, chipH, r);
+      pill.fillStyle(0xffffff, 0.06);
+      pill.fillRoundedRect(-chipW / 2 + 4, -chipH / 2 + 3, chipW - 8, chipH * 0.30, {
+        tl: r - 2, tr: r - 2, bl: 6, br: 6
+      });
+      pill.fillStyle(0x07071a, 0.40);
+      pill.fillRoundedRect(-chipW / 2 + 4, chipH / 2 - chipH * 0.30 - 3, chipW - 8, chipH * 0.30, {
+        tl: 6, tr: 6, bl: r - 2, br: r - 2
+      });
+      pill.lineStyle(2, 0xc77eff, 0.85);
+      pill.strokeRoundedRect(-chipW / 2, -chipH / 2, chipW, chipH, r);
+      chip.add(pill);
+
+      const iconG = this.add.graphics();
+      iconG.x = groupLeft + iconBoxW / 2;
+      drawSparkleIcon(iconG, 0, 0, 22, 0xc77eff);
+      chip.add(iconG);
+
+      labelObj.x = groupLeft + iconBoxW + gap;
+      chip.add(labelObj);
+
+      panel.add(chip);
+
+      chip.setScale(0);
+      this.tweens.add({
+        targets: chip, scale: 1,
+        duration: 300, delay: 1400, ease: 'Back.easeOut'
+      });
+    }
+
     panel.add(createButton(this, {
       x: -160, y: btnY, label: 'Retry',
       width: 280, height: 92,
