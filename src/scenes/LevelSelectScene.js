@@ -102,11 +102,11 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   createMissionCards() {
-    const startY = 920;
-    const cardW = 460;
-    const cardH = 250;
-    const gapX = 24;
-    const gapY = 28;
+    const startY = 900;
+    const cardW = 480;
+    const cardH = 220;
+    const gapX = 28;
+    const gapY = 36;
     const cols = 2;
     const rowWidth = cols * cardW + (cols - 1) * gapX;
     const startX = W / 2 - rowWidth / 2 + cardW / 2;
@@ -145,60 +145,55 @@ export class LevelSelectScene extends Phaser.Scene {
     card.strokeRoundedRect(-w / 2, -h / 2, w, h, 24);
     c.add(card);
 
-    // Mode icon — large pixel-art glyph
+    // Title row sits in the top half so stars can breathe at the bottom.
+    const titleRowY = -h / 4 + 6;
+
     const iconG = this.add.graphics();
-    iconG.x = -w / 2 + 90;
-    iconG.y = 0;
+    iconG.x = -w / 2 + 78;
+    iconG.y = titleRowY;
     if (isBoss) {
-      drawSkullIcon(iconG, 0, 0, 32);
+      drawSkullIcon(iconG, 0, 0, 36);
     } else {
       this.drawModeGlyph(iconG, modeKey, accent);
     }
     c.add(iconG);
 
     const label = isBoss ? 'BOSS' : MODES[modeKey].label.toUpperCase();
-    const titleY = isBoss ? -h / 2 + 70 : 0;
-    c.add(this.add.text(-w / 2 + 170, titleY, label, style('display', {
+    c.add(this.add.text(-w / 2 + 138, titleRowY, label, style('display', {
       fontSize: '46px',
       fill: '#ffffff',
       fontStyle: '900'
     })).setOrigin(0, 0.5));
 
     if (isBoss) {
-      c.add(this.add.text(-w / 2 + 170, -h / 2 + 130, this.world.villain || 'BOSS', style('subhead', {
-        fontSize: '32px',
+      c.add(this.add.text(0, 14, this.world.villain || 'BOSS', style('subhead', {
+        fontSize: '28px',
         fill: '#ff8b8b',
         fontStyle: '900'
-      })).setOrigin(0, 0.5));
+      })).setOrigin(0.5));
     }
 
-    // Stars row
-    const starY = h / 2 - 50;
+    // Stars centered along the bottom — three slots with even gaps.
+    const starY = h / 2 - 36;
+    const starGap = 64;
     for (let s = 0; s < 3; s++) {
       const starG = this.add.graphics();
-      drawStarIcon(starG, 0, 0, 22, s < stars ? 0xf7dc6f : 0x4a4a60);
-      starG.x = -w / 2 + 60 + s * 56;
+      drawStarIcon(starG, 0, 0, 24, s < stars ? 0xf7dc6f : 0x4a4a60);
+      starG.x = (s - 1) * starGap;
       starG.y = starY;
       c.add(starG);
     }
 
     if (isLocked) {
       const lockG = this.add.graphics();
-      drawLockIcon(lockG, 0, 0, 28);
-      lockG.x = w / 2 - 60;
-      lockG.y = 0;
+      drawLockIcon(lockG, 0, 0, 30);
+      lockG.x = w / 2 - 38;
+      lockG.y = -h / 2 + 36;
       c.add(lockG);
       const overlay = this.add.graphics();
       overlay.fillStyle(0x000000, 0.5);
       overlay.fillRoundedRect(-w / 2, -h / 2, w, h, 24);
       c.add(overlay);
-    } else {
-      const playG = this.add.graphics();
-      playG.fillStyle(accent, 1);
-      playG.fillCircle(w / 2 - 38, 0, 26);
-      playG.fillStyle(0xffffff, 1);
-      playG.fillTriangle(w / 2 - 45, -12, w / 2 - 45, 12, w / 2 - 25, 0);
-      c.add(playG);
     }
 
     if (!isLocked) {
@@ -232,7 +227,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   createMasteryFooter() {
-    const y = 1660;
+    const y = 1560;
     let masterySum = 0;
     let count = 0;
     for (let t = 1; t <= 12; t++) {
