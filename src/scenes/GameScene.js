@@ -627,10 +627,13 @@ export class GameScene extends Phaser.Scene {
         this.failLevel();
         return;
       }
+      const correctionProblem = asteroid.problem;
       this.time.delayedCall(700, () => {
         if (this.state === 'failed' || this.state === 'ended') return;
-        this.cycleBossProblem(asteroid);
-        this.state = 'playing';
+        this.showCorrectionFlash(correctionProblem, () => {
+          if (this.state === 'failed' || this.state === 'ended') return;
+          this.cycleBossProblem(asteroid);
+        });
       });
       return;
     }
@@ -670,10 +673,13 @@ export class GameScene extends Phaser.Scene {
       }
       this.state = 'feedback';
       this.bossAttackBack(asteroid);
+      const correctionProblem = asteroid.problem;
       this.time.delayedCall(220, () => {
         if (this.state === 'failed' || this.state === 'ended') return;
-        this.cycleBossProblem(asteroid);
-        this.state = 'playing';
+        this.showCorrectionFlash(correctionProblem, () => {
+          if (this.state === 'failed' || this.state === 'ended') return;
+          this.cycleBossProblem(asteroid);
+        });
       });
       return;
     }
@@ -702,10 +708,13 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const correctionProblem = asteroid.problem;
     this.time.delayedCall(450, () => {
-      if (this.state === 'playing' || this.state === 'feedback') {
+      if (this.state !== 'playing' && this.state !== 'feedback') return;
+      this.showCorrectionFlash(correctionProblem, () => {
+        if (this.state !== 'playing' && this.state !== 'feedback') return;
         this.spawnAsteroid();
-      }
+      });
     });
   }
 
@@ -811,6 +820,91 @@ export class GameScene extends Phaser.Scene {
     this.refreshMcButtons(newProblem);
     this.problemStartedAtMs = asteroid.startedAtMs;
     bossTwistOn(this, 'onSpawn', asteroid);
+  }
+
+  // Pause-and-show overlay after a wrong answer or asteroid impact: displays
+  // the full equation with the correct answer and waits for a tap before
+  // calling onContinue. State flips to 'correction', which the timer/update
+  // loop already treats as paused, and active asteroid falls are paused too
+  // so a second slot can't crash mid-read.
+  showCorrectionFlash(problem, onContinue) {
+    if (!problem) { onContinue?.(); return; }
+    this.state = 'correction';
+
+    const pausedTweens = [];
+    this.activeAsteroids.forEach(a => {
+      if (a.fallTween && a.fallTween.isPlaying?.()) {
+        a.fallTween.pause();
+        pausedTweens.push(a.fallTween);
+      }
+    });
+
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
+      .setDepth(65).setInteractive();
+    this.tweens.add({ targets: overlay, alpha: 0.72, duration: 220 });
+
+    const cardW = 880;
+    const cardH = 360;
+    const card = this.add.container(W / 2, H / 2 - 40).setDepth(66);
+    card.setAlpha(0);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.bgPanel, 0.96);
+    bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 32);
+    bg.lineStyle(3, this.world.accentColor, 0.85);
+    bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 32);
+    card.add(bg);
+
+    const equation = `${problem.display} = ${problem.answer}`;
+    const eqText = this.add.text(0, -30, equation, style('display', {
+      fontSize: '108px',
+      fill: '#ffffff'
+    })).setOrigin(0.5);
+    card.add(eqText);
+
+    const hint = this.add.text(0, cardH / 2 - 56, 'Tap to continue', style('caption', {
+      fontSize: '28px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5);
+    card.add(hint);
+
+    this.tweens.add({
+      targets: card,
+      alpha: 1,
+      y: H / 2 - 80,
+      duration: 260,
+      ease: 'Back.easeOut'
+    });
+    this.tweens.add({
+      targets: hint,
+      alpha: { from: 0.55, to: 1 },
+      duration: 700,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    let dismissed = false;
+    const dismiss = () => {
+      if (dismissed) return;
+      dismissed = true;
+      overlay.disableInteractive();
+      audio.playClick?.();
+      pausedTweens.forEach(t => t.resume?.());
+      this.tweens.add({
+        targets: [overlay, card],
+        alpha: 0,
+        duration: 160,
+        onComplete: () => {
+          overlay.destroy();
+          card.destroy();
+        }
+      });
+      this.state = 'playing';
+      onContinue?.();
+    };
+
+    overlay.on('pointerdown', dismiss);
   }
 
   defeatBoss(asteroid) {
