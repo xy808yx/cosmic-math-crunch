@@ -20,8 +20,9 @@ export const PET_COSMETICS = [
   { id: 'hat_propeller',  slot: 'hat', name: 'Propeller Hat',  price: 250,  color: 0x4ecdc4, rarity: 'rare', animation: 'propellerSpin', trigger: 'correct' },
   { id: 'hat_astronaut',  slot: 'hat', name: 'Astronaut',      price: 250,  color: 0xb6e0ff, rarity: 'rare' },
   { id: 'hat_wizard',     slot: 'hat', name: 'Wizard Hat',     price: 280,  color: 0x6c2bd9, rarity: 'rare' },
-  { id: 'hat_starhat',    slot: 'hat', name: 'Star Helmet',    price: 0,    color: 0xffd86b, unlock: { type: 'streak', days: 7 }, rarity: 'legendary' },
-  { id: 'hat_crown_stars',slot: 'hat', name: 'Crown of Stars', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  { id: 'hat_starhat',     slot: 'hat', name: 'Star Helmet',    price: 1500, color: 0xffd86b, rarity: 'legendary' },
+  { id: 'hat_crown_stars', slot: 'hat', name: 'Crown of Stars', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  { id: 'hat_galaxy_helm', slot: 'hat', name: 'Galaxy Helm',    price: 1500, color: 0x6c2bd9, rarity: 'legendary' },
 
   // ---- ACCESSORIES (snacks + classics) ----
   { id: 'acc_shades',   slot: 'accessory', name: 'Sun Shades',   price: 100, color: 0x12122a, rarity: 'common' },
@@ -34,7 +35,9 @@ export const PET_COSMETICS = [
   { id: 'acc_starhalo', slot: 'accessory', name: 'Star Halo',    price: 250, color: 0xffeaa7, rarity: 'rare', animation: 'starHaloOrbit', trigger: 'always' },
   { id: 'acc_wings',    slot: 'accessory', name: 'Tiny Wings',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
   { id: 'acc_cape',     slot: 'accessory', name: 'Hero Cape',    price: 250, color: 0xff9ec7, rarity: 'rare' },
-  { id: 'acc_starbow',  slot: 'accessory', name: 'Rainbow Scarf', price: 0,  color: 0xc77eff, unlock: { type: 'streak', days: 3 }, rarity: 'legendary' },
+  { id: 'acc_starbow',      slot: 'accessory', name: 'Rainbow Scarf', price: 1500, color: 0xc77eff, rarity: 'legendary' },
+  { id: 'acc_phoenix_cape', slot: 'accessory', name: 'Phoenix Cape',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
+  { id: 'acc_void_amulet',  slot: 'accessory', name: 'Void Amulet',   price: 1500, color: 0x6c2bd9, rarity: 'legendary' },
 
   // ---- AURAS ----
   { id: 'aura_none',      slot: 'aura', name: 'None',           price: 0,    isDefault: true, color: 0x000000, rarity: 'common' },
@@ -63,15 +66,6 @@ class CosmeticManager {
     return progress.cosmetics.ownedIds.includes(id);
   }
 
-  addOwned(id) {
-    if (this.ownsItem(id)) return;
-    progress.cosmetics.ownedIds.push(id);
-    if (!progress.cosmetics.newSinceLastView.includes(id)) {
-      progress.cosmetics.newSinceLastView.push(id);
-    }
-    progress.save();
-  }
-
   equipItem(id) {
     const item = PET_COSMETICS.find(c => c.id === id);
     if (!item || !this.ownsItem(id)) return false;
@@ -89,44 +83,23 @@ class CosmeticManager {
     return true;
   }
 
-  // Single-save buy-and-equip — see ShipManager.addAndEquip for the rationale.
+  // Single-save buy-and-equip.
   addAndEquip(id) {
     const item = PET_COSMETICS.find(c => c.id === id);
     if (!item) return false;
-    if (!this.ownsItem(id)) {
-      progress.cosmetics.ownedIds.push(id);
-      if (!progress.cosmetics.newSinceLastView.includes(id)) {
-        progress.cosmetics.newSinceLastView.push(id);
-      }
-    }
+    if (!this.ownsItem(id)) progress.cosmetics.ownedIds.push(id);
     progress.cosmetics.pet[item.slot] = id;
     progress.save();
     return true;
   }
 
-  markSeen(id) {
-    const idx = progress.cosmetics.newSinceLastView.indexOf(id);
-    if (idx >= 0) {
-      progress.cosmetics.newSinceLastView.splice(idx, 1);
-      progress.save();
-    }
-  }
-
-  isNew(id) {
-    return progress.cosmetics.newSinceLastView.includes(id);
-  }
-
   // Returns equipped items that have a matching trigger ('correct'|'streak'|'always').
   itemsWithTrigger(trigger) {
-    return this.getEquippedItems().filter(item => item.trigger === trigger);
-  }
-
-  getEquippedItems() {
     const eq = this.getEquipped();
     return [eq.hat, eq.accessory, eq.aura]
       .filter(Boolean)
       .map(id => PET_COSMETICS.find(c => c.id === id))
-      .filter(Boolean);
+      .filter(item => item && item.trigger === trigger);
   }
 
   getItemById(id) {

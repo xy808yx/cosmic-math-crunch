@@ -269,6 +269,28 @@ function crownOfStars(item) {
   ], { O, B: c, H: h, A: 0xffd86b, K: 0xff9ec7 }];
 }
 
+// Galaxy Helm — legendary cosmic helmet with swirl band and orbital ring
+function galaxyHelm() {
+  const purple = 0x6c2bd9;
+  const lavender = 0xc77eff;
+  const cyan = 0x4ecdc4;
+  const star = 0xffd86b;
+  return [[
+    '......OOOO......',
+    '.....OBBBBO.....',
+    '....OBHHHHBO....',
+    '...OBHHHHHHBO...',
+    '...OBHCCCHHBO...',
+    '..OBHCKCKCHHBO..',
+    '..OBHHCKCHHHBO..',
+    '...OBHHHHHHBO...',
+    '....OBBBBBBO....',
+    '....OBKBKBKO....',
+    '...OAOOOOOOAO...',
+    '..OAA......AAO..'
+  ], { O, B: purple, H: lavender, C: cyan, K: 0xffffff, A: star }];
+}
+
 const HAT_DRAWERS = {
   hat_strawberry: strawberryHat,
   hat_banana: bananaHat,
@@ -282,7 +304,8 @@ const HAT_DRAWERS = {
   hat_astronaut: astronaut,
   hat_wizard: wizardHat,
   hat_starhat: starHelmet,
-  hat_crown_stars: crownOfStars
+  hat_crown_stars: crownOfStars,
+  hat_galaxy_helm: galaxyHelm
 };
 
 // ============================================================================
@@ -446,6 +469,54 @@ function heroCape(item) {
   ], { O, B: c, H: h, d: d }];
 }
 
+// Void Amulet — legendary deep-purple gem on a thin chain
+function voidAmulet() {
+  const purple = 0x6c2bd9;
+  const ph = lighten(purple, 0.35);
+  const star = 0xffffff;
+  const chain = 0xc8c8d8;
+  return [[
+    'O...........O',
+    '.O.........O.',
+    '..O.......O..',
+    '...OcOOOcO...',
+    '....OPPPO....',
+    '...OPPHPPO...',
+    '..OPPHKHPPO..',
+    '..OPHKKKHPO..',
+    '..OPPHKHPPO..',
+    '...OPPHPPO...',
+    '....OPPPO....',
+    '.....OOO.....'
+  ], { O, P: purple, H: ph, K: star, c: chain }];
+}
+
+// Phoenix Cape — flaming cape with gold-tipped flame edges (legendary).
+function phoenixCape() {
+  const r = 0xff5b3d;        // red base
+  const o = 0xff8b3d;        // orange mid
+  const y = 0xffd86b;        // gold highlight
+  const dr = darken(r, 0.35);
+  return [[
+    'O.OOOOOOOOOOOOOO.O',
+    'OyOyrrrrrrrrrrrOyO',
+    'OrOorrrrrrrrrroOrO',
+    'OroorrrrrrrrrrooOO',
+    'OrdoorrrrrrrrrodrO',
+    'OrdoorrrrrrrrrodrO',
+    '.ORoorrrrrrrrrooRO',
+    '.OodorrrrrrrrrdoO.',
+    '..OorrrrrrrrrroO..',
+    '..OodoorrrrrrooO..',
+    '...OorrrrrrrroO...',
+    '....OoorrrroOyO...',
+    '.....OorrroOyO....',
+    '......OorrOyO.....',
+    '.......OyOyO......',
+    '........OyO.......'
+  ], { O, r, o, d: dr, y, R: dr }];
+}
+
 const ACC_DRAWERS = {
   acc_shades: shades,
   acc_boba: bobaTea,
@@ -456,7 +527,9 @@ const ACC_DRAWERS = {
   acc_antenna: antennaSprite,
   acc_starbow: rainbowScarf,
   acc_wings: tinyWings,
-  acc_cape: heroCape
+  acc_cape: heroCape,
+  acc_phoenix_cape: phoenixCape,
+  acc_void_amulet: voidAmulet
   // acc_starhalo handled separately (orbiting container)
 };
 
@@ -472,7 +545,9 @@ const ACC_ANCHORS = {
   acc_jetpack:  { name: 'back', mode: 'below' },
   acc_wings:    { name: 'back' },
   acc_cape:     { name: 'back', mode: 'below' },
-  acc_starbow:  { name: 'neck' }
+  acc_starbow:  { name: 'neck' },
+  acc_phoenix_cape: { name: 'back', mode: 'below' },
+  acc_void_amulet: { name: 'neck' }
 };
 
 // ============================================================================

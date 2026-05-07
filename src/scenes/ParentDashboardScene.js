@@ -6,7 +6,6 @@ import { progress, WORLDS } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
-import { streak } from '../StreakManager.js';
 import { style } from '../textStyles.js';
 import { createIconButton, createButton } from '../buttonHelper.js';
 import { createStarfield } from '../starfieldHelper.js';
@@ -274,8 +273,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     this.addStatCard(y, 'Levels Completed', `${stats.levelsCompleted}`, ACCENT); y += 152;
     this.addStatCard(y, 'Current World', stats.currentWorld, 0xa29bfe); y += 152;
     const accColor = stats.overallAccuracy >= 80 ? SUCCESS : stats.overallAccuracy >= 60 ? 0xf7dc6f : WARN;
-    this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accColor); y += 152;
-    this.addStatCard(y, 'Day Streak', `${streak.getCurrent()}d (best ${streak.getBest()}d)`, 0xff8b3d);
+    this.addStatCard(y, 'Overall Accuracy', `${stats.overallAccuracy}%`, accColor);
   }
 
   addStatCard(y, label, value, accentColor) {

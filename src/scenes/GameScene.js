@@ -17,9 +17,7 @@ import { createButton, createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { drawShip } from '../ShipRenderer.js';
-import { streak } from '../StreakManager.js';
-import { economy } from '../EconomyManager.js';
-import { grantStreakRewards } from '../MilestoneRewards.js';
+import { economy, claimDailyBonusIfDue } from '../EconomyManager.js';
 import { records } from '../RecordsManager.js';
 import {
   drawFlameIcon, drawStarIcon, drawHourglassIcon,
@@ -110,12 +108,18 @@ export class GameScene extends Phaser.Scene {
     new TransitionManager(this).fadeIn(280);
 
     if (this.isBoss) {
-      audio.playBossRumble?.();
-      this.cameras.main.flash(280, 90, 0, 0);
-      this.cameras.main.shake(420, 0.008);
+      this.state = 'intro';
       applyBossTwist(this, this.world.id);
-      this.spawnAsteroid();
-      this.time.delayedCall(700, () => { this.state = 'playing'; });
+      import('../BossIntro.js').then(({ playBossIntro }) => {
+        playBossIntro(this, this.world.id, () => {
+          if (!this.scene.isActive()) return;
+          audio.playBossRumble?.();
+          this.cameras.main.flash(280, 90, 0, 0);
+          this.cameras.main.shake(420, 0.008);
+          this.spawnAsteroid();
+          this.time.delayedCall(700, () => { this.state = 'playing'; });
+        });
+      });
     } else {
       for (let i = 0; i < this.asteroidSlots; i++) {
         this.time.delayedCall(i * 600, () => {
@@ -680,9 +684,6 @@ export class GameScene extends Phaser.Scene {
     audio.playLaser?.();
     this.fireLaserAt(asteroid);
 
-    economy.addStardust(1);
-    this.stardustEarned += 1;
-
     if (asteroid.isBoss) {
       this.bossHp = Math.max(0, this.bossHp - 1);
       this.drawBossHp();
@@ -1070,8 +1071,6 @@ export class GameScene extends Phaser.Scene {
 
     this.cameras.main.shake(600, 0.025);
 
-    streak.registerPlayDay();
-
     this.time.delayedCall(700, () => this.showFailScreen());
   }
 
@@ -1149,30 +1148,48 @@ export class GameScene extends Phaser.Scene {
     const accuracy = this.attempts > 0 ? Math.round((this.score / this.attempts) * 100) : 0;
     const stars = bossWin ? this.calculateBossStars() : this.calculateStars(this.score, accuracy);
 
+    const prevBestStars = progress.worldProgress[this.worldId]?.levelStars?.[this.currentLevel] || 0;
+    const firstMastery = stars === 3 && prevBestStars < 3;
+
     progress.completeLevel(this.worldId, this.currentLevel, stars);
 
+    let baseBonus = 0;
     if (stars > 0) {
-      const bonus = stars * 5;
-      economy.addStardust(bonus);
-      this.stardustEarned += bonus;
+      baseBonus = stars === 3 ? 10 : stars === 2 ? 5 : 2;
+      economy.addStardust(baseBonus);
+      this.stardustEarned += baseBonus;
     }
 
-    streak.registerPlayDay();
-    this.newStreakMilestones = streak.consumeNewMilestones();
-    this.streakRewards = grantStreakRewards(this.newStreakMilestones || []);
-    records.recordLevelComplete(this.worldId, stars, this.bestStreak);
+    let masteryBonus = 0;
+    if (firstMastery) {
+      masteryBonus = 5;
+      economy.addStardust(masteryBonus);
+      this.stardustEarned += masteryBonus;
+    }
+
+    const dailyBonus = claimDailyBonusIfDue();
+    this.stardustEarned += dailyBonus;
+
+    records.recordLevelComplete(this.bestStreak);
 
     // Check for evolution after this round
     const evolvedTo = companion.checkEvolutionEligibility();
 
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
 
+    const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus };
+
     if (bossWin && this.worldId === 11 && worldFullyCleared) {
       this.showFinalCinematic();
     } else if (bossWin && worldFullyCleared) {
-      this.showStoryCard({ stars, accuracy });
+      this.showStoryCard({ stars });
+    } else if (evolvedTo) {
+      // Evolution gets a full-screen cinematic before the summary.
+      import('../EvolutionCinematic.js').then(({ playEvolutionCinematic }) => {
+        playEvolutionCinematic(this, evolvedTo, () => this.showSummary(summaryArgs));
+      });
     } else {
-      this.showSummary({ stars, accuracy, bossWin, evolvedTo });
+      this.showSummary(summaryArgs);
     }
   }
 
@@ -1191,7 +1208,7 @@ export class GameScene extends Phaser.Scene {
     return 1;
   }
 
-  showSummary({ stars, accuracy, bossWin, evolvedTo }) {
+  showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0 }) {
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50).setInteractive();
     this.tweens.add({ targets: overlay, alpha: 0.7, duration: 350 });
 
@@ -1267,26 +1284,32 @@ export class GameScene extends Phaser.Scene {
       panel.add(banner);
     }
 
-    if (this.newStreakMilestones && this.newStreakMilestones.length > 0) {
-      const m = this.newStreakMilestones[0];
-      const reward = (this.streakRewards || [])[0];
-      const banner = this.add.container(0, -panelH / 2 + 90);
+    if (firstMastery) {
+      const banner = this.add.container(0, -panelH / 2 + (evolvedTo ? 90 : 30));
       const bg2 = this.add.graphics();
-      bg2.fillStyle(0xff8b3d, 1);
-      bg2.fillRoundedRect(-300, -28, 600, 56, 28);
+      bg2.fillStyle(0xf7dc6f, 1);
+      bg2.fillRoundedRect(-340, -34, 680, 68, 34);
+      bg2.lineStyle(3, 0xffae3a, 1);
+      bg2.strokeRoundedRect(-340, -34, 680, 68, 34);
       banner.add(bg2);
-      const flameG = this.add.graphics();
-      drawFlameIcon(flameG, -260, 0, 14);
-      banner.add(flameG);
-      const label = reward
-        ? `${m}-day streak — unlocked ${reward.item.name}!`
-        : `${m}-day streak unlocked!`;
-      banner.add(this.add.text(0, 0, label, style('subhead', {
-        fontSize: '22px',
-        fill: '#1a0a00',
+      const starG = this.add.graphics();
+      drawStarIcon(starG, -290, 0, 16, 0x12122a, 0xffffff);
+      banner.add(starG);
+      banner.add(this.add.text(0, 0, 'FIRST MASTERY! +5 STARDUST', style('subhead', {
+        fontSize: '26px',
+        fill: '#1a1208',
         fontStyle: '900'
       })).setOrigin(0.5));
       panel.add(banner);
+
+      // Extra confetti burst from the banner area
+      this.tweens.add({
+        targets: banner, scale: { from: 0.6, to: 1 },
+        duration: 320, ease: 'Back.easeOut'
+      });
+      audio.playStar?.();
+      this.time.delayedCall(180, () => audio.playStar?.());
+      this.time.delayedCall(360, () => audio.playStar?.());
     }
 
     const weakFacts = this.getWeakFactsFromHistory();
@@ -1306,22 +1329,22 @@ export class GameScene extends Phaser.Scene {
 
     const btnY = panelH / 2 - 110;
 
-    // Stardust earned — pill chip sits between the practice list and the
-    // buttons so the player can see what they earned this round.
+    // Stardust earned — pill chip with animated counter.
     if (this.stardustEarned > 0) {
-      // Sits roughly halfway between the practice list (which ends ~y=270 if
-      // three weak facts are shown) and the buttons (y=490), giving ~70px of
-      // breathing room on either side.
-      const dustY = btnY - 170;
-      const labelStr = `+${this.stardustEarned} STARDUST`;
-      const labelObj = this.add.text(0, 0, labelStr, style('subhead', {
+      const dustY = btnY - 200;
+      const total = this.stardustEarned;
+
+      // Width is sized for the final value so the chip doesn't reflow mid-tween.
+      const finalLabel = this.add.text(0, 0, `+${total} STARDUST`, style('subhead', {
         fontSize: '34px', fill: '#ffffff', fontStyle: '900',
         stroke: '#0a0a18', strokeThickness: 3
       })).setOrigin(0, 0.5);
+      const finalLabelW = finalLabel.width;
+      finalLabel.destroy();
 
       const iconBoxW = 50;
       const gap = 14;
-      const totalW = iconBoxW + gap + labelObj.width;
+      const totalW = iconBoxW + gap + finalLabelW;
       const chipW = Math.max(360, totalW + 70);
       const chipH = 76;
       const r = chipH / 2;
@@ -1354,15 +1377,55 @@ export class GameScene extends Phaser.Scene {
       drawSparkleIcon(iconG, 0, 0, 22, 0xc77eff);
       chip.add(iconG);
 
-      labelObj.x = groupLeft + iconBoxW + gap;
+      const labelObj = this.add.text(groupLeft + iconBoxW + gap, 0, `+0 STARDUST`, style('subhead', {
+        fontSize: '34px', fill: '#ffffff', fontStyle: '900',
+        stroke: '#0a0a18', strokeThickness: 3
+      })).setOrigin(0, 0.5);
       chip.add(labelObj);
+
+      // Bonus breakdown lines below the chip (briefly visible)
+      const bonusLines = [];
+      if (masteryBonus > 0) bonusLines.push({ text: `+${masteryBonus} first mastery`, color: '#f7dc6f' });
+      if (dailyBonus > 0)   bonusLines.push({ text: `+${dailyBonus} welcome back!`,   color: '#9be8a3' });
+      const bonusContainer = this.add.container(0, chipH / 2 + 24);
+      bonusLines.forEach((bl, i) => {
+        const t = this.add.text(0, i * 28, bl.text, style('caption', {
+          fontSize: '20px', fill: bl.color, fontStyle: '900'
+        })).setOrigin(0.5);
+        t.alpha = 0;
+        bonusContainer.add(t);
+        this.tweens.add({
+          targets: t,
+          alpha: { from: 0, to: 1 },
+          duration: 300,
+          delay: 1700 + i * 200,
+          ease: 'Sine.easeOut'
+        });
+      });
+      chip.add(bonusContainer);
 
       panel.add(chip);
 
-      chip.setScale(0);
-      this.tweens.add({
-        targets: chip, scale: 1,
-        duration: 300, delay: 1400, ease: 'Back.easeOut'
+      // Counter ticks up from 0 to total. The chip animates with the panel
+      // sliding in; the count animation conveys the reward.
+      let lastTickAt = 0;
+      this.tweens.addCounter({
+        from: 0, to: total,
+        duration: Math.min(900, 300 + total * 30),
+        ease: 'Cubic.easeOut',
+        onUpdate: (tw) => {
+          const v = Math.round(tw.getValue());
+          labelObj.setText(`+${v} STARDUST`);
+          const now = this.time.now;
+          if (v < total && now - lastTickAt > 80) {
+            lastTickAt = now;
+            audio.playStardustTick?.();
+          }
+        },
+        onComplete: () => {
+          labelObj.setText(`+${total} STARDUST`);
+          audio.playStardustChime?.();
+        }
       });
     }
 

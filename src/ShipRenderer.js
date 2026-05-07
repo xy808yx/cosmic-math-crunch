@@ -157,6 +157,78 @@ const HULL_WRAITH = [
   '......FfF.......'
 ];
 
+// Arrow — narrow forward-pointing fighter with sharp nose
+const HULL_ARROW = [
+  '.......XX.......',
+  '.......XX.......',
+  '......XHHX......',
+  '......XHHX......',
+  '.....XHBBHX.....',
+  '.....XBPPBX.....',
+  '....XHBPPBHX....',
+  '....XBBPPBBX....',
+  '...XHBBBBBBHX...',
+  '...XBBBBBBBBX...',
+  '..XHBBBDBBBBHX..',
+  '..XBBBBBBBBBBX..',
+  '..XBLBBBBBBLBX..',
+  '.XLLBBBBBBBBLLX.',
+  '.XLLBBBBBBBBLLX.',
+  'XLLLLBBBBBBLLLLX',
+  '.XXLLLLLLLLLLXX.',
+  '...XXLLLLLLXX...',
+  '......X..X......',
+  '......FfF.......'
+];
+
+// Finned — symmetric mid-size hull with prominent rear tail fins
+const HULL_FINNED = [
+  '......XXXX......',
+  '.....XHHHHX.....',
+  '....XHBBBBHX....',
+  '...XHBBPPBBHX...',
+  '...XBBPPPPBBX...',
+  '..XHBBPPPPBBHX..',
+  '..XBBBPPPPBBBX..',
+  '..XBBBBBBBBBBX..',
+  '.XHBBBBBBBBBBHX.',
+  '.XBBBBBDBBBBBBX.',
+  '.XBBBBBBBBBBBBX.',
+  'XHBBBBBBBBBBBBHX',
+  'XBLBBBBBBBBBBLBX',
+  'XLLBBBBBBBBBBLLX',
+  'XLLLLBBBBBBLLLLX',
+  '.XLLLLLLLLLLLLX.',
+  'X...XLLLLLLXX..X',
+  'XX...XLLLLX...XX',
+  '.XX..X....X..XX.',
+  '......FfffF.....'
+];
+
+// Eclipse — legendary orb-shaped hull with halo crown
+const HULL_ECLIPSE = [
+  '.....XXXXXX.....',
+  '....XHHHHHHX....',
+  '...XHBBBBBBHX...',
+  '..XHBBPPPPBBHX..',
+  '..XBBPPPPPPBBX..',
+  '.XHBBPPPPPPBBHX.',
+  '.XBBBPPPPPPBBBX.',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBBBBBBBBBBX',
+  'XBBBBBBDBBBBBBBX',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBBBBBBBBBBX',
+  '.XBLBBBBBBBBBLBX',
+  '.XLLBBBBBBBBLLX.',
+  '..XLLBBBBBBLLX..',
+  '...XLLLLLLLLX...',
+  '....XLLLLLLX....',
+  '.....X....X.....',
+  '.....FfffF......',
+  '......FfF.......'
+];
+
 // WING strip overlays --------------------------------------------------------
 // Each wing grid is 18 cols × 6 rows (slightly wider than hull).
 const WINGS_STUB = [
@@ -206,6 +278,46 @@ const WINGS_PHANTOM = [
   'XWWWWWX........XWWWWWX',
   '.XWWXX..........XXWWX.',
   '..wW..............Ww..'
+];
+
+// Delta — large triangular forward-sweep delta wings
+const WINGS_DELTA = [
+  'wWWWWWWW........WWWWWWWw',
+  'XWWWWWWWWW....WWWWWWWWWX',
+  'XWWWWWWWX......XWWWWWWWX',
+  '.XWWWWXX........XXWWWWX.',
+  '..XWWX............XWWX..',
+  '..............',
+];
+
+// Ribbed — segmented striped wings with prominent vertical bars
+const WINGS_RIBBED = [
+  '..wWXWXWX....XWXWXWw..',
+  'wWXWXWXWXW..WXWXWXWXWw',
+  'XWXWXWXWXX..XXWXWXWXWX',
+  'XWXWXWXWX....XWXWXWXWX',
+  '.XXXXXXXX....XXXXXXXX.',
+  '......................'
+];
+
+// Solar Sails — wide flat panels with grid pattern (legendary)
+const WINGS_SOLAR = [
+  'wWWWWWWW........WWWWWWWw',
+  'WWXWXWXWX......XWXWXWXWW',
+  'WWWXWXWXX......XXWXWXWWW',
+  'WWXWXWXWX......XWXWXWXWW',
+  'XWWWWWWWX......XWWWWWWWX',
+  '.XXXXXXXX........XXXXXX.'
+];
+
+// Seraph — angel-style multi-tier feathered wings (legendary)
+const WINGS_SERAPH = [
+  'wWWww...............wwWWw',
+  'WWWWWww...........wwWWWWW',
+  'WWWWWWWWw.......wWWWWWWWW',
+  'XWWWWWWWWW....WWWWWWWWWWX',
+  'XWWWWWWWWX....XWWWWWWWWWX',
+  '.XwWWwwWX......XWwwWWwX..'
 ];
 
 function pixelGrid(scene, grid, ox, oy, pixelSize, paletteFn) {
@@ -258,6 +370,9 @@ export function drawShip(scene, x, y, opts = {}) {
                  : parts.hull === 'hull_bulky' ? HULL_BULKY
                  : parts.hull === 'hull_vortex' ? HULL_VORTEX
                  : parts.hull === 'hull_wraith' ? HULL_WRAITH
+                 : parts.hull === 'hull_arrow' ? HULL_ARROW
+                 : parts.hull === 'hull_finned' ? HULL_FINNED
+                 : parts.hull === 'hull_eclipse' ? HULL_ECLIPSE
                  : HULL_STANDARD;
   const hullW = hullGrid[0].length * pixelSize;
   const hullH = hullGrid.length * pixelSize;
@@ -283,6 +398,10 @@ export function drawShip(scene, x, y, opts = {}) {
                   : parts.wings === 'wings_wide' ? WINGS_WIDE
                   : parts.wings === 'wings_stub' ? WINGS_SNUB
                   : parts.wings === 'wings_phantom' ? WINGS_PHANTOM
+                  : parts.wings === 'wings_delta' ? WINGS_DELTA
+                  : parts.wings === 'wings_ribbed' ? WINGS_RIBBED
+                  : parts.wings === 'wings_solar' ? WINGS_SOLAR
+                  : parts.wings === 'wings_seraph' ? WINGS_SERAPH
                   : WINGS_STUB;
   const wingsW = wingsGrid[0].length * pixelSize;
   const wingsH = wingsGrid.length * pixelSize;
@@ -662,6 +781,44 @@ function drawEngineTrail(scene, container, trailId, x, y, scale) {
     return;
   }
 
+  if (trailId === 'trail_cosmic_dust') {
+    // Sparkly cosmic-purple stardust drifting down with bright twinkles
+    for (let i = 0; i < 12; i++) {
+      const dust = scene.add.graphics();
+      const c = i % 4 === 0 ? 0xffffff
+              : i % 3 === 0 ? 0xfff3b8
+              : i % 2 === 0 ? 0xc77eff
+              : 0x9d6bff;
+      dust.fillStyle(c, 0.95);
+      const sz = (1.2 + Math.random() * 2) * scale;
+      drawStarShape(dust, 0, 0, 4, sz, sz * 0.4);
+      dust.x = x + (Math.random() - 0.5) * 18 * scale;
+      dust.y = baseY + Math.random() * 24 * scale;
+      container.add(dust);
+      scene.tweens.add({
+        targets: dust,
+        y: dust.y + 42 * scale,
+        angle: 360,
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1, to: 0.5 },
+        duration: 1100 + Math.random() * 600,
+        repeat: -1, ease: 'Quad.easeOut'
+      });
+    }
+    // Faint nebula glow behind it
+    const glow = scene.add.graphics();
+    glow.fillStyle(0xc77eff, 0.30);
+    glow.fillEllipse(x, baseY + 4 * scale, 22 * scale, 12 * scale);
+    container.add(glow);
+    scene.tweens.add({
+      targets: glow,
+      alpha: { from: 0.30, to: 0.10 },
+      scaleX: { from: 1, to: 1.4 },
+      duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    return;
+  }
+
   if (trailId === 'trail_galaxy') {
     for (let i = 0; i < 14; i++) {
       const dust = scene.add.graphics();
@@ -870,6 +1027,20 @@ const DECAL_SPRITES = {
     'ABKBA',
     'ABBKA',
     '.AAA.'
+  ],
+  decal_compass: [
+    '..A..',
+    '.AKA.',
+    'AKBKA',
+    '.AKA.',
+    '..A..'
+  ],
+  decal_dragon: [
+    'AA...',
+    'AAB.A',
+    '.ABBA',
+    'ABBAA',
+    'AA.A.'
   ]
 };
 

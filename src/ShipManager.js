@@ -9,15 +9,22 @@ export const SHIP_PARTS = [
   { id: 'hull_round',   slot: 'hull',  name: 'Bubble Hull',    price: 100, color: 0xffd86b, rarity: 'common' },
   { id: 'hull_sleek',   slot: 'hull',  name: 'Sleek Hull',     price: 150, color: 0x9be8a3, rarity: 'common' },
   { id: 'hull_bulky',   slot: 'hull',  name: 'Bulky Hull',     price: 250, color: 0xff9ec7, rarity: 'rare' },
+  { id: 'hull_arrow',   slot: 'hull',  name: 'Arrow Hull',     price: 350, color: 0x4ecdc4, rarity: 'rare' },
+  { id: 'hull_finned',  slot: 'hull',  name: 'Finned Hull',    price: 350, color: 0xffae3a, rarity: 'rare' },
   { id: 'hull_vortex',  slot: 'hull',  name: 'Vortex Hull',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'hull_wraith',  slot: 'hull',  name: 'Wraith Hull',    price: 1500, color: 0xa6f0e8, rarity: 'legendary' },
+  { id: 'hull_eclipse', slot: 'hull',  name: 'Eclipse Hull',   price: 1500, color: 0xfff3b8, rarity: 'legendary' },
 
   // wings
   { id: 'wings_default', slot: 'wings', name: 'Stub Wings',  price: 0,   isDefault: true, color: 0x8b9bb4, rarity: 'common' },
   { id: 'wings_swept',   slot: 'wings', name: 'Swept Wings', price: 100, color: 0xff8b3d, rarity: 'common' },
   { id: 'wings_wide',    slot: 'wings', name: 'Wide Wings',  price: 150, color: 0xb5e6ff, rarity: 'common' },
-  { id: 'wings_stub',    slot: 'wings', name: 'Snub Wings',  price: 250, color: 0xd5a6ff, rarity: 'rare' },
+  { id: 'wings_stub',    slot: 'wings', name: 'Snub Wings',   price: 250,  color: 0xd5a6ff, rarity: 'rare' },
+  { id: 'wings_delta',   slot: 'wings', name: 'Delta Wings',  price: 350,  color: 0x9be8a3, rarity: 'rare' },
+  { id: 'wings_ribbed',  slot: 'wings', name: 'Ribbed Wings', price: 350,  color: 0xffae8a, rarity: 'rare' },
   { id: 'wings_phantom', slot: 'wings', name: 'Phantom Wings', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  { id: 'wings_solar',   slot: 'wings', name: 'Solar Sails',   price: 1500, color: 0xffd86b, rarity: 'legendary' },
+  { id: 'wings_seraph',  slot: 'wings', name: 'Seraph Wings',  price: 1500, color: 0xeaf6ff, rarity: 'legendary' },
 
   // paints (recolor the body fill — some paints carry an embedded `pattern`
   // that the renderer overlays on top, replacing the old separate pattern slot)
@@ -47,10 +54,12 @@ export const SHIP_PARTS = [
   { id: 'decal_heart', slot: 'decal', name: 'Heart Decal', price: 75,  color: 0xff9ec7, rarity: 'common' },
   { id: 'decal_crown', slot: 'decal', name: 'Crown Decal', price: 100, color: 0xffe07a, rarity: 'common' },
   { id: 'decal_bolt',  slot: 'decal', name: 'Bolt Decal',  price: 100, color: 0xfff3b8, rarity: 'common' },
-  { id: 'decal_skull', slot: 'decal', name: 'Skull Decal', price: 250, color: 0xffffff, rarity: 'rare' },
-  { id: 'decal_comet', slot: 'decal', name: 'Comet Decal', price: 350, color: 0xb6e0ff, rarity: 'rare' },
+  { id: 'decal_skull',   slot: 'decal', name: 'Skull Decal',   price: 250, color: 0xffffff, rarity: 'rare' },
+  { id: 'decal_comet',   slot: 'decal', name: 'Comet Decal',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
+  { id: 'decal_compass', slot: 'decal', name: 'Compass Decal', price: 300, color: 0xffd86b, rarity: 'rare' },
   { id: 'decal_phoenix',      slot: 'decal', name: 'Phoenix Decal', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
   { id: 'decal_galaxy_swirl', slot: 'decal', name: 'Galaxy Decal',  price: 1500, color: 0xc77eff, rarity: 'legendary' },
+  { id: 'decal_dragon',       slot: 'decal', name: 'Dragon Decal',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
 
   // patterns are now folded into paints (see paint_racing, paint_blaze, etc.).
   // Keep pattern_none as the default record so legacy progress.ship.parts.pattern
@@ -68,6 +77,7 @@ export const SHIP_PARTS = [
   { id: 'trail_neon_grid',     slot: 'trail', name: 'Neon Grid',      price: 250, color: 0x4ecdc4, rarity: 'rare' },
   { id: 'trail_snowflake',     slot: 'trail', name: 'Snowflakes',     price: 350, color: 0xffffff, rarity: 'rare' },
   { id: 'trail_pixel_lava',    slot: 'trail', name: 'Pixel Lava',     price: 1500, color: 0xff5b3d, rarity: 'legendary' },
+  { id: 'trail_cosmic_dust',   slot: 'trail', name: 'Cosmic Dust',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
   // Original additions
   { id: 'trail_rainbow',       slot: 'trail', name: 'Rainbow Streak', price: 250, color: 0xff5577, rarity: 'rare' },
   { id: 'trail_comet',         slot: 'trail', name: 'Comet Sparkle',  price: 250, color: 0xffffff, rarity: 'rare' },
@@ -76,8 +86,7 @@ export const SHIP_PARTS = [
   { id: 'trail_petals',        slot: 'trail', name: 'Petals',         price: 250, color: 0xff9ec7, rarity: 'rare' },
   { id: 'trail_aurora',        slot: 'trail', name: 'Aurora',         price: 1500, color: 0xa6f0e8, rarity: 'legendary' },
 
-  // Milestone-only paint — granted via 30-day streak, not buyable.
-  { id: 'paint_galaxy', slot: 'paint', name: 'Galaxy', price: 0, color: 0x9d6bff, unlock: { type: 'streak', days: 30 }, rarity: 'legendary' }
+  { id: 'paint_galaxy', slot: 'paint', name: 'Galaxy', price: 1500, color: 0x9d6bff, rarity: 'legendary' }
 ];
 
 class ShipManager {
@@ -87,15 +96,6 @@ class ShipManager {
 
   ownsPart(partId) {
     return progress.ship.ownedParts.includes(partId);
-  }
-
-  addOwnedPart(partId) {
-    if (this.ownsPart(partId)) return;
-    progress.ship.ownedParts.push(partId);
-    if (!progress.ship.newSinceLastView.includes(partId)) {
-      progress.ship.newSinceLastView.push(partId);
-    }
-    progress.save();
   }
 
   equipPart(partId) {
@@ -119,27 +119,10 @@ class ShipManager {
   addAndEquip(partId) {
     const part = SHIP_PARTS.find(p => p.id === partId);
     if (!part) return false;
-    if (!this.ownsPart(partId)) {
-      progress.ship.ownedParts.push(partId);
-      if (!progress.ship.newSinceLastView.includes(partId)) {
-        progress.ship.newSinceLastView.push(partId);
-      }
-    }
+    if (!this.ownsPart(partId)) progress.ship.ownedParts.push(partId);
     progress.ship.parts[part.slot] = partId;
     progress.save();
     return true;
-  }
-
-  isNew(partId) {
-    return progress.ship.newSinceLastView.includes(partId);
-  }
-
-  markSeen(partId) {
-    const i = progress.ship.newSinceLastView.indexOf(partId);
-    if (i >= 0) {
-      progress.ship.newSinceLastView.splice(i, 1);
-      progress.save();
-    }
   }
 }
 

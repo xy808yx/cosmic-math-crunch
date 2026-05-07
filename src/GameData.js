@@ -352,7 +352,6 @@ class PlayerProgress {
         this.totalStars = data.totalStars || 0;
         this.currentWorld = data.currentWorld || 1;
         this.companion = { ...this.getDefaultCompanion(), ...(data.companion || {}) };
-        this.streak = { ...this.getDefaultStreak(), ...(data.streak || {}) };
         this.economy = { ...this.getDefaultEconomy(), ...(data.economy || {}) };
         this.ship = this.mergeShip(data.ship);
         this.cosmetics = this.mergeCosmetics(data.cosmetics);
@@ -370,7 +369,6 @@ class PlayerProgress {
     this.totalStars = 0;
     this.currentWorld = 1;
     this.companion = this.getDefaultCompanion();
-    this.streak = this.getDefaultStreak();
     this.economy = this.getDefaultEconomy();
     this.ship = this.getDefaultShip();
     this.cosmetics = this.getDefaultCosmetics();
@@ -422,18 +420,10 @@ class PlayerProgress {
     };
   }
 
-  getDefaultStreak() {
-    return {
-      current: 0,
-      best: 0,
-      lastPlayDate: null,         // 'YYYY-MM-DD'
-      milestonesEarned: []        // [3, 7, 30] etc.
-    };
-  }
-
   getDefaultEconomy() {
     return {
-      stardust: 0
+      stardust: 0,
+      lastDailyBonusDate: null    // 'YYYY-MM-DD' — first game of day grants +5
     };
   }
 
@@ -450,16 +440,14 @@ class PlayerProgress {
       ownedParts: [
         'hull_default', 'wings_default', 'paint_default',
         'pattern_none', 'trail_default_flame'
-      ],
-      newSinceLastView: []
+      ]
     };
   }
 
   getDefaultCosmetics() {
     return {
       pet: { hat: null, accessory: null, aura: 'aura_none' },
-      ownedIds: ['aura_none'],
-      newSinceLastView: []
+      ownedIds: ['aura_none']
     };
   }
 
@@ -477,11 +465,7 @@ class PlayerProgress {
     if (parts.pattern && parts.pattern !== 'pattern_none') {
       parts.pattern = 'pattern_none';
     }
-    return {
-      parts,
-      ownedParts,
-      newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
-    };
+    return { parts, ownedParts };
   }
 
   mergeCosmetics(saved) {
@@ -492,11 +476,7 @@ class PlayerProgress {
     const pet = { hat: null, accessory: null, aura: 'aura_none', ...(saved.pet || {}) };
     delete pet.outfit;
     if (!pet.aura) pet.aura = 'aura_none';
-    return {
-      pet,
-      ownedIds,
-      newSinceLastView: Array.isArray(saved.newSinceLastView) ? saved.newSinceLastView : []
-    };
+    return { pet, ownedIds };
   }
 
   mergeWorldProgress(saved) {
@@ -537,7 +517,6 @@ class PlayerProgress {
         totalStars: this.totalStars,
         currentWorld: this.currentWorld,
         companion: this.companion,
-        streak: this.streak,
         economy: this.economy,
         ship: this.ship,
         cosmetics: this.cosmetics
