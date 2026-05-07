@@ -126,6 +126,120 @@ export function createIconButton(scene, opts) {
   return container;
 }
 
+// Polished progress bar — pill-shaped track with a glossy fill, optional
+// percentage label, and a soft drop shadow for depth.
+//
+// Returns a container holding the bar. Anchor is the bar's center.
+//
+// opts:
+//   color            fill color (defaults to teal)
+//   trackColor       dark track color
+//   borderColor      inner outline color
+//   label            string drawn over the bar (e.g. "73%"). null hides it.
+//   labelOverrides   text style overrides
+//   showShadow       drop shadow behind the bar (default true)
+//   gradient         { from, to } — when set, fill blends from→to across width
+export function createProgressBar(scene, opts) {
+  const {
+    x = 0,
+    y = 0,
+    width = 600,
+    height = 54,
+    ratio = 0,
+    color = 0x4ecdc4,
+    trackColor = 0x1a1a2e,
+    borderColor = 0x3a3a55,
+    label = null,
+    labelOverrides = {},
+    depth = 0,
+    showShadow = true
+  } = opts;
+
+  const container = scene.add.container(x, y).setDepth(depth);
+  const w = width;
+  const h = height;
+  const radius = h / 2;
+  const safeRatio = Math.max(0, Math.min(1, ratio));
+
+  if (showShadow) {
+    const shadow = scene.add.graphics();
+    shadow.fillStyle(0x000000, 0.45);
+    shadow.fillRoundedRect(-w / 2 + 1, -h / 2 + 5, w, h, radius);
+    container.add(shadow);
+  }
+
+  // Track — pill with subtle inner depth band
+  const track = scene.add.graphics();
+  track.fillStyle(trackColor, 1);
+  track.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
+  // Inner top shadow stripe (makes the bar feel inset)
+  track.fillStyle(0x07071a, 0.55);
+  track.fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.30, {
+    tl: radius - 2, tr: radius - 2, bl: 6, br: 6
+  });
+  // Outline
+  track.lineStyle(2, borderColor, 1);
+  track.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
+  container.add(track);
+
+  // Fill — only when ratio > 0
+  if (safeRatio > 0) {
+    const fillW = Math.max(h, Math.round(w * safeRatio));
+    const darken = Phaser.Display.Color.ValueToColor(color).darken(25).color;
+    const lighten = Phaser.Display.Color.ValueToColor(color).lighten(35).color;
+
+    // Clip the fill to the track shape so it never pokes past the right edge
+    // when ratio < 1: render a sub-container masked to the track shape.
+    const fillContainer = scene.add.container(0, 0);
+    container.add(fillContainer);
+
+    const fillG = scene.add.graphics();
+    // Base gradient — solid color, then a darker bottom band for depth
+    fillG.fillStyle(color, 1);
+    fillG.fillRoundedRect(-w / 2, -h / 2, fillW, h, radius);
+    fillG.fillStyle(darken, 0.55);
+    fillG.fillRoundedRect(-w / 2, -h / 2 + h * 0.55, fillW, h * 0.45, {
+      tl: 0, tr: 0, bl: radius, br: radius
+    });
+    // Top highlight gloss
+    fillG.fillStyle(lighten, 0.55);
+    fillG.fillRoundedRect(-w / 2 + 4, -h / 2 + 4, Math.max(0, fillW - 8), h * 0.38, {
+      tl: radius - 2, tr: radius - 2, bl: 4, br: 4
+    });
+    fillContainer.add(fillG);
+
+    // Mask to the track shape — guarantees the right edge stays within the pill
+    const maskShape = scene.make.graphics({ x: 0, y: 0, add: false });
+    maskShape.fillStyle(0xffffff, 1);
+    maskShape.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
+    fillContainer.setMask(maskShape.createGeometryMask());
+
+    // End-cap shimmer — a soft bright dot at the leading edge of the fill
+    if (safeRatio < 1) {
+      const cap = scene.add.graphics();
+      cap.fillStyle(lighten, 0.85);
+      cap.fillCircle(-w / 2 + fillW - 2, 0, h * 0.18);
+      cap.fillStyle(0xffffff, 0.55);
+      cap.fillCircle(-w / 2 + fillW - 2, -h * 0.10, h * 0.10);
+      fillContainer.add(cap);
+    }
+  }
+
+  if (label != null) {
+    const text = scene.add.text(0, 0, label, style('subhead', {
+      fontSize: `${Math.round(h * 0.5)}px`,
+      fill: '#ffffff',
+      fontStyle: '900',
+      stroke: '#07071a',
+      strokeThickness: Math.max(3, Math.round(h * 0.10)),
+      ...labelOverrides
+    })).setOrigin(0.5);
+    container.add(text);
+  }
+
+  return container;
+}
+
 // Circular pet portrait button — clips a drawCompanion render into a circle.
 // `drawPet(scene, x, y, opts)` is called to render the pet inside the button.
 export function createPetPortraitButton(scene, opts) {

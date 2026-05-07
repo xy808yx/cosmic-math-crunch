@@ -404,22 +404,36 @@ export class GameScene extends Phaser.Scene {
   }
 
   attachBossHpBar(bossContainer) {
-    const bar = this.add.container(bossContainer.x, bossContainer.y - ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale - 60)
+    const bar = this.add.container(bossContainer.x, bossContainer.y - ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale - 70)
       .setDepth(8);
-    const w = 480;
-    const h = 28;
-    const bg = this.add.graphics();
-    bg.fillStyle(0x07071a, 0.92);
-    bg.fillRoundedRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 14);
-    bg.lineStyle(2, 0xff8080, 0.85);
-    bg.strokeRoundedRect(-w / 2 - 4, -h / 2 - 4, w + 8, h + 8, 14);
-    bar.add(bg);
+    const w = 520;
+    const h = 38;
+    const radius = h / 2;
+
+    // Soft drop shadow
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.5);
+    shadow.fillRoundedRect(-w / 2 + 1, -h / 2 + 5, w, h, radius);
+    bar.add(shadow);
+
+    // Track with inset depth
+    const track = this.add.graphics();
+    track.fillStyle(0x1a0a18, 1);
+    track.fillRoundedRect(-w / 2, -h / 2, w, h, radius);
+    track.fillStyle(0x07071a, 0.7);
+    track.fillRoundedRect(-w / 2 + 3, -h / 2 + 3, w - 6, h * 0.32, {
+      tl: radius - 2, tr: radius - 2, bl: 6, br: 6
+    });
+    track.lineStyle(2, 0xff8080, 0.85);
+    track.strokeRoundedRect(-w / 2, -h / 2, w, h, radius);
+    bar.add(track);
 
     const fill = this.add.graphics();
     bar.add(fill);
     bar.fillG = fill;
     bar.barW = w;
     bar.barH = h;
+    bar.barRadius = radius;
 
     bar.add(this.add.text(0, -h / 2 - 28, (this.world.villain || 'BOSS').toUpperCase(), style('caption', {
       fontSize: '22px', fill: '#ff8080', fontStyle: '900'
@@ -432,18 +446,35 @@ export class GameScene extends Phaser.Scene {
 
   drawBossHp() {
     if (!this.bossHpBar) return;
-    const { fillG, barW, barH } = this.bossHpBar;
+    const { fillG, barW, barH, barRadius } = this.bossHpBar;
     fillG.clear();
     const pct = Math.max(0, this.bossHp / this.bossMaxHp);
-    const fillW = Math.max(0, Math.floor(barW * pct));
+    if (pct <= 0) return;
+    const fillW = Math.max(barH, Math.floor(barW * pct));
     const color = pct > 0.5 ? 0xff6b6b : pct > 0.25 ? 0xffaa44 : 0xff3030;
+    const lighten = Phaser.Display.Color.ValueToColor(color).lighten(35).color;
+    const darken = Phaser.Display.Color.ValueToColor(color).darken(25).color;
+
+    // Body
     fillG.fillStyle(color, 1);
-    fillG.fillRoundedRect(-barW / 2, -barH / 2, fillW, barH, 8);
+    fillG.fillRoundedRect(-barW / 2, -barH / 2, Math.min(fillW, barW), barH, barRadius);
+    // Bottom shadow band
+    fillG.fillStyle(darken, 0.5);
+    fillG.fillRoundedRect(-barW / 2, -barH / 2 + barH * 0.55, Math.min(fillW, barW), barH * 0.45, {
+      tl: 0, tr: 0, bl: barRadius, br: barRadius
+    });
+    // Top gloss
+    fillG.fillStyle(lighten, 0.55);
+    fillG.fillRoundedRect(-barW / 2 + 4, -barH / 2 + 4, Math.max(0, Math.min(fillW, barW) - 8), barH * 0.38, {
+      tl: barRadius - 2, tr: barRadius - 2, bl: 4, br: 4
+    });
     // Quartile dividers — readable regardless of total HP.
-    fillG.lineStyle(2, 0x07071a, 0.6);
+    fillG.lineStyle(2, 0x07071a, 0.55);
     for (let i = 1; i < 4; i++) {
       const x = -barW / 2 + (barW / 4) * i;
-      fillG.lineBetween(x, -barH / 2, x, barH / 2);
+      if (x - (-barW / 2) <= fillW) {
+        fillG.lineBetween(x, -barH / 2 + 4, x, barH / 2 - 4);
+      }
     }
   }
 

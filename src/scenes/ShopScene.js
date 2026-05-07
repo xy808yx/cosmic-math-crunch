@@ -237,7 +237,8 @@ export class ShopScene extends Phaser.Scene {
       switch (tabId) {
         case 'trail': return SHIP_PARTS.filter(p => p.slot === 'trail');
         case 'paint': return SHIP_PARTS.filter(p => p.slot === 'paint');
-        case 'parts': return SHIP_PARTS.filter(p => p.slot === 'hull' || p.slot === 'wings' || p.slot === 'decal');
+        case 'parts': return SHIP_PARTS.filter(p =>
+          (p.slot === 'hull' || p.slot === 'wings' || p.slot === 'decal') && !p.isDefault);
         case 'aura':  return PET_COSMETICS.filter(p => p.slot === 'aura');
         case 'style': return PET_COSMETICS.filter(p => p.slot === 'hat' || p.slot === 'accessory');
         default:      return [];
