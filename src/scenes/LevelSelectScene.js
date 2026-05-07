@@ -53,28 +53,28 @@ export class LevelSelectScene extends Phaser.Scene {
   createTopBar() {
     const bg = this.add.graphics().setDepth(4);
     bg.fillStyle(0x07071a, 0.92);
-    bg.fillRect(0, 0, W, 140);
+    bg.fillRect(0, 0, W, 220);
 
     createIconButton(this, {
-      x: 80, y: 70, radius: 36,
+      x: 80, y: 110, radius: 44,
       accentColor: this.world.accentColor,
       drawIcon: (g, size) => drawArrowLeftIcon(g, 0, 0, size),
       onClick: () => new TransitionManager(this).fadeToScene('WorldMapScene')
     }).setDepth(15);
 
-    this.add.text(W / 2, 50, 'MISSION BRIEFING', style('caption', {
-      fontSize: '24px',
+    this.add.text(W / 2, 70, 'MISSION BRIEFING', style('caption', {
+      fontSize: '40px',
       fill: '#cfcfe0',
       fontStyle: '900'
     })).setOrigin(0.5).setDepth(15);
 
-    this.add.text(W / 2, 90, this.world.name, style('display', {
-      fontSize: '52px',
+    this.add.text(W / 2, 145, this.world.name, style('display', {
+      fontSize: '78px',
       fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
     })).setOrigin(0.5).setDepth(15);
 
     createIconButton(this, {
-      x: W - 80, y: 70, radius: 36,
+      x: W - 80, y: 110, radius: 44,
       accentColor: this.world.accentColor,
       drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
       onClick: () => audio.toggleEnabled()
@@ -82,31 +82,29 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   createWorldHero() {
-    // Big procedural region art behind the cards, dimmed
-    const hero = drawWorldNode(this, W / 2, 480, this.world.id, { scale: 3.0 });
+    const hero = drawWorldNode(this, W / 2, 530, this.world.id, { scale: 3.0 });
     hero.setDepth(5).setAlpha(0.75);
     this.tweens.add({
       targets: hero,
-      y: 470,
+      y: 520,
       duration: 2400,
       yoyo: true,
       repeat: -1,
       ease: 'Sine.easeInOut'
     });
 
-    // Description
-    this.add.text(W / 2, 760, this.world.description, style('body', {
-      fontSize: '28px',
-      fill: '#cfcfe0',
+    this.add.text(W / 2, 800, this.world.description, style('subhead', {
+      fontSize: '40px',
+      fill: '#e8e8f0',
       align: 'center',
-      wordWrap: { width: W - 160 }
+      wordWrap: { width: W - 120 }
     })).setOrigin(0.5).setDepth(8);
   }
 
   createMissionCards() {
-    const startY = 880;
+    const startY = 920;
     const cardW = 460;
-    const cardH = 240;
+    const cardH = 250;
     const gapX = 24;
     const gapY = 28;
     const cols = 2;
@@ -158,29 +156,19 @@ export class LevelSelectScene extends Phaser.Scene {
     }
     c.add(iconG);
 
-    // Mode title
     const label = isBoss ? 'BOSS' : MODES[modeKey].label.toUpperCase();
-    c.add(this.add.text(-w / 2 + 170, -h / 2 + 50, label, style('display', {
-      fontSize: '40px',
+    const titleY = isBoss ? -h / 2 + 70 : 0;
+    c.add(this.add.text(-w / 2 + 170, titleY, label, style('display', {
+      fontSize: '46px',
       fill: '#ffffff',
       fontStyle: '900'
     })).setOrigin(0, 0.5));
 
     if (isBoss) {
-      c.add(this.add.text(-w / 2 + 170, -h / 2 + 100, this.world.villain || 'BOSS', style('caption', {
-        fontSize: '22px',
+      c.add(this.add.text(-w / 2 + 170, -h / 2 + 130, this.world.villain || 'BOSS', style('subhead', {
+        fontSize: '32px',
         fill: '#ff8b8b',
         fontStyle: '900'
-      })).setOrigin(0, 0.5));
-    } else {
-      const subtitle = {
-        mult: 'Multiplication facts',
-        div: 'Division facts',
-        mixed: 'Mixed × ÷'
-      }[modeKey] || '';
-      c.add(this.add.text(-w / 2 + 170, -h / 2 + 100, subtitle, style('caption', {
-        fontSize: '20px',
-        fill: '#cfcfe0'
       })).setOrigin(0, 0.5));
     }
 
@@ -207,9 +195,9 @@ export class LevelSelectScene extends Phaser.Scene {
     } else {
       const playG = this.add.graphics();
       playG.fillStyle(accent, 1);
-      playG.fillCircle(w / 2 - 50, 0, 36);
+      playG.fillCircle(w / 2 - 38, 0, 26);
       playG.fillStyle(0xffffff, 1);
-      playG.fillTriangle(w / 2 - 60, -16, w / 2 - 60, 16, w / 2 - 32, 0);
+      playG.fillTriangle(w / 2 - 45, -12, w / 2 - 45, 12, w / 2 - 25, 0);
       c.add(playG);
     }
 
@@ -244,7 +232,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   createMasteryFooter() {
-    const y = 1700;
+    const y = 1660;
     let masterySum = 0;
     let count = 0;
     for (let t = 1; t <= 12; t++) {
@@ -256,37 +244,38 @@ export class LevelSelectScene extends Phaser.Scene {
     }
     const avg = count > 0 ? Math.round(masterySum / count) : 0;
 
-    this.add.text(W / 2, y, 'OVERALL MASTERY', style('caption', {
-      fontSize: '22px',
+    this.add.text(W / 2, y, 'OVERALL MASTERY', style('subhead', {
+      fontSize: '44px',
       fill: '#cfcfe0',
       fontStyle: '900'
     })).setOrigin(0.5).setDepth(11);
 
-    const barW = 720;
+    const barW = 800;
     const barX = W / 2 - barW / 2;
-    const barY = y + 50;
+    const barY = y + 70;
+    const barH = 36;
     const trackG = this.add.graphics().setDepth(11);
     trackG.fillStyle(0x12122a, 1);
-    trackG.fillRoundedRect(barX, barY, barW, 24, 12);
+    trackG.fillRoundedRect(barX, barY, barW, barH, 18);
     trackG.lineStyle(2, 0x2a2a44, 1);
-    trackG.strokeRoundedRect(barX, barY, barW, 24, 12);
+    trackG.strokeRoundedRect(barX, barY, barW, barH, 18);
 
     const fillW = Math.max(2, Math.round((avg / 100) * barW));
     const fillG = this.add.graphics().setDepth(12);
     const fillColor = avg >= 70 ? 0x58d68d : avg >= 40 ? this.world.accentColor : 0xff6b6b;
     fillG.fillStyle(fillColor, 1);
-    fillG.fillRoundedRect(barX, barY, fillW, 24, 12);
+    fillG.fillRoundedRect(barX, barY, fillW, barH, 18);
 
-    this.add.text(W / 2, barY + 12, `${avg}%`, style('caption', {
-      fontSize: '20px',
+    this.add.text(W / 2, barY + barH / 2, `${avg}%`, style('subhead', {
+      fontSize: '28px',
       fill: '#0a0a1a',
       fontStyle: '900'
     })).setOrigin(0.5).setDepth(13);
 
     const totalStars = Object.values(this.worldProgress.levelStars).reduce((s, v) => s + v, 0);
-    this.add.text(W / 2, barY + 70, `${totalStars} / 12 stars in this world`, style('caption', {
-      fontSize: '24px',
-      fill: '#8888a0'
+    this.add.text(W / 2, barY + barH + 50, `${totalStars} / 12 stars in this world`, style('subhead', {
+      fontSize: '34px',
+      fill: '#aaaac0'
     })).setOrigin(0.5).setDepth(11);
   }
 

@@ -8,6 +8,7 @@ import {
   getDistractors,
   getProblemSecondsForWorldAndMode,
   getAsteroidCountForWorld,
+  getBossHpForWorld,
   progress
 } from '../GameData.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -26,6 +27,9 @@ import {
   drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon
 } from '../StatIcons.js';
 import { cosmetics } from '../CosmeticManager.js';
+import { drawQuestionBody, drawBossBody as drawWorldBoss } from '../QuestionObjectArt.js';
+import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
+import { darken, lighten } from '../colorUtils.js';
 
 const W = 1080;
 const H = 1920;
@@ -54,9 +58,10 @@ export class GameScene extends Phaser.Scene {
     this.mode = this.registry.get('levelMode') || 'mult';
     this.world = WORLDS[this.worldId - 1];
     this.isBoss = this.mode === 'boss';
+    this.bossMaxHp = getBossHpForWorld(this.worldId);
 
     this.modeConfig = this.isBoss
-      ? { label: this.world.villain || 'Boss', symbol: 'skull', duration: 90, scoreThreshold: BOSS_CONFIG.hp }
+      ? { label: this.world.villain || 'Boss', symbol: 'skull', duration: 90, scoreThreshold: this.bossMaxHp }
       : MODES[this.mode];
 
     this.duration = this.modeConfig.duration;
@@ -74,12 +79,11 @@ export class GameScene extends Phaser.Scene {
     this.shipHp = SHIP_HP_MAX;
     this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
 
-    this.bossHp = BOSS_CONFIG.hp;
+    this.bossHp = this.bossMaxHp;
     this.bossDefeated = false;
 
     this.activeAsteroids = [];
     this.targetedAsteroid = null;
-    this.pelletsThisLevel = 0;
 
     this.state = 'ready';
   }
@@ -108,6 +112,7 @@ export class GameScene extends Phaser.Scene {
       audio.playBossRumble?.();
       this.cameras.main.flash(280, 90, 0, 0);
       this.cameras.main.shake(420, 0.008);
+      applyBossTwist(this, this.world.id);
       this.spawnAsteroid();
       this.time.delayedCall(700, () => { this.state = 'playing'; });
     } else {
@@ -174,8 +179,8 @@ export class GameScene extends Phaser.Scene {
       fontSize: '52px',
       fill: '#ff8b3d'
     })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.18 - 60, row1Y + 38, 'STREAK', style('caption', {
-      fontSize: '16px',
+    this.add.text(W * 0.18 - 60, row1Y + 42, 'STREAK', style('caption', {
+      fontSize: '22px',
       fill: '#7a7a90',
       fontStyle: '900'
     })).setOrigin(0, 0.5).setDepth(10);
@@ -188,8 +193,8 @@ export class GameScene extends Phaser.Scene {
       fontSize: '52px',
       fill: '#ffffff'
     })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.50 - 60, row1Y + 38, 'SCORE', style('caption', {
-      fontSize: '16px',
+    this.add.text(W * 0.50 - 60, row1Y + 42, 'SCORE', style('caption', {
+      fontSize: '22px',
       fill: '#7a7a90',
       fontStyle: '900'
     })).setOrigin(0, 0.5).setDepth(10);
@@ -202,8 +207,8 @@ export class GameScene extends Phaser.Scene {
       fontSize: '52px',
       fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
     })).setOrigin(0, 0.5).setDepth(10);
-    this.add.text(W * 0.78 - 60, row1Y + 38, 'TIME', style('caption', {
-      fontSize: '16px',
+    this.add.text(W * 0.78 - 60, row1Y + 42, 'TIME', style('caption', {
+      fontSize: '22px',
       fill: '#7a7a90',
       fontStyle: '900'
     })).setOrigin(0, 0.5).setDepth(10);
@@ -284,7 +289,6 @@ export class GameScene extends Phaser.Scene {
       parts: progress.ship?.parts
     });
     this.shipContainer.add(shipG);
-    this.shipSprite = shipG;
 
     // Pet rides INSIDE the cockpit porthole at ~2× current scale
     if (companion.hasStarter()) {
@@ -376,6 +380,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.isBoss) {
       this.attachBossHpBar(container);
+      bossTwistOn(this, 'onSpawn', asteroid);
     }
 
     this.activeAsteroids.push(asteroid);
@@ -394,55 +399,7 @@ export class GameScene extends Phaser.Scene {
   drawBossBody(container) {
     const g = this.add.graphics();
     const radius = ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale;
-    const points = 11;
-    const path = [];
-    for (let i = 0; i < points; i++) {
-      const angle = (i / points) * Math.PI * 2;
-      const r = radius * Phaser.Math.FloatBetween(0.88, 1.04);
-      path.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
-    }
-
-    g.fillStyle(0x000000, 0.55);
-    g.beginPath();
-    g.moveTo(path[0].x + 8, path[0].y + 12);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x + 8, path[i].y + 12);
-    g.closePath();
-    g.fillPath();
-
-    const bodyColor = Phaser.Display.Color.ValueToColor(this.world.accentColor)
-      .darken(50).color;
-    g.fillStyle(bodyColor, 1);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.closePath();
-    g.fillPath();
-
-    g.fillStyle(this.world.accentColor, 0.45);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y - 30);
-    for (let i = 1; i < path.length / 2; i++) {
-      g.lineTo(path[i].x * 0.85, path[i].y - 22);
-    }
-    g.closePath();
-    g.fillPath();
-
-    const eyeOffsetX = radius * 0.32;
-    const eyeY = -radius * 0.22;
-    g.fillStyle(0xff3b3b, 0.85);
-    g.fillCircle(-eyeOffsetX, eyeY, 22);
-    g.fillCircle(eyeOffsetX, eyeY, 22);
-    g.fillStyle(0xffffaa, 1);
-    g.fillCircle(-eyeOffsetX, eyeY, 10);
-    g.fillCircle(eyeOffsetX, eyeY, 10);
-
-    g.lineStyle(5, 0x07071a, 0.95);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.closePath();
-    g.strokePath();
-
+    drawWorldBoss(g, this.world.id, this.world.accentColor, radius);
     container.add(g);
   }
 
@@ -477,60 +434,22 @@ export class GameScene extends Phaser.Scene {
     if (!this.bossHpBar) return;
     const { fillG, barW, barH } = this.bossHpBar;
     fillG.clear();
-    const pct = Math.max(0, this.bossHp / BOSS_CONFIG.hp);
+    const pct = Math.max(0, this.bossHp / this.bossMaxHp);
     const fillW = Math.max(0, Math.floor(barW * pct));
     const color = pct > 0.5 ? 0xff6b6b : pct > 0.25 ? 0xffaa44 : 0xff3030;
     fillG.fillStyle(color, 1);
     fillG.fillRoundedRect(-barW / 2, -barH / 2, fillW, barH, 8);
+    // Quartile dividers — readable regardless of total HP.
     fillG.lineStyle(2, 0x07071a, 0.6);
-    for (let i = 1; i < BOSS_CONFIG.hp; i++) {
-      const x = -barW / 2 + (barW / BOSS_CONFIG.hp) * i;
+    for (let i = 1; i < 4; i++) {
+      const x = -barW / 2 + (barW / 4) * i;
       fillG.lineBetween(x, -barH / 2, x, barH / 2);
     }
   }
 
   drawAsteroidBody(container) {
     const g = this.add.graphics();
-    const radius = ASTEROID_RADIUS;
-    const points = 9;
-    const path = [];
-    for (let i = 0; i < points; i++) {
-      const angle = (i / points) * Math.PI * 2;
-      const r = radius * Phaser.Math.FloatBetween(0.85, 1.05);
-      path.push({ x: Math.cos(angle) * r, y: Math.sin(angle) * r });
-    }
-    g.fillStyle(0x000000, 0.4);
-    g.beginPath();
-    g.moveTo(path[0].x + 4, path[0].y + 6);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x + 4, path[i].y + 6);
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0x6a5a4a, 1);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0x9a8a72, 0.7);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y - 18);
-    for (let i = 1; i < path.length / 2; i++) {
-      g.lineTo(path[i].x * 0.85, path[i].y - 12);
-    }
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0x3a2e22, 0.7);
-    for (let i = 0; i < 4; i++) {
-      const ang = Math.random() * Math.PI * 2;
-      const dist = Math.random() * radius * 0.55;
-      g.fillCircle(Math.cos(ang) * dist, Math.sin(ang) * dist, 6 + Math.random() * 6);
-    }
-    g.lineStyle(3, 0x07071a, 0.9);
-    g.beginPath();
-    g.moveTo(path[0].x, path[0].y);
-    for (let i = 1; i < path.length; i++) g.lineTo(path[i].x, path[i].y);
-    g.closePath();
-    g.strokePath();
+    drawQuestionBody(g, this.world.id, ASTEROID_RADIUS);
     container.add(g);
   }
 
@@ -592,15 +511,6 @@ export class GameScene extends Phaser.Scene {
     })).setOrigin(0.5);
     c.add(label);
 
-    // Index pill
-    const pill = this.add.graphics();
-    pill.fillStyle(0x07071a, 0.7);
-    pill.fillRoundedRect(-w / 2 + 16, -h / 2 + 16, 44, 36, 10);
-    c.add(pill);
-    c.add(this.add.text(-w / 2 + 38, -h / 2 + 34, (index + 1).toString(), style('caption', {
-      fontSize: '24px', fill: '#cfcfe0', fontStyle: '900'
-    })).setOrigin(0.5));
-
     const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
     c.add(hit);
     hit.on('pointerover', () => {
@@ -626,8 +536,8 @@ export class GameScene extends Phaser.Scene {
   drawMcFace(container, color) {
     const { w, h } = container.dimensions;
     const radius = 26;
-    const lighter = Phaser.Display.Color.ValueToColor(color).lighten(18).color;
-    const darker = Phaser.Display.Color.ValueToColor(color).darken(20).color;
+    const lighter = lighten(color, 0.18);
+    const darker = darken(color, 0.20);
 
     container.bg.clear();
     container.bg.fillStyle(darker, 1);
@@ -725,8 +635,7 @@ export class GameScene extends Phaser.Scene {
     this.flashMcButton(btn, 0x58d68d);
 
     this.cockpitPet?.bounceHappy?.();
-    this.pelletsThisLevel++;
-    companion.feed(1);
+    companion.feed();
     if (this.streak === 3 || this.streak === 7 || this.streak % 10 === 0) {
       audio.playPetChirp?.();
       // Streak-triggered cosmetic animations
@@ -746,6 +655,7 @@ export class GameScene extends Phaser.Scene {
       this.drawBossHp();
       audio.playBossImpact?.();
       this.recoilBoss(asteroid);
+      bossTwistOn(this, 'onCorrect', asteroid);
 
       this.time.delayedCall(360, () => {
         if (this.state === 'failed' || this.state === 'ended') return;
@@ -793,6 +703,7 @@ export class GameScene extends Phaser.Scene {
       this.cockpitPet?.slumpSad?.();
       audio.playShipDamage?.();
       this.setHp(this.shipHp - 1);
+      bossTwistOn(this, 'onWrong', asteroid, btn);
       // Disable this button until next problem cycle
       btn.value = null;
       btn.label.setColor('#5a5a72');
@@ -928,6 +839,7 @@ export class GameScene extends Phaser.Scene {
 
     this.refreshMcButtons(newProblem);
     this.problemStartedAtMs = asteroid.startedAtMs;
+    bossTwistOn(this, 'onSpawn', asteroid);
   }
 
   defeatBoss(asteroid) {
@@ -1220,7 +1132,7 @@ export class GameScene extends Phaser.Scene {
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
 
     if (bossWin && this.worldId === 11 && worldFullyCleared) {
-      this.showFinalCinematic({ stars, accuracy });
+      this.showFinalCinematic();
     } else if (bossWin && worldFullyCleared) {
       this.showStoryCard({ stars, accuracy });
     } else {
@@ -1321,7 +1233,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.newStreakMilestones && this.newStreakMilestones.length > 0) {
       const m = this.newStreakMilestones[0];
-      const reward = (this.streakRewards || []).find(r => r);
+      const reward = (this.streakRewards || [])[0];
       const banner = this.add.container(0, -panelH / 2 + 90);
       const bg2 = this.add.graphics();
       bg2.fillStyle(0xff8b3d, 1);

@@ -125,3 +125,58 @@ export function createIconButton(scene, opts) {
 
   return container;
 }
+
+// Circular pet portrait button — clips a drawCompanion render into a circle.
+// `drawPet(scene, x, y, opts)` is called to render the pet inside the button.
+export function createPetPortraitButton(scene, opts) {
+  const {
+    x = 0,
+    y = 0,
+    radius = 38,
+    accentColor = 0xffd86b,
+    drawPet, // function(scene, x, y, opts) → container
+    onClick = () => {}
+  } = opts;
+
+  const container = scene.add.container(x, y);
+
+  const glow = scene.add.circle(0, 0, radius + 4, accentColor, 0.2);
+  container.add(glow);
+
+  const bg = scene.add.circle(0, 0, radius, 0x1a1a2e, 0.85);
+  container.add(bg);
+
+  if (drawPet) {
+    // Pet container, scaled to fit inside the circle.
+    const pet = drawPet(scene, 0, 6, { scale: radius / 90, preview: true });
+    container.add(pet);
+
+    // Mask the pet to a circle.
+    const maskShape = scene.make.graphics();
+    maskShape.fillStyle(0xffffff, 1);
+    maskShape.fillCircle(x, y, radius - 2);
+    const mask = maskShape.createGeometryMask();
+    pet.setMask(mask);
+  }
+
+  // Ring on top so it crisply outlines the portrait.
+  const ring = scene.add.circle(0, 0, radius, 0x000000, 0);
+  ring.setStrokeStyle(3, accentColor, 1);
+  container.add(ring);
+
+  ring.setInteractive({ useHandCursor: true });
+  ring.on('pointerover', () => {
+    scene.tweens.add({ targets: container, scaleX: 1.12, scaleY: 1.12, duration: 100 });
+    glow.setAlpha(0.4);
+  });
+  ring.on('pointerout', () => {
+    scene.tweens.add({ targets: container, scaleX: 1, scaleY: 1, duration: 100 });
+    glow.setAlpha(0.2);
+  });
+  ring.on('pointerdown', () => {
+    audio.playClick();
+    onClick();
+  });
+
+  return container;
+}

@@ -1,55 +1,82 @@
-// Flat-cute pet renderer. Shapes are smooth Phaser Graphics primitives —
-// big head, oversized eyes, cheek blush, soft body — drawn against the
-// pixel-art ship/world. Each species/stage tweaks proportions and adds
-// archetype accents (flame tuft for Ember, droplet antennae for Tide,
-// sprig + leaves for Sprout).
+// Pixel-art pet renderer. Each (species × stage) is a hand-crafted pixel grid
+// in PetSprites.js — silhouettes diverge dramatically per stage so a Cinder Egg
+// looks like an egg and a Solfire looks like a dragon.
 //
-// Public API:
+// Public API (callsite-compatible with the old Phaser-Graphics renderer):
 //   drawCompanion(scene, x, y, opts) → container
-//     opts.speciesId, opts.stage, opts.scale, opts.preview, opts.mood
-//   container.bounceHappy() / .slumpSad() / .missedYou()
+//     opts.speciesId, opts.stage, opts.scale, opts.preview, opts.mood,
+//     opts.cosmeticsOverride — { hat, accessory, aura } overriding
+//                              progress.cosmetics.pet (used by shop previews)
+//   container.bounceHappy() / .slumpSad()
 //   container.rocketBoost() / .propellerSpin() / .radioWavePing() / .starHaloOrbit()
 //   container.applyCosmetics() — re-reads cosmetics + redraws hat/accessory layers
 
 import { progress } from './GameData.js';
 import { companion, SPECIES } from './CompanionManager.js';
-import { cosmetics, PET_COSMETICS } from './CosmeticManager.js';
+import { cosmetics } from './CosmeticManager.js';
 import { darken, lighten } from './colorUtils.js';
+import { PET_SPRITES, gridLayout, anchorXY } from './PetSprites.js';
+import { renderPetCosmetic } from './PetCosmeticSprites.js';
 
-// Per-species palette + soft pastel highlights.
+// Per-species palette resolves grid characters → colors.
 function paletteFor(species) {
   const c = species.color;
   return {
     body:    c,
     bodyHi:  lighten(c, 0.30),
-    bodyLo:  darken(c, 0.18),
+    bodyLo:  darken(c, 0.22),
     accent:  species.accent,
     accentHi: lighten(species.accent, 0.30),
+    secondary: darken(species.accent, 0.30), // wing membrane / fin / bark
+    secondaryHi: species.accent,
     outline: 0x07071a,
     eyeWhite: 0xffffff,
     eyeBlack: 0x121225,
-    blush:    0xffb3c1,
-    sparkle:  0xffffff
+    sparkle:  0xffffff,
+    mouth:    0x3a1a2a,
+    tongue:   0xff7a99,
+    blush:    0xffb3c1
   };
 }
 
-// Stage proportions -----------------------------------------------------------
-// Returns {head, body, eye, scale} ratios used to render the pet body.
-function proportionsFor(stage) {
-  switch (stage) {
-    case 'egg':
-      return { headFrac: 1.0, bodyFrac: 0.0, eyeFrac: 0.20, totalScale: 1.0, hasLimbs: false };
-    case 'baby':
-      return { headFrac: 0.70, bodyFrac: 0.30, eyeFrac: 0.32, totalScale: 1.0, hasLimbs: false };
-    case 'teen':
-      return { headFrac: 0.58, bodyFrac: 0.42, eyeFrac: 0.26, totalScale: 1.15, hasLimbs: true };
-    case 'adult':
-    default:
-      return { headFrac: 0.50, bodyFrac: 0.50, eyeFrac: 0.22, totalScale: 1.30, hasLimbs: true };
+// Map a single grid character to a fill color (or null = skip).
+function colorFor(ch, pal) {
+  switch (ch) {
+    case 'O': return pal.outline;
+    case 'B': return pal.body;
+    case 'H': return pal.bodyHi;
+    case 'L': return pal.bodyLo;
+    case 'W': return pal.eyeWhite;
+    case 'E': return pal.eyeBlack;
+    case 'K': return pal.sparkle;
+    case 'M': return pal.mouth;
+    case 'T': return pal.tongue;
+    case 'A': return pal.accent;
+    case 'a': return pal.accentHi;
+    case 'S': return pal.secondary;
+    case 's': return pal.secondaryHi;
+    default: return null;
   }
 }
 
-// Public API -----------------------------------------------------------------
+function pixelGrid(scene, grid, ox, oy, pixelSize, paletteFn) {
+  const g = scene.add.graphics();
+  for (let row = 0; row < grid.length; row++) {
+    const line = grid[row];
+    for (let col = 0; col < line.length; col++) {
+      const ch = line[col];
+      if (!ch || ch === '.' || ch === ' ') continue;
+      const color = paletteFn(ch);
+      if (color === null) continue;
+      g.fillStyle(color, 1);
+      // Tiny overdraw avoids hairline gaps between cells when scale isn't an integer.
+      g.fillRect(ox + col * pixelSize, oy + row * pixelSize, pixelSize + 0.5, pixelSize + 0.5);
+    }
+  }
+  return g;
+}
+
+// ----------------------------------------------------------------------------
 
 export function drawCompanion(scene, x, y, opts = {}) {
   const speciesId = opts.speciesId || progress.companion.speciesId || 'ember';
@@ -61,19 +88,17 @@ export function drawCompanion(scene, x, y, opts = {}) {
   if (!species) return container;
 
   const pal = paletteFor(species);
-  const props = proportionsFor(stage);
-  const scale = userScale * props.totalScale;
+  const grid = (PET_SPRITES[speciesId] && PET_SPRITES[speciesId][stage]) || PET_SPRITES.ember.egg;
 
-  // Reference base size — at scale=1 the pet sits ~120 tall.
-  const BASE = 120;
-  const totalH = BASE;
-  const headR = (totalH * props.headFrac) * 0.5;
-  const bodyH = totalH * props.bodyFrac;
+  // Pixel size — eggs/babies stay punchy; teens/adults render at the same
+  // cell pitch but their grids are taller, so they read as bigger creatures.
+  const PIXEL_SIZE = 6;
+  const layout = gridLayout(grid, PIXEL_SIZE);
 
-  // Soft glow halo (always-on ambient) ------------------------------------
+  // Soft glow halo behind the body (always on).
   const glow = scene.add.graphics();
   glow.fillStyle(species.accent, 0.18);
-  glow.fillEllipse(0, 0, headR * 2.6, headR * 2.0);
+  glow.fillEllipse(0, 0, layout.width * 0.95, layout.height * 0.85);
   container.add(glow);
   scene.tweens.add({
     targets: glow,
@@ -86,133 +111,65 @@ export function drawCompanion(scene, x, y, opts = {}) {
     ease: 'Sine.easeInOut'
   });
 
-  // Drop shadow ------------------------------------------------------------
+  // Drop shadow under the feet.
   const shadow = scene.add.graphics();
   shadow.fillStyle(0x000000, 0.30);
-  shadow.fillEllipse(0, headR + bodyH * 0.55, headR * 1.6, headR * 0.30);
+  shadow.fillEllipse(0, layout.height / 2 + PIXEL_SIZE * 1.2, layout.width * 0.55, PIXEL_SIZE * 1.4);
   container.add(shadow);
 
-  // Body container (head + body + accents) so we can bob it together
+  // Body container so we can bob it independently of cosmetics & glow.
   const bodyG = scene.add.container(0, 0);
   container.add(bodyG);
 
-  if (stage === 'egg') {
-    drawEgg(scene, bodyG, species, pal, headR);
-  } else {
-    // Body (sits below head)
-    if (bodyH > 0) {
-      const body = scene.add.graphics();
-      const bodyW = headR * 1.5;
-      const bodyCY = headR * 0.65;
-      body.fillStyle(pal.bodyLo, 1);
-      body.fillEllipse(0, bodyCY + 4, bodyW, bodyH);
-      body.fillStyle(pal.body, 1);
-      body.fillEllipse(0, bodyCY, bodyW, bodyH);
-      body.fillStyle(pal.bodyHi, 0.6);
-      body.fillEllipse(-bodyW * 0.18, bodyCY - bodyH * 0.18, bodyW * 0.5, bodyH * 0.35);
-      bodyG.add(body);
+  const sprite = pixelGrid(scene, grid, layout.originX, layout.originY, PIXEL_SIZE, ch => colorFor(ch, pal));
+  bodyG.add(sprite);
 
-      if (props.hasLimbs) {
-        // Tiny feet
-        const feet = scene.add.graphics();
-        feet.fillStyle(pal.bodyLo, 1);
-        feet.fillEllipse(-bodyW * 0.28, bodyCY + bodyH * 0.45, bodyW * 0.32, bodyH * 0.18);
-        feet.fillEllipse(bodyW * 0.28, bodyCY + bodyH * 0.45, bodyW * 0.32, bodyH * 0.18);
-        bodyG.add(feet);
-      }
-    }
+  // Mouth swap for sad mood. Cells with 'M' (mouth) get hidden and a frown
+  // overlay is drawn at the mouth row.
+  const mouth = scene.add.graphics();
+  bodyG.add(mouth);
 
-    // Species archetype accents (drawn behind head where they belong)
-    drawSpeciesAccents(scene, bodyG, speciesId, stage, pal, headR, bodyH);
+  // Cosmetics that should bob WITH the pet body — hats and accessories.
+  const wornG = scene.add.container(0, 0);
+  bodyG.add(wornG);
 
-    // Head — a big circle for chibi cuteness
-    const head = scene.add.graphics();
-    head.fillStyle(pal.bodyLo, 1);
-    head.fillCircle(0, 4, headR);
-    head.fillStyle(pal.body, 1);
-    head.fillCircle(0, 0, headR);
-    // Glossy highlight
-    head.fillStyle(pal.bodyHi, 0.55);
-    head.fillEllipse(-headR * 0.25, -headR * 0.40, headR * 0.85, headR * 0.55);
-    bodyG.add(head);
+  // Auras orbit/pulse independently and do not bob.
+  const auraG = scene.add.container(0, 0);
+  container.add(auraG);
 
-    // Cheek blush
-    const blush = scene.add.graphics();
-    blush.fillStyle(pal.blush, 0.7);
-    blush.fillEllipse(-headR * 0.55, headR * 0.25, headR * 0.30, headR * 0.18);
-    blush.fillEllipse(headR * 0.55, headR * 0.25, headR * 0.30, headR * 0.18);
-    bodyG.add(blush);
+  // Back-compat alias — older code paths read .cosmeticG; we expose wornG so
+  // animation hooks (jetpack flame, propeller, antenna) keep working.
+  const cosmeticG = wornG;
 
-    // Eyes — oversized whites, dark pupils, two sparkle highlights
-    const eyeR = headR * props.eyeFrac;
-    const eyeY = -headR * 0.10;
-    const eyeOffsetX = headR * 0.42;
-    const eyes = scene.add.graphics();
-    // Whites
-    eyes.fillStyle(pal.eyeWhite, 1);
-    eyes.fillCircle(-eyeOffsetX, eyeY, eyeR);
-    eyes.fillCircle(eyeOffsetX, eyeY, eyeR);
-    // Outline
-    eyes.lineStyle(2, pal.outline, 0.6);
-    eyes.strokeCircle(-eyeOffsetX, eyeY, eyeR);
-    eyes.strokeCircle(eyeOffsetX, eyeY, eyeR);
-    // Pupils
-    const pupilR = eyeR * 0.55;
-    const pupilOffsetY = eyeR * 0.10;
-    eyes.fillStyle(pal.eyeBlack, 1);
-    eyes.fillCircle(-eyeOffsetX, eyeY + pupilOffsetY, pupilR);
-    eyes.fillCircle(eyeOffsetX, eyeY + pupilOffsetY, pupilR);
-    // Big sparkle + small sparkle
-    eyes.fillStyle(pal.sparkle, 1);
-    eyes.fillCircle(-eyeOffsetX - pupilR * 0.35, eyeY - pupilR * 0.30, pupilR * 0.42);
-    eyes.fillCircle(eyeOffsetX - pupilR * 0.35, eyeY - pupilR * 0.30, pupilR * 0.42);
-    eyes.fillCircle(-eyeOffsetX + pupilR * 0.35, eyeY + pupilR * 0.20, pupilR * 0.18);
-    eyes.fillCircle(eyeOffsetX + pupilR * 0.35, eyeY + pupilR * 0.20, pupilR * 0.18);
-    bodyG.add(eyes);
-    container.eyes = eyes;
-    container.eyeMeta = { eyeOffsetX, eyeY, eyeR, pupilR, pupilOffsetY, pal };
-
-    // Mouth — small curve, mood-aware
-    const mouth = scene.add.graphics();
-    drawMouth(mouth, pal, headR * 0.22, headR * 0.40, opts.mood || 'happy');
-    bodyG.add(mouth);
-    container.mouthG = mouth;
-    container.mouthMeta = { pal, w: headR * 0.22, y: headR * 0.40 };
-  }
-
-  // Slot containers for cosmetic items (filled below).
-  const cosmeticG = scene.add.container(0, 0);
-  container.add(cosmeticG);
-
-  // Apply scale so all earlier coords are relative to BASE.
-  container.setScale(scale);
+  container.setScale(userScale);
   container.species = species;
   container.stage = stage;
   container.pal = pal;
-  container.headR = headR;
-  container.bodyH = bodyH;
+  container.layout = layout;
   container.cosmeticG = cosmeticG;
+  container.bodyG = bodyG;
+  container.mouthG = mouth;
 
-  // Idle bob — heavy head bobs subtly different from body
+  // Idle bob — body floats up and down a few px.
   scene.tweens.add({
     targets: bodyG,
-    y: { from: 0, to: -headR * 0.06 },
+    y: { from: 0, to: -PIXEL_SIZE * 0.7 },
     duration: 1400,
     yoyo: true,
     repeat: -1,
     ease: 'Sine.easeInOut'
   });
 
-  // Animation methods -------------------------------------------------
+  // Animation methods ---------------------------------------------------------
+
   container.bounceHappy = () => {
     scene.tweens.add({
       targets: container,
-      scaleY: { from: scale * 0.85, to: scale },
-      scaleX: { from: scale * 1.15, to: scale },
+      scaleY: { from: userScale * 0.85, to: userScale },
+      scaleX: { from: userScale * 1.15, to: userScale },
       duration: 250,
       ease: 'Back.easeOut'
     });
-    // Trigger 'correct' animations
     for (const item of cosmetics.itemsWithTrigger('correct')) {
       const fn = container[item.animation];
       if (typeof fn === 'function') fn();
@@ -220,9 +177,7 @@ export function drawCompanion(scene, x, y, opts = {}) {
   };
 
   container.slumpSad = () => {
-    if (container.mouthG && container.mouthMeta) {
-      drawMouth(container.mouthG, pal, container.mouthMeta.w, container.mouthMeta.y, 'sad');
-    }
+    drawFrownOverlay(mouth, layout, pal);
     scene.tweens.add({
       targets: bodyG,
       y: 8,
@@ -230,52 +185,10 @@ export function drawCompanion(scene, x, y, opts = {}) {
       duration: 200,
       yoyo: true,
       ease: 'Sine.easeOut',
-      onComplete: () => {
-        if (container.mouthG && container.mouthMeta) {
-          drawMouth(container.mouthG, pal, container.mouthMeta.w, container.mouthMeta.y, 'happy');
-        }
-      }
+      onComplete: () => mouth.clear()
     });
   };
 
-  container.missedYou = () => {
-    scene.tweens.add({
-      targets: container,
-      scaleY: { from: scale * 0.7, to: scale },
-      scaleX: { from: scale * 1.3, to: scale },
-      duration: 400,
-      ease: 'Bounce.easeOut'
-    });
-    const ring = scene.add.graphics();
-    ring.lineStyle(3, species.accent, 1);
-    ring.strokeCircle(0, 0, headR * 1.2);
-    container.add(ring);
-    scene.tweens.add({
-      targets: ring,
-      scaleX: 4,
-      scaleY: 4,
-      alpha: 0,
-      duration: 700,
-      ease: 'Quad.easeOut',
-      onComplete: () => ring.destroy()
-    });
-    for (let i = 0; i < 6; i++) {
-      const angle = (Math.PI * 2 * i) / 6;
-      const sp = scene.add.circle(0, 0, 3, 0xffffff, 1);
-      container.add(sp);
-      scene.tweens.add({
-        targets: sp,
-        x: Math.cos(angle) * headR * 4,
-        y: Math.sin(angle) * headR * 4 - 20,
-        alpha: 0,
-        duration: 800,
-        ease: 'Quad.easeOut',
-        onComplete: () => sp.destroy()
-      });
-    }
-  };
-
-  // Item-triggered animations -----------------------------------------
   container.rocketBoost = () => {
     if (!cosmeticG.jetpackFlame) return;
     const flame = cosmeticG.jetpackFlame;
@@ -325,9 +238,7 @@ export function drawCompanion(scene, x, y, opts = {}) {
       cosmeticG.add(ring);
       scene.tweens.add({
         targets: ring,
-        scaleX: 4,
-        scaleY: 4,
-        alpha: 0,
+        scaleX: 4, scaleY: 4, alpha: 0,
         duration: 700,
         delay: i * 130,
         ease: 'Quad.easeOut',
@@ -337,9 +248,8 @@ export function drawCompanion(scene, x, y, opts = {}) {
   };
 
   container.starHaloOrbit = () => {
-    // No-op when called manually — orbit runs continuously when halo is equipped.
     if (!cosmeticG.starHalo) return;
-    for (const star of cosmeticG.starHalo.children) {
+    for (const star of cosmeticG.starHalo.list) {
       scene.tweens.add({
         targets: star,
         scale: { from: 1.6, to: 1 },
@@ -349,19 +259,37 @@ export function drawCompanion(scene, x, y, opts = {}) {
     }
   };
 
+  // Cosmetic application — reads override if provided (used by shop preview).
   container.applyCosmetics = () => {
-    cosmeticG.removeAll(true);
-    cosmeticG.jetpackFlame = null;
-    cosmeticG.propeller = null;
-    cosmeticG.antennaTip = null;
-    cosmeticG.starHalo = null;
-    if (opts.preview) return;
-    const items = cosmetics.getEquippedItems();
-    for (const item of items) renderCosmetic(scene, cosmeticG, item, headR, bodyH);
+    wornG.removeAll(true);
+    auraG.removeAll(true);
+    wornG.jetpackFlame = null;
+    wornG.propeller = null;
+    wornG.antennaTip = null;
+    wornG.starHalo = null;
+
+    const equipped = opts.cosmeticsOverride || cosmetics.getEquipped();
+    const slots = ['accessory', 'hat', 'aura'];
+    for (const slot of slots) {
+      const id = equipped[slot];
+      if (!id) continue;
+      const item = cosmetics.getItemById ? cosmetics.getItemById(id) : null;
+      // Auras render to auraG (no bob); everything else to wornG (bobs with body).
+      const isAura = (slot === 'aura');
+      const ctx = {
+        scene,
+        parent: isAura ? auraG : wornG,
+        item: item || { id },
+        speciesId, stage, layout, pal,
+        anchor: (name) => anchorXY(speciesId, stage, name, layout)
+      };
+      renderPetCosmetic(ctx);
+    }
+
     // Always-on halo orbit
-    if (cosmeticG.starHalo) {
+    if (wornG.starHalo) {
       scene.tweens.add({
-        targets: cosmeticG.starHalo,
+        targets: wornG.starHalo,
         angle: 360,
         duration: 6000,
         repeat: -1,
@@ -375,302 +303,17 @@ export function drawCompanion(scene, x, y, opts = {}) {
   return container;
 }
 
-// Mouth ---------------------------------------------------------------------
-
-function drawMouth(g, pal, w, y, mood) {
+// Frown overlay — draws a small dark arc near the mouth row of the grid.
+function drawFrownOverlay(g, layout, pal) {
   g.clear();
-  g.lineStyle(3, pal.outline, 0.85);
-  if (mood === 'sad') {
-    g.beginPath();
-    g.moveTo(-w, y + 4);
-    // Frown — small downward arc
-    g.lineTo(-w * 0.4, y - 4);
-    g.lineTo(w * 0.4, y - 4);
-    g.lineTo(w, y + 4);
-    g.strokePath();
-  } else {
-    // Happy smile
-    g.beginPath();
-    g.arc(0, y - w * 0.4, w, 0.2, Math.PI - 0.2);
-    g.strokePath();
-    // Tongue / inner-mouth dot
-    g.fillStyle(pal.blush, 0.85);
-    g.fillCircle(0, y, w * 0.35);
-  }
-}
-
-// Egg ------------------------------------------------------------------------
-
-function drawEgg(scene, parent, species, pal, headR) {
-  const egg = scene.add.graphics();
-  // Shadow / lower body color
-  egg.fillStyle(pal.bodyLo, 1);
-  egg.fillEllipse(0, 6, headR * 1.7, headR * 2.1);
-  // Body
-  egg.fillStyle(pal.body, 1);
-  egg.fillEllipse(0, 0, headR * 1.6, headR * 2.0);
-  // Highlight
-  egg.fillStyle(pal.bodyHi, 0.65);
-  egg.fillEllipse(-headR * 0.3, -headR * 0.5, headR * 0.7, headR * 0.7);
-  // Crack
-  egg.lineStyle(3, pal.outline, 0.6);
-  egg.beginPath();
-  egg.moveTo(-headR * 0.45, headR * 0.20);
-  egg.lineTo(-headR * 0.20, headR * 0.05);
-  egg.lineTo(0, headR * 0.25);
-  egg.lineTo(headR * 0.25, headR * 0.05);
-  egg.lineTo(headR * 0.50, headR * 0.20);
-  egg.strokePath();
-  // Sparkle accent ring
-  egg.fillStyle(species.accent, 0.55);
-  egg.fillEllipse(0, headR * 0.55, headR * 0.85, headR * 0.20);
-  parent.add(egg);
-
-  // Tiny eyes peeking through the crack
-  const eyeR = headR * 0.13;
-  const eyes = scene.add.graphics();
-  eyes.fillStyle(pal.eyeBlack, 1);
-  eyes.fillCircle(-headR * 0.18, headR * 0.15, eyeR);
-  eyes.fillCircle(headR * 0.18, headR * 0.15, eyeR);
-  eyes.fillStyle(pal.sparkle, 1);
-  eyes.fillCircle(-headR * 0.18 - eyeR * 0.3, headR * 0.15 - eyeR * 0.3, eyeR * 0.4);
-  eyes.fillCircle(headR * 0.18 - eyeR * 0.3, headR * 0.15 - eyeR * 0.3, eyeR * 0.4);
-  parent.add(eyes);
-}
-
-// Species accents ------------------------------------------------------------
-
-function drawSpeciesAccents(scene, parent, speciesId, stage, pal, headR, bodyH) {
-  if (speciesId === 'ember') {
-    // Flame tuft on top of head
-    const flame = scene.add.graphics();
-    flame.fillStyle(pal.accent, 1);
-    flame.fillEllipse(0, -headR * 1.05, headR * 0.6, headR * 0.55);
-    flame.fillStyle(pal.accentHi, 0.85);
-    flame.fillEllipse(0, -headR * 1.10, headR * 0.30, headR * 0.30);
-    flame.fillStyle(0xffffff, 0.7);
-    flame.fillCircle(0, -headR * 1.15, headR * 0.10);
-    parent.add(flame);
-    if (stage === 'adult') {
-      // Crescent wings behind body
-      const wings = scene.add.graphics();
-      wings.fillStyle(pal.accent, 0.85);
-      wings.fillEllipse(-headR * 1.3, headR * 0.4, headR * 0.6, headR * 0.4);
-      wings.fillEllipse(headR * 1.3, headR * 0.4, headR * 0.6, headR * 0.4);
-      parent.add(wings);
-    }
-  } else if (speciesId === 'tide') {
-    // Two droplet antennae
-    const ant = scene.add.graphics();
-    ant.lineStyle(3, pal.bodyLo, 1);
-    ant.lineBetween(-headR * 0.45, -headR * 0.95, -headR * 0.55, -headR * 1.35);
-    ant.lineBetween(headR * 0.45, -headR * 0.95, headR * 0.55, -headR * 1.35);
-    ant.fillStyle(pal.accent, 1);
-    ant.fillCircle(-headR * 0.55, -headR * 1.40, headR * 0.18);
-    ant.fillCircle(headR * 0.55, -headR * 1.40, headR * 0.18);
-    ant.fillStyle(0xffffff, 0.85);
-    ant.fillCircle(-headR * 0.60, -headR * 1.45, headR * 0.06);
-    ant.fillCircle(headR * 0.50, -headR * 1.45, headR * 0.06);
-    parent.add(ant);
-    if (stage === 'adult' || stage === 'teen') {
-      // Tiny side fins
-      const fins = scene.add.graphics();
-      fins.fillStyle(pal.accent, 0.7);
-      fins.fillTriangle(-headR * 1.05, headR * 0.45, -headR * 0.6, headR * 0.20, -headR * 0.55, headR * 0.65);
-      fins.fillTriangle(headR * 1.05, headR * 0.45, headR * 0.6, headR * 0.20, headR * 0.55, headR * 0.65);
-      parent.add(fins);
-    }
-  } else if (speciesId === 'sprout') {
-    // Sprig on top
-    const sprig = scene.add.graphics();
-    sprig.lineStyle(3, darken(pal.accent, 0.4), 1);
-    sprig.lineBetween(0, -headR * 0.95, 0, -headR * 1.30);
-    sprig.fillStyle(pal.accent, 1);
-    sprig.fillEllipse(-headR * 0.18, -headR * 1.20, headR * 0.30, headR * 0.18);
-    sprig.fillEllipse(headR * 0.18, -headR * 1.30, headR * 0.30, headR * 0.18);
-    parent.add(sprig);
-    if (stage === 'teen' || stage === 'adult') {
-      // Bloom on cheek
-      const bloom = scene.add.graphics();
-      const bx = headR * 0.85;
-      const by = -headR * 0.55;
-      bloom.fillStyle(0xffb3c1, 1);
-      for (let i = 0; i < 5; i++) {
-        const a = (i / 5) * Math.PI * 2;
-        bloom.fillCircle(bx + Math.cos(a) * headR * 0.12, by + Math.sin(a) * headR * 0.12, headR * 0.10);
-      }
-      bloom.fillStyle(pal.accent, 1);
-      bloom.fillCircle(bx, by, headR * 0.08);
-      parent.add(bloom);
-    }
-  }
-}
-
-// Cosmetics ------------------------------------------------------------------
-
-function renderCosmetic(scene, parent, item, headR, bodyH) {
-  if (!item) return;
-  if (item.id === 'hat_cap') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.fillEllipse(0, -headR * 1.05, headR * 1.4, headR * 0.65);
-    g.fillStyle(darken(item.color, 0.25), 1);
-    g.fillEllipse(headR * 0.7, -headR * 0.95, headR * 0.6, headR * 0.18);
-    g.fillStyle(lighten(item.color, 0.20), 0.7);
-    g.fillEllipse(-headR * 0.25, -headR * 1.15, headR * 0.4, headR * 0.18);
-    parent.add(g);
-  } else if (item.id === 'hat_crown') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.beginPath();
-    g.moveTo(-headR * 0.7, -headR * 0.85);
-    g.lineTo(-headR * 0.5, -headR * 1.15);
-    g.lineTo(-headR * 0.25, -headR * 0.95);
-    g.lineTo(0, -headR * 1.20);
-    g.lineTo(headR * 0.25, -headR * 0.95);
-    g.lineTo(headR * 0.5, -headR * 1.15);
-    g.lineTo(headR * 0.7, -headR * 0.85);
-    g.lineTo(headR * 0.6, -headR * 0.75);
-    g.lineTo(-headR * 0.6, -headR * 0.75);
-    g.closePath();
-    g.fillPath();
-    g.fillStyle(0xff5577, 1);
-    g.fillCircle(0, -headR * 0.85, headR * 0.10);
-    parent.add(g);
-  } else if (item.id === 'acc_scarf') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.fillRoundedRect(-headR * 0.95, headR * 0.55, headR * 1.9, headR * 0.30, headR * 0.10);
-    g.fillStyle(lighten(item.color, 0.30), 0.6);
-    g.fillRect(-headR * 0.85, headR * 0.62, headR * 1.7, headR * 0.05);
-    parent.add(g);
-  } else if (item.id === 'acc_shades') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.fillRoundedRect(-headR * 0.75, -headR * 0.30, headR * 0.55, headR * 0.36, headR * 0.10);
-    g.fillRoundedRect(headR * 0.20, -headR * 0.30, headR * 0.55, headR * 0.36, headR * 0.10);
-    g.lineStyle(3, item.color, 1);
-    g.lineBetween(-headR * 0.20, -headR * 0.16, headR * 0.20, -headR * 0.16);
-    g.fillStyle(0xffffff, 0.4);
-    g.fillCircle(-headR * 0.55, -headR * 0.20, headR * 0.10);
-    g.fillCircle(headR * 0.40, -headR * 0.20, headR * 0.10);
-    parent.add(g);
-  } else if (item.id === 'acc_starbow') {
-    const g = scene.add.graphics();
-    const colors = [0xff6b6b, 0xff8b3d, 0xffd86b, 0x58d68d, 0x4ecdc4, 0xc77eff];
-    const stripeH = headR * 0.06;
-    for (let i = 0; i < colors.length; i++) {
-      g.fillStyle(colors[i], 1);
-      g.fillRect(-headR * 0.95, headR * 0.55 + i * stripeH, headR * 1.9, stripeH);
-    }
-    parent.add(g);
-  } else if (item.id === 'hat_starhat') {
-    const g = scene.add.graphics();
-    // Helmet dome
-    g.fillStyle(item.color, 1);
-    g.fillEllipse(0, -headR * 1.05, headR * 1.5, headR * 0.85);
-    g.fillStyle(lighten(item.color, 0.30), 0.7);
-    g.fillEllipse(-headR * 0.25, -headR * 1.20, headR * 0.45, headR * 0.18);
-    // Star on the front
-    g.fillStyle(0xffffff, 1);
-    drawStar(g, 0, -headR * 1.05, 5, headR * 0.20, headR * 0.08);
-    parent.add(g);
-  } else if (item.id === 'acc_jetpack') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.fillRoundedRect(-headR * 0.95, headR * 0.55, headR * 0.30, headR * 0.65, headR * 0.06);
-    g.fillRoundedRect(headR * 0.65, headR * 0.55, headR * 0.30, headR * 0.65, headR * 0.06);
-    g.fillStyle(darken(item.color, 0.35), 1);
-    g.fillRect(-headR * 0.92, headR * 1.15, headR * 0.24, headR * 0.10);
-    g.fillRect(headR * 0.68, headR * 1.15, headR * 0.24, headR * 0.10);
-    parent.add(g);
-
-    // Flame plume (hidden until rocketBoost fires)
-    const flame = scene.add.graphics();
-    flame.fillStyle(0xff8b3d, 1);
-    flame.fillTriangle(-headR * 0.92, headR * 1.25, -headR * 0.68, headR * 1.25, -headR * 0.80, headR * 1.65);
-    flame.fillTriangle(headR * 0.68, headR * 1.25, headR * 0.92, headR * 1.25, headR * 0.80, headR * 1.65);
-    flame.fillStyle(0xffd86b, 1);
-    flame.fillTriangle(-headR * 0.86, headR * 1.30, -headR * 0.74, headR * 1.30, -headR * 0.80, headR * 1.55);
-    flame.fillTriangle(headR * 0.74, headR * 1.30, headR * 0.86, headR * 1.30, headR * 0.80, headR * 1.55);
-    flame.setAlpha(0);
-    parent.add(flame);
-    parent.jetpackFlame = flame;
-  } else if (item.id === 'hat_propeller') {
-    const g = scene.add.graphics();
-    g.fillStyle(item.color, 1);
-    g.fillEllipse(0, -headR * 1.0, headR * 0.9, headR * 0.45);
-    g.fillStyle(lighten(item.color, 0.30), 0.6);
-    g.fillEllipse(-headR * 0.15, -headR * 1.10, headR * 0.30, headR * 0.10);
-    g.fillStyle(0x07071a, 1);
-    g.fillRect(-headR * 0.04, -headR * 1.45, headR * 0.08, headR * 0.30);
-    parent.add(g);
-
-    // Propeller blades
-    const prop = scene.add.container(0, -headR * 1.45);
-    const blade = scene.add.graphics();
-    blade.fillStyle(0xff5577, 1);
-    blade.fillEllipse(-headR * 0.45, 0, headR * 0.7, headR * 0.10);
-    blade.fillEllipse(headR * 0.45, 0, headR * 0.7, headR * 0.10);
-    prop.add(blade);
-    parent.add(prop);
-    parent.propeller = prop;
-    // Idle slow spin
-    scene.tweens.add({
-      targets: prop,
-      angle: 360,
-      duration: 4000,
-      repeat: -1,
-      ease: 'Linear'
-    });
-  } else if (item.id === 'acc_antenna') {
-    const g = scene.add.graphics();
-    g.lineStyle(3, item.color, 1);
-    g.lineBetween(0, -headR * 1.0, 0, -headR * 1.40);
-    parent.add(g);
-    const tip = scene.add.graphics();
-    tip.fillStyle(item.color, 1);
-    tip.fillCircle(0, 0, headR * 0.10);
-    tip.fillStyle(0xffffff, 1);
-    drawStar(tip, 0, 0, 5, headR * 0.13, headR * 0.05);
-    tip.x = 0;
-    tip.y = -headR * 1.45;
-    parent.add(tip);
-    parent.antennaTip = tip;
-  } else if (item.id === 'acc_starhalo') {
-    const halo = scene.add.container(0, -headR * 0.20);
-    const radius = headR * 1.10;
-    const stars = [];
-    for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      const sx = Math.cos(a) * radius;
-      const sy = Math.sin(a) * radius * 0.45;
-      const star = scene.add.graphics();
-      star.fillStyle(item.color, 1);
-      drawStar(star, 0, 0, 5, headR * 0.13, headR * 0.05);
-      star.x = sx;
-      star.y = sy;
-      halo.add(star);
-      stars.push(star);
-    }
-    halo.children = stars;
-    parent.add(halo);
-    parent.starHalo = halo;
-  }
-}
-
-// Filled star shape — caller sets fillStyle. Differs from drawStarIcon in
-// StatIcons.js by not assuming a fixed inner/outer radius ratio.
-function drawStar(g, cx, cy, points, outerR, innerR) {
+  // Mouth row sits ~60% down the head — approximate anchor:
+  const cy = layout.originY + layout.rows * 0.55 * layout.pixelSize;
+  const w = layout.pixelSize * 3;
+  g.lineStyle(layout.pixelSize * 0.6, pal.mouth, 1);
   g.beginPath();
-  for (let i = 0; i < points * 2; i++) {
-    const r = i % 2 === 0 ? outerR : innerR;
-    const angle = (i / (points * 2)) * Math.PI * 2 - Math.PI / 2;
-    const x = cx + r * Math.cos(angle);
-    const y = cy + r * Math.sin(angle);
-    if (i === 0) g.moveTo(x, y);
-    else g.lineTo(x, y);
-  }
-  g.closePath();
-  g.fillPath();
+  g.moveTo(-w, cy + 2);
+  g.lineTo(-w * 0.4, cy - 2);
+  g.lineTo(w * 0.4, cy - 2);
+  g.lineTo(w, cy + 2);
+  g.strokePath();
 }

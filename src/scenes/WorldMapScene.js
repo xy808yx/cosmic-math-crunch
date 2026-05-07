@@ -8,18 +8,19 @@ import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
-import { createIconButton } from '../buttonHelper.js';
+import { createIconButton, createPetPortraitButton, createButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { companion, drawCompanion, SPECIES } from '../CompanionManager.js';
+import { companion, drawCompanion } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
 import { buildMapPath, getNodePositions, drawPath, tForNodeIndex } from '../MapPath.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
+import { createMapAmbience } from '../WorldAmbience.js';
 import {
   drawFlameIcon, drawSparkleIcon, drawStarIcon,
-  drawShopIcon, drawTrophyIcon, drawGearIcon, drawLockIcon
+  drawGearIcon, drawShoppingBagIcon, drawHelmetIcon
 } from '../StatIcons.js';
 
 const W = 1080;
@@ -68,7 +69,7 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Logo / title
     this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
-      fontSize: '70px',
+      fontSize: '54px',
       fill: '#ffffff',
       stroke: '#0a0a1a',
       strokeThickness: 4
@@ -77,36 +78,44 @@ export class WorldMapScene extends Phaser.Scene {
     // Three-chip readout: stardust, streak, total stars
     this.createChipRow();
 
-    // Top-right Shop
+    // Top-left Parent Dashboard (was the small gear; now full-size primary)
     createIconButton(this, {
-      x: W - 90, y: 88, radius: 38,
-      accentColor: 0xc77eff,
-      drawIcon: (g, size) => drawShopIcon(g, 0, 0, size),
+      x: 90, y: 88, radius: 38,
+      accentColor: 0x4ecdc4,
+      drawIcon: (g, size) => drawGearIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
-        new TransitionManager(this).fadeToScene('ShopScene');
+        this.scene.start('ParentDashboardScene');
       }
     }).setDepth(15);
 
-    // Top-left Records
+    // Top-right cluster: Logbook | Pet | Shop
     createIconButton(this, {
-      x: 90, y: 88, radius: 38,
+      x: W - 282, y: 88, radius: 38,
       accentColor: 0xffd86b,
-      drawIcon: (g, size) => drawTrophyIcon(g, 0, 0, size),
+      drawIcon: (g, size) => drawHelmetIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
         new TransitionManager(this).fadeToScene('RecordsScene');
       }
     }).setDepth(15);
 
-    // Settings (slightly smaller)
+    const sp = companion.getSpecies();
+    const petAccent = sp ? sp.accent : 0xc77eff;
+    createPetPortraitButton(this, {
+      x: W - 186, y: 88, radius: 38,
+      accentColor: petAccent,
+      drawPet: (scene, x, y, opts) => drawCompanion(scene, x, y, opts),
+      onClick: () => this.showLoreCard()
+    }).setDepth(15);
+
     createIconButton(this, {
-      x: 90, y: 175, radius: 28,
-      accentColor: 0x4ecdc4,
-      drawIcon: (g, size) => drawGearIcon(g, 0, 0, size),
+      x: W - 90, y: 88, radius: 38,
+      accentColor: 0xc77eff,
+      drawIcon: (g, size) => drawShoppingBagIcon(g, 0, 0, size),
       onClick: () => {
         audio.playClick();
-        this.scene.start('ParentDashboardScene');
+        new TransitionManager(this).fadeToScene('ShopScene');
       }
     }).setDepth(15);
   }
@@ -169,17 +178,35 @@ export class WorldMapScene extends Phaser.Scene {
     bloom.fillStyle(0x4ecdc4, 0.04);
     bloom.fillEllipse(W / 2, H * 0.55, W * 1.4, H * 0.55);
 
+    // Layered ambience: stars, drifting nebulae, shooting stars, theme particles
+    createMapAmbience(this, {
+      width: W,
+      height: H,
+      nodePositions: this.nodePositions,
+      furthestUnlocked: this.furthestUnlockedIndex,
+      accentColors: WORLDS.map(w => w.accentColor)
+    });
+
     // Path — only segments up to (and including) the current world segment
     // are visible; locked tail is hidden.
     const visibleSegments = this.furthestUnlockedIndex; // segments equals (idx) since 0-based
     drawPath(this, this.path, visibleSegments, 0x4ecdc4).setDepth(2);
 
-    // Nodes — only render up to furthestUnlocked. Locked beyond stay hidden.
+    // Nodes — unlocked render in full color, locked render as silhouette+?.
     this.nodeContainers = {};
     for (let i = 0; i < WORLDS.length; i++) {
-      if (i > this.furthestUnlockedIndex) continue;
       const world = WORLDS[i];
       const pos = this.nodePositions[i];
+      const isLocked = i > this.furthestUnlockedIndex;
+
+      if (isLocked) {
+        // Render silhouette only — no label, no hit, no animation.
+        const sil = drawWorldNode(this, pos.x, pos.y, world.id, { scale: 0.95, silhouette: true });
+        sil.setDepth(5);
+        sil.setAlpha(0.85);
+        continue;
+      }
+
       const isCurrent = i === this.currentWorldIndex;
       const isCleared = progress.isWorldFullyCleared(world.id);
       const node = drawWorldNode(this, pos.x, pos.y, world.id, { scale: 0.95 });
@@ -214,7 +241,7 @@ export class WorldMapScene extends Phaser.Scene {
 
       // World label
       const label = this.add.text(pos.x, pos.y + 90, world.name.toUpperCase(), style('caption', {
-        fontSize: '22px',
+        fontSize: '28px',
         fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
         fontStyle: '900',
         stroke: '#0a0a1a',
@@ -233,17 +260,33 @@ export class WorldMapScene extends Phaser.Scene {
         this.tweens.add({ targets: node, scale: 0.95, duration: 120 });
       });
 
-      // Pulsing ring for the current world
+      // Soft static halo + "YOU ARE HERE" chip for the current world
       if (isCurrent) {
-        const ring = this.add.graphics().setDepth(4);
-        ring.lineStyle(4, world.accentColor, 0.85);
-        ring.strokeCircle(pos.x, pos.y, 80);
+        const halo = this.add.graphics().setDepth(3);
+        halo.fillStyle(world.accentColor, 0.18);
+        halo.fillCircle(pos.x, pos.y, 90);
+        halo.fillStyle(world.accentColor, 0.10);
+        halo.fillCircle(pos.x, pos.y, 130);
+        halo.fillStyle(world.accentColor, 0.05);
+        halo.fillCircle(pos.x, pos.y, 170);
+
+        const chip = this.add.container(pos.x, pos.y - 130).setDepth(8);
+        const chipBg = this.add.graphics();
+        chipBg.fillStyle(world.accentColor, 0.95);
+        chipBg.fillRoundedRect(-92, -18, 184, 36, 18);
+        chipBg.lineStyle(2, 0x0a0a1a, 0.4);
+        chipBg.strokeRoundedRect(-92, -18, 184, 36, 18);
+        chip.add(chipBg);
+        const chipText = this.add.text(0, 0, 'YOU ARE HERE', style('caption', {
+          fontSize: '18px',
+          fill: '#0a0a1a',
+          fontStyle: '900'
+        })).setOrigin(0.5);
+        chip.add(chipText);
         this.tweens.add({
-          targets: ring,
-          scaleX: 1.18,
-          scaleY: 1.18,
-          alpha: 0.3,
-          duration: 1200,
+          targets: chip,
+          y: pos.y - 130 - 4,
+          duration: 2400,
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut'
@@ -271,12 +314,6 @@ export class WorldMapScene extends Phaser.Scene {
       const pet = drawCompanion(this, pc.x, pc.y, { scale: 0.42 });
       shipG.add(pet);
       this.shipPet.pet = pet;
-
-      // Pet hit area for lore card
-      const hit = this.add.circle(pc.x, pc.y, shipG.portholeRadius + 10, 0x000000, 0)
-        .setInteractive({ useHandCursor: true });
-      shipG.add(hit);
-      hit.on('pointerdown', () => this.showLoreCard());
     }
 
     // Idle bob
@@ -313,14 +350,14 @@ export class WorldMapScene extends Phaser.Scene {
       ? 'World cleared — replay any mission'
       : world.description;
     this.add.text(W / 2, 1815, subtitle, style('body', {
-      fontSize: '24px',
+      fontSize: '28px',
       fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
       align: 'center',
       wordWrap: { width: W - 160 }
     })).setOrigin(0.5).setDepth(11);
 
     this.add.text(W / 2, 1870, `${wp.levelsCompleted}/${world.levelsRequired} missions complete`, style('caption', {
-      fontSize: '22px',
+      fontSize: '28px',
       fill: '#cfcfe0'
     })).setOrigin(0.5).setDepth(11);
   }
@@ -400,8 +437,8 @@ export class WorldMapScene extends Phaser.Scene {
       .setDepth(80).setInteractive();
     const card = this.add.container(W / 2, H / 2).setDepth(81);
 
-    const cw = 880;
-    const ch = 1100;
+    const cw = 920;
+    const ch = 1440;
     const bg = this.add.graphics();
     bg.fillStyle(0x12122a, 1);
     bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 28);
@@ -410,38 +447,41 @@ export class WorldMapScene extends Phaser.Scene {
     card.add(bg);
 
     // Portrait
-    const portrait = drawCompanion(this, 0, -ch / 2 + 220, { scale: 1.6 });
+    const portrait = drawCompanion(this, 0, -ch / 2 + 240, { scale: 1.8 });
     card.add(portrait);
 
-    card.add(this.add.text(0, -ch / 2 + 460, lore.name.toUpperCase(), style('display', {
-      fontSize: '52px',
+    // Name (much bigger)
+    card.add(this.add.text(0, -ch / 2 + 500, lore.name.toUpperCase(), style('display', {
+      fontSize: '68px',
       fill: '#ffffff'
     })).setOrigin(0.5));
-    card.add(this.add.text(0, -ch / 2 + 510, lore.type, style('caption', {
-      fontSize: '22px',
+    // Type tag
+    card.add(this.add.text(0, -ch / 2 + 560, lore.type, style('caption', {
+      fontSize: '32px',
       fill: '#' + sp.accent.toString(16).padStart(6, '0')
     })).setOrigin(0.5));
-    card.add(this.add.text(0, -ch / 2 + 580, lore.lore, style('body', {
-      fontSize: '24px',
+    // Lore description (bigger, more line spacing)
+    card.add(this.add.text(0, -ch / 2 + 660, lore.lore, style('body', {
+      fontSize: '34px',
       fill: '#cfcfe0',
       align: 'center',
-      wordWrap: { width: cw - 100 }
+      wordWrap: { width: cw - 100 },
+      lineSpacing: 8
     })).setOrigin(0.5));
 
-    // Evolution progress
+    // Evolution progress block — sits in lower third of card
     const prog = companion.getStageProgress();
-    const py = ch / 2 - 380;
+    const py = ch / 2 - 600;
     if (prog.nextStage) {
       const nextLore = sp.stages[prog.nextStage];
       card.add(this.add.text(0, py, `Next stage: ${nextLore.name}`, style('subhead', {
-        fontSize: '28px',
+        fontSize: '34px',
         fill: '#ffffff'
       })).setOrigin(0.5));
 
-      // Silhouette of next stage (a darker pet drawn at the next stage)
-      const sil = drawCompanion(this, 0, py + 100, { scale: 0.8, stage: prog.nextStage });
+      // Silhouette of next stage (use alpha; .setTint doesn't apply to Graphics)
+      const sil = drawCompanion(this, 0, py + 130, { scale: 0.9, stage: prog.nextStage });
       sil.setAlpha(0.35);
-      sil.list.forEach(child => child.setTint?.(0x000000));
       card.add(sil);
 
       // Sub-goals
@@ -450,39 +490,69 @@ export class WorldMapScene extends Phaser.Scene {
         `${prog.lifetimeCorrect.current}/${prog.lifetimeCorrect.target} correct answers`,
         `${prog.accuracy.current}%/${prog.accuracy.target}% accuracy`
       ];
+      const goalsStartY = py + 290;
       goals.forEach((g, i) => {
-        const gy = py + 240 + i * 40;
+        const gy = goalsStartY + i * 56;
         card.add(this.add.text(0, gy, g, style('caption', {
-          fontSize: '22px',
+          fontSize: '30px',
           fill: '#cfcfe0'
         })).setOrigin(0.5));
       });
 
-      // Overall progress bar
+      // Overall progress bar — sits with its own band, well above card edge
       const barW = cw - 200;
+      const barY = goalsStartY + 3 * 56 + 30;
       const barG = this.add.graphics();
       barG.fillStyle(0x2a2a44, 1);
-      barG.fillRoundedRect(-barW / 2, ch / 2 - 90, barW, 18, 9);
+      barG.fillRoundedRect(-barW / 2, barY, barW, 22, 11);
       barG.fillStyle(sp.accent, 1);
-      barG.fillRoundedRect(-barW / 2, ch / 2 - 90, barW * Math.min(1, prog.ratio), 18, 9);
+      barG.fillRoundedRect(-barW / 2, barY, barW * Math.min(1, prog.ratio), 22, 11);
       card.add(barG);
     } else {
-      card.add(this.add.text(0, py + 100, 'FULLY EVOLVED', style('subhead', {
-        fontSize: '36px',
+      // Adult — show trophy count + "Raise another companion" CTA
+      card.add(this.add.text(0, py, 'FULLY EVOLVED', style('subhead', {
+        fontSize: '40px',
         fill: '#ffd86b'
       })).setOrigin(0.5));
+
+      const completedCount = companion.getCompletedPets().length;
+      if (completedCount > 0) {
+        card.add(this.add.text(0, py + 60, `Trophy shelf: ${completedCount}`, style('caption', {
+          fontSize: '28px',
+          fill: '#cfcfe0'
+        })).setOrigin(0.5));
+      }
+
+      // CTA button — uses createButton for consistency
+      const btn = createButton(this, {
+        x: 0, y: py + 200, width: 580, height: 96,
+        label: 'RAISE ANOTHER COMPANION',
+        color: 0xffd86b,
+        textStyle: 'subhead',
+        textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
+        onClick: () => {
+          companion.retireAndStartNew();
+          ov.destroy();
+          card.destroy();
+          closeBtn.destroy();
+          this.scene.start('StarterPickerScene');
+        }
+      });
+      card.add(btn);
     }
 
-    const closeBtn = this.add.text(0, ch / 2 - 40, 'tap anywhere to close', style('caption', {
-      fontSize: '20px',
-      fill: '#7a7a90'
-    })).setOrigin(0.5);
-    card.add(closeBtn);
+    // Close hint — placed OUTSIDE the card on the dim backdrop, eliminating
+    // overlap with stat lines/progress bar inside the card.
+    const closeBtn = this.add.text(W / 2, H / 2 + ch / 2 + 50, 'tap anywhere to close', style('caption', {
+      fontSize: '26px',
+      fill: '#9a9aae'
+    })).setOrigin(0.5).setDepth(81);
 
     const cleanup = () => {
       audio.playClick();
       ov.destroy();
       card.destroy();
+      closeBtn.destroy();
     };
     ov.on('pointerdown', cleanup);
     bg.setInteractive(new Phaser.Geom.Rectangle(-cw / 2, -ch / 2, cw, ch), Phaser.Geom.Rectangle.Contains);
