@@ -343,7 +343,20 @@ export class ShopScene extends Phaser.Scene {
         default:      return [];
       }
     })();
-    return [...items].sort(compareForShop);
+    // Sort by ownership status first (equipped → owned → affordable → locked),
+    // then by rarity within each group. Keeps the most actionable items at top.
+    const isPetTab = TAB_BY_ID[tabId]?.kind === 'pet';
+    const equippedMap = isPetTab ? cosmetics.getEquipped() : ship.getCurrentParts();
+    const ownsFn = isPetTab ? id => cosmetics.ownsItem(id) : id => ship.ownsPart(id);
+    const ranked = items.map(item => {
+      let rank = 3;
+      if (equippedMap[item.slot] === item.id) rank = 0;
+      else if (ownsFn(item.id)) rank = 1;
+      else if (economy.canAfford(item.price)) rank = 2;
+      return { item, rank };
+    });
+    ranked.sort((a, b) => a.rank - b.rank || compareForShop(a.item, b.item));
+    return ranked.map(r => r.item);
   }
 
   makeShopCard(item, tabId, w, h) {
@@ -381,6 +394,14 @@ export class ShopScene extends Phaser.Scene {
     bg.lineStyle(equipped || owned ? 4 : 3, borderColor, owned || canAfford ? 1 : 0.7);
     bg.strokeRoundedRect(-w / 2, -h / 2, w, h, 18);
     c.add(bg);
+
+    // Status wash so equipped vs owned reads at a glance, not just on the border.
+    if (equipped || owned) {
+      const wash = this.add.graphics();
+      wash.fillStyle(equipped ? 0x58d68d : 0x4ecdc4, equipped ? 0.12 : 0.08);
+      wash.fillRoundedRect(-w / 2, -h / 2, w, h, 18);
+      c.add(wash);
+    }
 
     // Rare items pulse the border
     if (rarity === 'rare' && !equipped && !owned) {
@@ -458,15 +479,28 @@ export class ShopScene extends Phaser.Scene {
     const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0)
       .setInteractive({ useHandCursor: true });
     c.add(hit);
-    // Fire on release-without-drag — the scene-wide drag tracker sets
-    // `dragMoved` if the user actually swiped, in which case we suppress
-    // the tap so the buy/equip action doesn't trigger mid-scroll.
+    // Fire only on a complete down→up on the same card. Without the pressed
+    // gate, a phantom pointerup landing on a freshly-rendered card after a
+    // purchase rebuild would trigger another handleTap. The scene-wide drag
+    // tracker still suppresses taps that turn into a swipe.
+    let pressed = false;
+    hit.on('pointerdown', () => { pressed = true; });
     hit.on('pointerup', () => {
-      if (this.dragMoved) return;
+      const wasPressed = pressed;
+      pressed = false;
+      if (this.dragMoved || !wasPressed) return;
       this.handleTap(item, tabId, owned, equipped, canAfford);
     });
     hit.on('pointerover', () => this.tweens.add({ targets: c, scale: 1.03, duration: 100 }));
-    hit.on('pointerout', () => this.tweens.add({ targets: c, scale: 1, duration: 100 }));
+    hit.on('pointerout', () => {
+      pressed = false;
+      this.tweens.add({ targets: c, scale: 1, duration: 100 });
+    });
+
+    // Locked items (unowned + can't afford) fade so the eye skips past them.
+    if (!owned && !canAfford && item.price > 0) {
+      c.setAlpha(0.55);
+    }
 
     return c;
   }

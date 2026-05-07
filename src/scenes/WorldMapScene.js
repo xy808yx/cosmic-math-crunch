@@ -78,7 +78,6 @@ export class WorldMapScene extends Phaser.Scene {
     bg.fillStyle(0x07071a, 0.20);
     bg.fillRect(0, 244, W, 16);
 
-    // Logo / title
     this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
       fontSize: '54px',
       fill: '#ffffff',
@@ -86,10 +85,9 @@ export class WorldMapScene extends Phaser.Scene {
       strokeThickness: 4
     })).setOrigin(0.5).setDepth(14);
 
-    // Two-chip readout: stars + stardust
     this.createChipRow();
 
-    // Top-left Parent Dashboard (was the small gear; now full-size primary)
+    // Top-left cluster: Gear | Logbook
     createIconButton(this, {
       x: 90, y: 88, radius: 38,
       accentColor: 0x4ecdc4,
@@ -100,9 +98,8 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }).setDepth(15);
 
-    // Top-right cluster: Logbook | Pet | Shop
     createIconButton(this, {
-      x: W - 282, y: 88, radius: 38,
+      x: 186, y: 88, radius: 38,
       accentColor: 0xffd86b,
       drawIcon: (g, size) => drawHelmetIcon(g, 0, 0, size),
       onClick: () => {
@@ -111,6 +108,7 @@ export class WorldMapScene extends Phaser.Scene {
       }
     }).setDepth(15);
 
+    // Top-right cluster: Pet | Shop
     const sp = companion.getSpecies();
     const petAccent = sp ? sp.accent : 0xc77eff;
     createPetPortraitButton(this, {
@@ -141,12 +139,24 @@ export class WorldMapScene extends Phaser.Scene {
     this.starsChip = this.makeChip(startX, cy, chipW, {
       icon: g => drawStarIcon(g, 0, 0, 18),
       accent: 0xf7dc6f,
-      value: () => `${progress.totalStars}`
+      value: () => `${progress.totalStars}`,
+      onClick: () => this.showInfoPopup({
+        accent: 0xf7dc6f,
+        drawIcon: (g, size) => drawStarIcon(g, 0, 0, size),
+        title: 'STARS',
+        body: 'You earn up to 3 stars on every mission — more answers right, more stars. They track how well you\'re mastering each math fact.'
+      })
     });
     this.stardustChip = this.makeChip(startX + chipW + gap, cy, chipW, {
       icon: g => drawSparkleIcon(g, 0, 0, 18),
       accent: 0xc77eff,
-      value: () => `${economy.getStardust()}`
+      value: () => `${economy.getStardust()}`,
+      onClick: () => this.showInfoPopup({
+        accent: 0xc77eff,
+        drawIcon: (g, size) => drawSparkleIcon(g, 0, 0, size),
+        title: 'STARDUST',
+        body: 'Stardust is your space money. You earn it from missions and your daily login bonus, then spend it in the Shop on hats, ship parts, and other cosmetics.'
+      })
     });
   }
 
@@ -207,7 +217,92 @@ export class WorldMapScene extends Phaser.Scene {
     c.add(text);
     c.text = text;
     c.refresh = () => text.setText(opts.value());
+
+    if (opts.onClick) {
+      const hit = this.add.rectangle(0, 0, width, h, 0x000000, 0)
+        .setInteractive({ useHandCursor: true });
+      c.add(hit);
+      hit.on('pointerover', () => {
+        this.tweens.add({ targets: c, scaleX: 1.04, scaleY: 1.04, duration: 100 });
+      });
+      hit.on('pointerout', () => {
+        this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, duration: 100 });
+      });
+      hit.on('pointerdown', () => {
+        audio.playClick();
+        opts.onClick();
+      });
+    }
+
     return c;
+  }
+
+  // ============================================================
+  // INFO POPUP (chip tooltips)
+  // ============================================================
+  showInfoPopup({ accent, drawIcon, title, body }) {
+    const ov = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0.80)
+      .setDepth(80).setInteractive();
+    const card = this.add.container(W / 2, H / 2).setDepth(81);
+
+    const cw = 760;
+    const ch = 520;
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 1);
+    bg.fillRoundedRect(-cw / 2, -ch / 2, cw, ch, 24);
+    bg.lineStyle(4, accent, 0.95);
+    bg.strokeRoundedRect(-cw / 2, -ch / 2, cw, ch, 24);
+    card.add(bg);
+
+    // Icon badge with halo
+    const iconY = -ch / 2 + 110;
+    const halo = this.add.graphics();
+    halo.fillStyle(accent, 0.22);
+    halo.fillCircle(0, iconY, 76);
+    halo.fillStyle(accent, 0.10);
+    halo.fillCircle(0, iconY, 100);
+    card.add(halo);
+
+    const badge = this.add.graphics();
+    badge.fillStyle(0x07071a, 1);
+    badge.fillCircle(0, iconY, 56);
+    badge.lineStyle(3, accent, 0.95);
+    badge.strokeCircle(0, iconY, 56);
+    card.add(badge);
+
+    const iconG = this.add.graphics();
+    iconG.y = iconY;
+    drawIcon(iconG, 56);
+    card.add(iconG);
+
+    // Title
+    card.add(this.add.text(0, iconY + 110, title, style('display', {
+      fontSize: '52px',
+      fill: '#ffffff',
+      stroke: '#0a0a1a',
+      strokeThickness: 3
+    })).setOrigin(0.5));
+
+    // Body copy
+    card.add(this.add.text(0, iconY + 200, body, style('body', {
+      fontSize: '30px',
+      fill: '#cfcfe0',
+      align: 'center',
+      wordWrap: { width: cw - 80 },
+      lineSpacing: 8
+    })).setOrigin(0.5, 0));
+
+    const closeHint = this.add.text(W / 2, H / 2 + ch / 2 + 50, 'tap anywhere to close', style('caption', {
+      fontSize: '26px',
+      fill: '#9a9aae'
+    })).setOrigin(0.5).setDepth(81);
+
+    ov.on('pointerdown', () => {
+      audio.playClick();
+      ov.destroy();
+      card.destroy();
+      closeHint.destroy();
+    });
   }
 
   // ============================================================
@@ -357,10 +452,18 @@ export class WorldMapScene extends Phaser.Scene {
       this.shipPet.pet = pet;
     }
 
-    // Idle bob
-    this.tweens.add({
+    this._startShipBob();
+  }
+
+  _startShipBob() {
+    if (this._bobTween) {
+      this._bobTween.stop();
+      this._bobTween = null;
+    }
+    const baseY = this.shipPet.y;
+    this._bobTween = this.tweens.add({
       targets: this.shipPet,
-      y: pos.y - 30 - 8,
+      y: baseY - 8,
       duration: 1600,
       yoyo: true,
       repeat: -1,
@@ -377,28 +480,42 @@ export class WorldMapScene extends Phaser.Scene {
     fade.fillStyle(0x07071a, 0.7);
     fade.fillRect(0, 1700, W, 220);
 
-    // Current world label / play hint
     const world = WORLDS[this.currentWorldIndex];
     const wp = progress.getWorldProgress(world.id);
     const fullyCleared = progress.isWorldFullyCleared(world.id);
 
-    this.add.text(W / 2, 1760, world.name, style('display', {
+    // Top hairline tinted to the current world's accent — frames the chrome
+    // the way the header's teal hairline frames the top.
+    const hairline = this.add.graphics().setDepth(11);
+    hairline.fillStyle(world.accentColor, 0.30);
+    hairline.fillRect(0, 1700, W, 2);
+
+    const nameText = this.add.text(W / 2, 1760, world.name, style('display', {
       fontSize: '54px',
       fill: '#ffffff'
     })).setOrigin(0.5).setDepth(11);
+    this.tweens.add({
+      targets: nameText,
+      y: 1758,
+      duration: 2400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
 
     const subtitle = fullyCleared
       ? 'World cleared — replay any mission'
       : world.description;
-    this.add.text(W / 2, 1815, subtitle, style('body', {
-      fontSize: '28px',
+    this.add.text(W / 2, 1820, subtitle, style('body', {
+      fontSize: '38px',
+      fontStyle: '600',
       fill: '#' + world.accentColor.toString(16).padStart(6, '0'),
       align: 'center',
       wordWrap: { width: W - 160 }
     })).setOrigin(0.5).setDepth(11);
 
-    this.add.text(W / 2, 1870, `${wp.levelsCompleted}/${world.levelsRequired} missions complete`, style('caption', {
-      fontSize: '28px',
+    this.add.text(W / 2, 1880, `${wp.levelsCompleted}/${world.levelsRequired} missions complete`, style('caption', {
+      fontSize: '32px',
       fill: '#cfcfe0'
     })).setOrigin(0.5).setDepth(11);
   }
@@ -424,6 +541,11 @@ export class WorldMapScene extends Phaser.Scene {
     if (this._traveling) return;
     this._traveling = true;
     this.input.enabled = false;
+
+    if (this._bobTween) {
+      this._bobTween.stop();
+      this._bobTween = null;
+    }
 
     const startT = tForNodeIndex(this.currentWorldIndex);
     const endT = tForNodeIndex(targetIndex);
@@ -462,6 +584,7 @@ export class WorldMapScene extends Phaser.Scene {
   enterWorld(idx) {
     const world = WORLDS[idx];
     this.registry.set('selectedWorld', world.id);
+    this.registry.set('shipParkedWorldId', world.id);
     new TransitionManager(this).fadeToScene('LevelSelectScene');
   }
 
@@ -609,6 +732,13 @@ export class WorldMapScene extends Phaser.Scene {
   // PROGRESS HELPERS
   // ============================================================
   findCurrentWorldIndex() {
+    const parkedId = this.registry.get('shipParkedWorldId');
+    if (parkedId) {
+      const parkedIdx = WORLDS.findIndex(w => w.id === parkedId);
+      if (parkedIdx >= 0 && progress.isWorldUnlocked(WORLDS[parkedIdx].id)) {
+        return parkedIdx;
+      }
+    }
     for (let i = 0; i < WORLDS.length; i++) {
       const w = WORLDS[i];
       if (!progress.isWorldUnlocked(w.id)) return Math.max(0, i - 1);

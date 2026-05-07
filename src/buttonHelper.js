@@ -262,7 +262,7 @@ export function createPetPortraitButton(scene, opts) {
 
   if (drawPet) {
     // Pet container, scaled to fit inside the circle.
-    const pet = drawPet(scene, 0, 6, { scale: radius / 90, preview: true });
+    const pet = drawPet(scene, 0, 0, { scale: radius / 90, preview: true });
     container.add(pet);
 
     // Mask the pet to a circle.
