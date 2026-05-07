@@ -11,7 +11,6 @@
 //   - worldsCleared             count  — total worlds where every level is done
 //   - totalCorrect              count  — lifetime correct answers
 //   - totalAttempts             count  — lifetime answer attempts
-//   - lastUpdatedAt             ms     — for "new record" flash decay
 //
 // Storage: separate localStorage key `cosmicMathRecords`.
 
@@ -25,7 +24,6 @@ function todayString() {
 class RecordsManager {
   constructor() {
     this.load();
-    this._pendingFlash = null;
   }
 
   load() {
@@ -41,7 +39,6 @@ class RecordsManager {
         this.worldsCleared = data.worldsCleared || 0;
         this.totalCorrect = data.totalCorrect || 0;
         this.totalAttempts = data.totalAttempts || 0;
-        this.lastUpdatedAt = data.lastUpdatedAt || 0;
       } else {
         this.reset();
       }
@@ -61,7 +58,6 @@ class RecordsManager {
     this.worldsCleared = 0;
     this.totalCorrect = 0;
     this.totalAttempts = 0;
-    this.lastUpdatedAt = 0;
     this.save();
   }
 
@@ -75,8 +71,7 @@ class RecordsManager {
         todayDate: this.todayDate,
         worldsCleared: this.worldsCleared,
         totalCorrect: this.totalCorrect,
-        totalAttempts: this.totalAttempts,
-        lastUpdatedAt: this.lastUpdatedAt
+        totalAttempts: this.totalAttempts
       }));
     } catch (e) { /* quota exhausted; harmless */ }
   }
@@ -93,8 +88,7 @@ class RecordsManager {
 
   // Record a single answer attempt. `problem` is the object from
   // getProblemForWorld; `correct` is bool; `elapsedMs` is the time the kid
-  // took to answer (≥0). Sets _pendingFlash to a short label when a record
-  // breaks, so the dashboard can render a subtle highlight.
+  // took to answer (≥0).
   recordAnswer(problem, correct, elapsedMs) {
     this.rolloverTodayIfNeeded();
     this.totalAttempts++;
@@ -107,31 +101,24 @@ class RecordsManager {
       this.todayAvgMs = (this.todayAvgMs * n + elapsedMs) / (n + 1);
       this.todaySamples = n + 1;
 
-      // Per-fact best
       const key = problem?.factKey;
       if (key) {
         const prev = this.fastestPerFact[key];
         if (!prev || elapsedMs < prev) {
           this.fastestPerFact[key] = Math.round(elapsedMs);
-          // Only flash on a real improvement of an existing record (not on
-          // the very first time the fact is seen — that'd flash constantly).
-          if (prev) this._flash(`Fastest ${formatFactKey(key)} ↓`);
         }
       }
     }
 
-    this.lastUpdatedAt = Date.now();
     this.save();
   }
 
-  // Called from GameScene at end of level. We update streak + worlds-cleared.
-  recordLevelComplete(worldId, stars, bestStreakThisLevel) {
+  // Called from GameScene at end of level — updates the lifetime best streak.
+  recordLevelComplete(bestStreakThisLevel) {
     if (bestStreakThisLevel > this.longestStreak) {
       this.longestStreak = bestStreakThisLevel;
-      this._flash(`Longest streak: ${this.longestStreak}`);
+      this.save();
     }
-    this.lastUpdatedAt = Date.now();
-    this.save();
   }
 
   // Recompute worldsCleared from progress (called on cockpit open).
@@ -181,18 +168,6 @@ class RecordsManager {
 
   getWorldsCleared() {
     return this.worldsCleared;
-  }
-
-  // Returns the pending flash message (and clears it) — caller renders a
-  // subtle highlight on the dashboard.
-  consumeFlash() {
-    const m = this._pendingFlash;
-    this._pendingFlash = null;
-    return m;
-  }
-
-  _flash(msg) {
-    this._pendingFlash = msg;
   }
 }
 

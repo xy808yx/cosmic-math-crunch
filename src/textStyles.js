@@ -1,6 +1,6 @@
 // Shared text style presets. Use `style('headline')` or `style('body', { fill: '#f00' })`.
 
-export const FONT_STACK = '"Nunito", "ui-rounded", "Avenir Next", "Helvetica Neue", system-ui, -apple-system, Arial, sans-serif';
+const FONT_STACK = '"Nunito", "ui-rounded", "Avenir Next", "Helvetica Neue", system-ui, -apple-system, Arial, sans-serif';
 
 const PRESETS = {
   display: {

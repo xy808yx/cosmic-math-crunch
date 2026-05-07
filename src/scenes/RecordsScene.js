@@ -9,7 +9,6 @@ import { createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { progress, WORLDS } from '../GameData.js';
 import { records, formatFactKey } from '../RecordsManager.js';
-import { streak } from '../StreakManager.js';
 import { drawArrowLeftIcon, drawStarIcon } from '../StatIcons.js';
 
 const W = 1080;
@@ -100,13 +99,6 @@ export class RecordsScene extends Phaser.Scene {
       this.makeStatCard(x, y, cardW, cardH, card);
     });
 
-    // Day streak chip
-    const ds = this.add.text(W / 2, startY + 2 * (cardH + gap) + 30,
-      `Daily play streak: ${streak.getCurrent()}d (best ${streak.getBest()}d)`,
-      style('caption', {
-        fontSize: '24px',
-        fill: '#ff8b3d'
-      })).setOrigin(0.5).setDepth(11);
   }
 
   makeStatCard(x, y, w, h, card) {

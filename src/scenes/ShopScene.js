@@ -16,7 +16,7 @@ import { drawCompanion } from '../PetRenderer.js';
 import { companion } from '../CompanionManager.js';
 import { createButton } from '../buttonHelper.js';
 import {
-  drawArrowLeftIcon, drawSparkleIcon, drawLockIcon, drawCheckIcon
+  drawArrowLeftIcon, drawSparkleIcon, drawCheckIcon
 } from '../StatIcons.js';
 import { RARITY_COLOR, RARITY_LABEL, rarityOf, compareForShop } from '../Rarity.js';
 
@@ -362,7 +362,6 @@ export class ShopScene extends Phaser.Scene {
     let borderColor = rarityColor;
     if (equipped) borderColor = 0x58d68d;
     else if (owned) borderColor = 0x4ecdc4;
-    else if (item.unlock) borderColor = 0xff8b3d;
 
     // Legendary halo behind the card
     if (rarity === 'legendary') {
@@ -435,7 +434,6 @@ export class ShopScene extends Phaser.Scene {
     if (equipped && isDefault) { badgeText = 'EQUIPPED'; badgeColor = 0x58d68d; }
     else if (equipped) { badgeText = 'TAP TO UNEQUIP'; badgeColor = 0x58d68d; }
     else if (owned) { badgeText = 'TAP TO EQUIP'; badgeColor = 0x4ecdc4; }
-    else if (item.unlock?.type === 'streak') { badgeText = `${item.unlock.days}-DAY STREAK`; badgeColor = 0xff8b3d; }
     else if (item.price === 0) { badgeText = 'FREE'; badgeColor = 0xc77eff; }
     else { badgeText = `${item.price} STARDUST`; badgeColor = canAfford ? 0xc77eff : 0x3a3a4a; if (!canAfford) badgeFill = '#7a7a90'; }
 
@@ -449,14 +447,6 @@ export class ShopScene extends Phaser.Scene {
       fontStyle: '900'
     })).setOrigin(0.5));
 
-    // Lock icon for unlock-required items
-    if (item.unlock && !owned) {
-      const lockG = this.add.graphics();
-      drawLockIcon(lockG, 0, 0, 18);
-      lockG.x = w / 2 - 28;
-      lockG.y = -h / 2 + 28;
-      c.add(lockG);
-    }
     if (equipped) {
       const checkG = this.add.graphics();
       drawCheckIcon(checkG, 0, 0, 16);
@@ -506,7 +496,6 @@ export class ShopScene extends Phaser.Scene {
       this.refreshPlayerAvatar();
       return;
     }
-    if (item.unlock) return; // milestone-only
     if (item.price > 0 && !canAfford) {
       audio.playClick();
       return;

@@ -11,7 +11,6 @@ import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
-import { streak } from '../StreakManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
@@ -19,7 +18,7 @@ import { buildMapPath, getNodePositions, drawPath, tForNodeIndex } from '../MapP
 import { drawWorldNode } from '../WorldNodeArt.js';
 import { createMapAmbience } from '../WorldAmbience.js';
 import {
-  drawFlameIcon, drawSparkleIcon, drawStarIcon,
+  drawSparkleIcon, drawStarIcon,
   drawGearIcon, drawShoppingBagIcon, drawHelmetIcon
 } from '../StatIcons.js';
 
@@ -87,7 +86,7 @@ export class WorldMapScene extends Phaser.Scene {
       strokeThickness: 4
     })).setOrigin(0.5).setDepth(14);
 
-    // Three-chip readout: stardust, streak, total stars
+    // Two-chip readout: stars + stardust
     this.createChipRow();
 
     // Top-left Parent Dashboard (was the small gear; now full-size primary)
@@ -134,9 +133,9 @@ export class WorldMapScene extends Phaser.Scene {
 
   createChipRow() {
     const cy = 175;
-    const chipW = 200;
-    const gap = 24;
-    const totalW = chipW * 3 + gap * 2;
+    const chipW = 240;
+    const gap = 32;
+    const totalW = chipW * 2 + gap;
     const startX = W / 2 - totalW / 2 + chipW / 2;
 
     this.starsChip = this.makeChip(startX, cy, chipW, {
@@ -148,11 +147,6 @@ export class WorldMapScene extends Phaser.Scene {
       icon: g => drawSparkleIcon(g, 0, 0, 18),
       accent: 0xc77eff,
       value: () => `${economy.getStardust()}`
-    });
-    this.streakChip = this.makeChip(startX + (chipW + gap) * 2, cy, chipW, {
-      icon: g => drawFlameIcon(g, 0, 0, 18),
-      accent: 0xff8b3d,
-      value: () => `${streak.getCurrent()}d`
     });
   }
 
@@ -643,7 +637,6 @@ export class WorldMapScene extends Phaser.Scene {
     }
     this.starsChip?.refresh();
     this.stardustChip?.refresh();
-    this.streakChip?.refresh();
   }
 
   computeMapFootprint() {

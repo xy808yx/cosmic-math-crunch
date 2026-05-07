@@ -320,7 +320,7 @@ export const PET_SPRITES = {
 // chest   — center of body, where outfits sit
 // back    — shoulder area, where wings/jetpack/cape attach
 // foot    — for trail-style auras attached to base
-export const PET_ANCHORS = {
+const PET_ANCHORS = {
   ember: {
     egg:   { head_top:[7,1],  head_eye:[6,7],  neck:[7,12], chest:[7,9],  back:[7,9],  foot:[7,13] },
     baby:  { head_top:[8,0],  head_eye:[8,9],  neck:[8,14], chest:[8,15], back:[8,11], foot:[8,17] },

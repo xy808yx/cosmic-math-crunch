@@ -18,9 +18,8 @@ export function rarityOf(item) {
   return item?.rarity || 'common';
 }
 
-// Sort order — common before rare before legendary. Used by ShopScene to
-// render every tab in the same predictable order.
-export const RARITY_ORDER = {
+// Sort order — common before rare before legendary. Used by compareForShop.
+const RARITY_ORDER = {
   common: 0,
   rare: 1,
   legendary: 2

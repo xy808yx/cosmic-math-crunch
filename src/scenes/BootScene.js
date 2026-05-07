@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { style } from '../textStyles.js';
 import { companion } from '../CompanionManager.js';
-import { streak } from '../StreakManager.js';
 
 export class BootScene extends Phaser.Scene {
   constructor() {
@@ -16,8 +15,6 @@ export class BootScene extends Phaser.Scene {
   }
 
   create() {
-    streak.onAppOpen();
-
     if (!companion.hasStarter()) {
       this.scene.start('StarterPickerScene');
     } else {

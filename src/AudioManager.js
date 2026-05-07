@@ -387,6 +387,116 @@ export class AudioManager {
     });
   }
 
+  // Stardust counter tick — short bright blip during count-up animation.
+  playStardustTick() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    this.playTone(1400 + Math.random() * 200, 0.05, 'sine', 0.10);
+  }
+
+  // Stardust chime — small resolved chord when count finishes.
+  playStardustChime() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    this.playTone(880, 0.18, 'sine', 0.22, 0);
+    this.playTone(1320, 0.20, 'sine', 0.18, 0.04);
+    this.playTone(1760, 0.24, 'triangle', 0.12, 0.08);
+  }
+
+  // Boss intro slam — heavy boom + low rumble for the Borderlands card.
+  playBossIntroSlam() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    // Sub-bass thump
+    const o1 = this.context.createOscillator();
+    o1.type = 'sine';
+    o1.frequency.setValueAtTime(80, this.context.currentTime);
+    o1.frequency.exponentialRampToValueAtTime(35, this.context.currentTime + 0.40);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.55, this.context.currentTime);
+    g1.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.45);
+    o1.connect(g1); g1.connect(this.sfxGain);
+    o1.start(); o1.stop(this.context.currentTime + 0.5);
+
+    // Mid metallic clang
+    const o2 = this.context.createOscillator();
+    o2.type = 'square';
+    o2.frequency.setValueAtTime(220, this.context.currentTime);
+    o2.frequency.exponentialRampToValueAtTime(110, this.context.currentTime + 0.18);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.20, this.context.currentTime);
+    g2.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.22);
+    o2.connect(g2); g2.connect(this.sfxGain);
+    o2.start(); o2.stop(this.context.currentTime + 0.24);
+
+    this._playNoiseBurst?.({ duration: 0.35, startOffset: 0, peakGain: 0.18, amplitude: 0.5 });
+  }
+
+  // Evolution buildup — soft ascending shimmer.
+  playEvolutionBuildup() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    const t0 = this.context.currentTime;
+    // Slow ascending sine sweep
+    const o = this.context.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(220, t0);
+    o.frequency.exponentialRampToValueAtTime(880, t0 + 1.4);
+    const g = this.context.createGain();
+    g.gain.setValueAtTime(0.001, t0);
+    g.gain.exponentialRampToValueAtTime(0.18, t0 + 1.0);
+    g.gain.exponentialRampToValueAtTime(0.001, t0 + 1.5);
+    o.connect(g); g.connect(this.sfxGain);
+    o.start(t0); o.stop(t0 + 1.55);
+
+    // Sparkle layer climbing
+    for (let i = 0; i < 6; i++) {
+      this.playTone(880 + i * 220, 0.18, 'sine', 0.10, 0.15 * i);
+    }
+  }
+
+  // Evolution flash — bright sting at the moment of transformation.
+  playEvolutionFlash() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    const t0 = this.context.currentTime;
+    // Bright triangle stab
+    const o1 = this.context.createOscillator();
+    o1.type = 'triangle';
+    o1.frequency.setValueAtTime(2200, t0);
+    o1.frequency.exponentialRampToValueAtTime(1400, t0 + 0.18);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.30, t0);
+    g1.gain.exponentialRampToValueAtTime(0.001, t0 + 0.5);
+    o1.connect(g1); g1.connect(this.sfxGain);
+    o1.start(t0); o1.stop(t0 + 0.55);
+
+    // Reverb tail (sine at lower octave)
+    const o2 = this.context.createOscillator();
+    o2.type = 'sine';
+    o2.frequency.setValueAtTime(880, t0);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.001, t0);
+    g2.gain.exponentialRampToValueAtTime(0.20, t0 + 0.05);
+    g2.gain.exponentialRampToValueAtTime(0.001, t0 + 0.9);
+    o2.connect(g2); g2.connect(this.sfxGain);
+    o2.start(t0); o2.stop(t0 + 0.95);
+  }
+
+  // Evolution resolve — soft major chord landing on the title card.
+  playEvolutionResolve() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    // C major triad held + a high sparkle on top
+    [523, 659, 784, 1047].forEach((freq, i) => {
+      this.playTone(freq, 1.4, 'sine', 0.20 - i * 0.02, i * 0.05);
+    });
+    // Sparkle tail
+    for (let i = 0; i < 8; i++) {
+      this.playTone(1600 + Math.random() * 1200, 0.18, 'sine', 0.10, 0.4 + i * 0.08);
+    }
+  }
+
   toggleEnabled() {
     this.enabled = !this.enabled;
     return this.enabled;
