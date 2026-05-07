@@ -157,32 +157,46 @@ export class ShopScene extends Phaser.Scene {
   }
 
   installScrollControls() {
-    // Mouse wheel
+    // Mouse wheel — works regardless of cursor position
     this.input.on('wheel', (_pointer, _objs, _dx, dy) => {
       this.applyScroll(dy);
     });
 
-    // Pointer drag — track on a transparent backdrop covering the viewport.
-    // The backdrop sits BELOW the cards (cards are depth 11+ inside scrollLayer);
-    // the backdrop's interactive only fires when the pointer hits empty space.
-    const dragHit = this.add.rectangle(W / 2, (this.scrollTop + this.scrollBottom) / 2,
-      W, this.scrollBottom - this.scrollTop, 0x000000, 0)
-      .setInteractive()
-      .setDepth(10);
-
+    // Touch / mouse drag — listen scene-wide so drag works even when the
+    // pointer starts ON a card. Cards check `this.dragMoved` before firing
+    // their tap, so a swipe scrolls instead of triggering buy/equip.
+    this.dragMoved = false;
     let dragging = false;
+    let startY = 0;
     let lastY = 0;
-    dragHit.on('pointerdown', (p) => {
+    const DRAG_THRESHOLD = 6;
+
+    this.input.on('pointerdown', (p) => {
+      if (p.y < this.scrollTop || p.y > this.scrollBottom) {
+        dragging = false;
+        return;
+      }
       dragging = true;
+      startY = p.y;
       lastY = p.y;
+      this.dragMoved = false;
     });
+
     this.input.on('pointermove', (p) => {
       if (!dragging) return;
       const dy = lastY - p.y;
       lastY = p.y;
-      this.applyScroll(dy);
+      if (Math.abs(p.y - startY) > DRAG_THRESHOLD) {
+        this.dragMoved = true;
+      }
+      if (this.dragMoved) this.applyScroll(dy);
     });
-    const release = () => { dragging = false; };
+
+    const release = () => {
+      dragging = false;
+      // Reset next tick so card pointerup handlers can still read dragMoved
+      this.time.delayedCall(0, () => { this.dragMoved = false; });
+    };
     this.input.on('pointerup', release);
     this.input.on('pointerupoutside', release);
   }
@@ -369,7 +383,13 @@ export class ShopScene extends Phaser.Scene {
     const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0)
       .setInteractive({ useHandCursor: true });
     c.add(hit);
-    hit.on('pointerdown', () => this.handleTap(item, tabId, owned, equipped, canAfford));
+    // Fire on release-without-drag — the scene-wide drag tracker sets
+    // `dragMoved` if the user actually swiped, in which case we suppress
+    // the tap so the buy/equip action doesn't trigger mid-scroll.
+    hit.on('pointerup', () => {
+      if (this.dragMoved) return;
+      this.handleTap(item, tabId, owned, equipped, canAfford);
+    });
     hit.on('pointerover', () => this.tweens.add({ targets: c, scale: 1.03, duration: 100 }));
     hit.on('pointerout', () => this.tweens.add({ targets: c, scale: 1, duration: 100 }));
 
