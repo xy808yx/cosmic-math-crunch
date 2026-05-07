@@ -19,6 +19,7 @@ export const PET_COSMETICS = [
   { id: 'hat_sushi',      slot: 'hat', name: 'Salmon Nigiri',  price: 100,  color: 0xff8b3d, rarity: 'common' },
   { id: 'hat_propeller',  slot: 'hat', name: 'Propeller Hat',  price: 250,  color: 0x4ecdc4, rarity: 'rare', animation: 'propellerSpin', trigger: 'correct' },
   { id: 'hat_astronaut',  slot: 'hat', name: 'Astronaut',      price: 250,  color: 0xb6e0ff, rarity: 'rare' },
+  { id: 'hat_wizard',     slot: 'hat', name: 'Wizard Hat',     price: 280,  color: 0x6c2bd9, rarity: 'rare' },
   { id: 'hat_starhat',    slot: 'hat', name: 'Star Helmet',    price: 0,    color: 0xffd86b, unlock: { type: 'streak', days: 7 }, rarity: 'legendary' },
   { id: 'hat_crown_stars',slot: 'hat', name: 'Crown of Stars', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
 
@@ -47,8 +48,10 @@ export const PET_COSMETICS = [
   { id: 'aura_lightning', slot: 'aura', name: 'Storm Pulse',    price: 380,  color: 0xfff3b8, rarity: 'rare' },
   { id: 'aura_planets',   slot: 'aura', name: 'Planet Orbit',   price: 420,  color: 0x9be8a3, rarity: 'rare' },
   { id: 'aura_rainbow',   slot: 'aura', name: 'Rainbow Pulse',  price: 350,  color: 0xc77eff, rarity: 'rare' },
+  { id: 'aura_embers',    slot: 'aura', name: 'Rising Embers',  price: 320,  color: 0xff8b3d, rarity: 'rare' },
   { id: 'aura_galaxy',    slot: 'aura', name: 'Mini Galaxy',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
-  { id: 'aura_legendary', slot: 'aura', name: 'Legendary Glow', price: 1500, color: 0xfff3b8, rarity: 'legendary' }
+  { id: 'aura_legendary', slot: 'aura', name: 'Legendary Glow', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  { id: 'aura_constellation', slot: 'aura', name: 'Constellation', price: 1500, color: 0xb6e0ff, rarity: 'legendary' }
 ];
 
 class CosmeticManager {

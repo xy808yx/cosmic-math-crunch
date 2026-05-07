@@ -8,7 +8,7 @@ import { WORLDS, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
-import { createIconButton, createPetPortraitButton, createButton } from '../buttonHelper.js';
+import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { streak } from '../StreakManager.js';
@@ -62,10 +62,22 @@ export class WorldMapScene extends Phaser.Scene {
   // ============================================================
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
-    bg.fillStyle(0x07071a, 0.92);
+    // Layered gradient strip — three bands of decreasing opacity for depth
+    bg.fillStyle(0x12122a, 0.96);
     bg.fillRect(0, 0, W, 220);
-    bg.fillStyle(0x07071a, 0.55);
-    bg.fillRect(0, 220, W, 30);
+    bg.fillStyle(0x07071a, 0.45);
+    bg.fillRect(0, 0, W, 220);
+    // Soft top accent glow
+    bg.fillStyle(0x4ecdc4, 0.05);
+    bg.fillRect(0, 0, W, 90);
+    // Bottom hairline
+    bg.fillStyle(0x4ecdc4, 0.30);
+    bg.fillRect(0, 218, W, 2);
+    // Soft fade below the bar
+    bg.fillStyle(0x07071a, 0.50);
+    bg.fillRect(0, 220, W, 24);
+    bg.fillStyle(0x07071a, 0.20);
+    bg.fillRect(0, 244, W, 16);
 
     // Logo / title
     this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
@@ -146,22 +158,57 @@ export class WorldMapScene extends Phaser.Scene {
 
   makeChip(x, y, width, opts) {
     const c = this.add.container(x, y).setDepth(14);
+    const h = 60;
+    const r = h / 2;
 
+    // Drop shadow for depth
+    const shadow = this.add.graphics();
+    shadow.fillStyle(0x000000, 0.45);
+    shadow.fillRoundedRect(-width / 2 + 1, -h / 2 + 4, width, h, r);
+    c.add(shadow);
+
+    // Track — pill body with inset highlight + bottom shadow
     const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.92);
-    bg.fillRoundedRect(-width / 2, -28, width, 56, 28);
-    bg.lineStyle(2, opts.accent, 0.7);
-    bg.strokeRoundedRect(-width / 2, -28, width, 56, 28);
+    bg.fillStyle(0x1a1a2e, 1);
+    bg.fillRoundedRect(-width / 2, -h / 2, width, h, r);
+    bg.fillStyle(0xffffff, 0.06);
+    bg.fillRoundedRect(-width / 2 + 4, -h / 2 + 3, width - 8, h * 0.32, {
+      tl: r - 2, tr: r - 2, bl: 6, br: 6
+    });
+    bg.fillStyle(0x07071a, 0.40);
+    bg.fillRoundedRect(-width / 2 + 4, h / 2 - h * 0.32 - 3, width - 8, h * 0.32, {
+      tl: 6, tr: 6, bl: r - 2, br: r - 2
+    });
+    bg.lineStyle(2, opts.accent, 0.85);
+    bg.strokeRoundedRect(-width / 2, -h / 2, width, h, r);
     c.add(bg);
 
+    // Icon badge — accent-tinted disc with soft glow halo
+    const badgeR = h * 0.34;
+    const badgeX = -width / 2 + r;
+    const halo = this.add.graphics();
+    halo.fillStyle(opts.accent, 0.25);
+    halo.fillCircle(badgeX, 0, badgeR + 6);
+    c.add(halo);
+    const badge = this.add.graphics();
+    badge.fillStyle(0x07071a, 1);
+    badge.fillCircle(badgeX, 0, badgeR);
+    badge.lineStyle(2, opts.accent, 0.9);
+    badge.strokeCircle(badgeX, 0, badgeR);
+    c.add(badge);
+
     const iconG = this.add.graphics();
-    iconG.x = -width / 2 + 28;
+    iconG.x = badgeX;
     opts.icon(iconG);
     c.add(iconG);
 
-    const text = this.add.text(width / 2 - 24, 0, opts.value(), style('subhead', {
-      fontSize: '28px',
-      fill: '#' + opts.accent.toString(16).padStart(6, '0')
+    // Value text — bright white with stroke for readability on any backdrop
+    const text = this.add.text(width / 2 - 22, 0, opts.value(), style('subhead', {
+      fontSize: '32px',
+      fill: '#ffffff',
+      fontStyle: '900',
+      stroke: '#0a0a18',
+      strokeThickness: 3
     })).setOrigin(1, 0.5);
     c.add(text);
     c.text = text;
@@ -501,13 +548,18 @@ export class WorldMapScene extends Phaser.Scene {
 
       // Overall progress bar — sits with its own band, well above card edge
       const barW = cw - 200;
-      const barY = goalsStartY + 3 * 56 + 30;
-      const barG = this.add.graphics();
-      barG.fillStyle(0x2a2a44, 1);
-      barG.fillRoundedRect(-barW / 2, barY, barW, 22, 11);
-      barG.fillStyle(sp.accent, 1);
-      barG.fillRoundedRect(-barW / 2, barY, barW * Math.min(1, prog.ratio), 22, 11);
-      card.add(barG);
+      const barH = 36;
+      const barY = goalsStartY + 3 * 56 + 30 + barH / 2;
+      const pct = Math.round(Math.min(1, prog.ratio) * 100);
+      const bar = createProgressBar(this, {
+        x: 0, y: barY,
+        width: barW,
+        height: barH,
+        ratio: prog.ratio,
+        color: sp.accent,
+        label: `${pct}%`
+      });
+      card.add(bar);
     } else {
       // Adult — show trophy count + "Raise another companion" CTA
       card.add(this.add.text(0, py, 'FULLY EVOLVED', style('subhead', {

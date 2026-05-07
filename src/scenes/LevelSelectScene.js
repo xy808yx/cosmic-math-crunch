@@ -6,7 +6,7 @@ import { WORLDS, MODES, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
-import { createIconButton } from '../buttonHelper.js';
+import { createIconButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
 import {
@@ -133,62 +133,99 @@ export class LevelSelectScene extends Phaser.Scene {
     const c = this.add.container(x, y).setDepth(10);
     const accent = isBoss ? 0xff6b6b : this.world.accentColor;
 
+    // Drop shadow
     const shadow = this.add.graphics();
     shadow.fillStyle(0x000000, 0.5);
     shadow.fillRoundedRect(-w / 2 + 2, -h / 2 + 8, w, h, 24);
     c.add(shadow);
 
+    // Card body
     const card = this.add.graphics();
-    card.fillStyle(0x12122a, 0.94);
+    card.fillStyle(0x12122a, 0.96);
     card.fillRoundedRect(-w / 2, -h / 2, w, h, 24);
     card.lineStyle(3, accent, isLocked ? 0.4 : 0.9);
     card.strokeRoundedRect(-w / 2, -h / 2, w, h, 24);
     c.add(card);
 
-    // Title row sits in the top half so stars can breathe at the bottom.
-    const titleRowY = -h / 4 + 6;
+    // Polish: faint accent wash in the upper section
+    const accentWash = this.add.graphics();
+    accentWash.fillStyle(accent, isLocked ? 0.04 : 0.10);
+    accentWash.fillRoundedRect(-w / 2 + 10, -h / 2 + 10, w - 20, h * 0.46, 16);
+    c.add(accentWash);
+
+    // Polish: thin accent rule under the title block
+    const ruleY = isBoss ? 14 : 6;
+    const ruleG = this.add.graphics();
+    ruleG.fillStyle(accent, isLocked ? 0.25 : 0.55);
+    ruleG.fillRect(-w / 2 + 60, ruleY, w - 120, 2);
+    c.add(ruleG);
+
+    // ---- Title row: icon + label, centered as a unit ------------------------
+    const titleY = isBoss ? -h / 4 - 8 : -h / 4 + 8;
+    const labelStr = isBoss ? 'BOSS' : MODES[modeKey].label.toUpperCase();
+    const iconBoxW = 64;
+    const gap = 22;
+
+    const labelObj = this.add.text(0, 0, labelStr, style('display', {
+      fontSize: '46px',
+      fill: '#ffffff',
+      fontStyle: '900'
+    })).setOrigin(0, 0.5);
+
+    const groupW = iconBoxW + gap + labelObj.width;
+    const groupLeft = -groupW / 2;
 
     const iconG = this.add.graphics();
-    iconG.x = -w / 2 + 78;
-    iconG.y = titleRowY;
+    iconG.x = groupLeft + iconBoxW / 2;
+    iconG.y = titleY;
     if (isBoss) {
-      drawSkullIcon(iconG, 0, 0, 36);
+      drawSkullIcon(iconG, 0, 0, 34);
     } else {
       this.drawModeGlyph(iconG, modeKey, accent);
     }
     c.add(iconG);
 
-    const label = isBoss ? 'BOSS' : MODES[modeKey].label.toUpperCase();
-    c.add(this.add.text(-w / 2 + 138, titleRowY, label, style('display', {
-      fontSize: '46px',
-      fill: '#ffffff',
-      fontStyle: '900'
-    })).setOrigin(0, 0.5));
+    labelObj.x = groupLeft + iconBoxW + gap;
+    labelObj.y = titleY;
+    c.add(labelObj);
 
     if (isBoss) {
-      c.add(this.add.text(0, 14, this.world.villain || 'BOSS', style('subhead', {
+      c.add(this.add.text(0, 32, this.world.villain || 'BOSS', style('subhead', {
         fontSize: '28px',
         fill: '#ff8b8b',
         fontStyle: '900'
       })).setOrigin(0.5));
     }
 
-    // Stars centered along the bottom — three slots with even gaps.
-    const starY = h / 2 - 36;
+    // ---- Stars row: centered along the bottom -------------------------------
+    const starY = h / 2 - 38;
     const starGap = 64;
     for (let s = 0; s < 3; s++) {
+      const earned = s < stars;
+      if (earned) {
+        const glow = this.add.graphics();
+        glow.fillStyle(0xf7dc6f, 0.22);
+        glow.fillCircle((s - 1) * starGap, starY, 22);
+        c.add(glow);
+      }
       const starG = this.add.graphics();
-      drawStarIcon(starG, 0, 0, 24, s < stars ? 0xf7dc6f : 0x4a4a60);
+      drawStarIcon(starG, 0, 0, 26, earned ? 0xf7dc6f : 0x3a3a50);
       starG.x = (s - 1) * starGap;
       starG.y = starY;
       c.add(starG);
     }
 
     if (isLocked) {
+      const lockBg = this.add.graphics();
+      lockBg.fillStyle(0x07071a, 0.85);
+      lockBg.fillCircle(w / 2 - 40, -h / 2 + 40, 28);
+      lockBg.lineStyle(2, accent, 0.5);
+      lockBg.strokeCircle(w / 2 - 40, -h / 2 + 40, 28);
+      c.add(lockBg);
       const lockG = this.add.graphics();
-      drawLockIcon(lockG, 0, 0, 30);
-      lockG.x = w / 2 - 38;
-      lockG.y = -h / 2 + 36;
+      drawLockIcon(lockG, 0, 0, 24);
+      lockG.x = w / 2 - 40;
+      lockG.y = -h / 2 + 38;
       c.add(lockG);
       const overlay = this.add.graphics();
       overlay.fillStyle(0x000000, 0.5);
@@ -209,20 +246,32 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   drawModeGlyph(g, modeKey, color) {
-    g.lineStyle(8, color, 1);
     if (modeKey === 'mult') {
+      // Bold ×
+      g.lineStyle(9, color, 1);
       g.lineBetween(-22, -22, 22, 22);
       g.lineBetween(22, -22, -22, 22);
     } else if (modeKey === 'div') {
+      // Bold ÷
+      g.lineStyle(9, color, 1);
+      g.lineBetween(-26, 0, 26, 0);
       g.fillStyle(color, 1);
       g.fillCircle(0, -16, 6);
       g.fillCircle(0, 16, 6);
-      g.lineBetween(-24, 0, 24, 0);
     } else if (modeKey === 'mixed') {
-      g.lineBetween(-20, -16, 20, 16);
-      g.lineBetween(20, -16, -20, 16);
+      // × on the left, ÷ on the right — both readable at a glance
+      const dx = 18;
+      const sym = 13;
+      // ×
+      g.lineStyle(7, color, 1);
+      g.lineBetween(-dx - sym, -sym, -dx + sym, sym);
+      g.lineBetween(-dx + sym, -sym, -dx - sym, sym);
+      // ÷
+      g.lineStyle(7, color, 1);
+      g.lineBetween(dx - sym, 0, dx + sym, 0);
       g.fillStyle(color, 1);
-      g.fillCircle(0, 22, 4);
+      g.fillCircle(dx, -sym + 1, 4.5);
+      g.fillCircle(dx, sym - 1, 4.5);
     }
   }
 
@@ -245,30 +294,24 @@ export class LevelSelectScene extends Phaser.Scene {
       fontStyle: '900'
     })).setOrigin(0.5).setDepth(11);
 
-    const barW = 800;
-    const barX = W / 2 - barW / 2;
-    const barY = y + 70;
-    const barH = 36;
-    const trackG = this.add.graphics().setDepth(11);
-    trackG.fillStyle(0x12122a, 1);
-    trackG.fillRoundedRect(barX, barY, barW, barH, 18);
-    trackG.lineStyle(2, 0x2a2a44, 1);
-    trackG.strokeRoundedRect(barX, barY, barW, barH, 18);
-
-    const fillW = Math.max(2, Math.round((avg / 100) * barW));
-    const fillG = this.add.graphics().setDepth(12);
+    const barW = 820;
+    const barH = 56;
+    const barY = y + 90;
     const fillColor = avg >= 70 ? 0x58d68d : avg >= 40 ? this.world.accentColor : 0xff6b6b;
-    fillG.fillStyle(fillColor, 1);
-    fillG.fillRoundedRect(barX, barY, fillW, barH, 18);
 
-    this.add.text(W / 2, barY + barH / 2, `${avg}%`, style('subhead', {
-      fontSize: '28px',
-      fill: '#0a0a1a',
-      fontStyle: '900'
-    })).setOrigin(0.5).setDepth(13);
+    createProgressBar(this, {
+      x: W / 2,
+      y: barY,
+      width: barW,
+      height: barH,
+      ratio: avg / 100,
+      color: fillColor,
+      label: `${avg}%`,
+      depth: 11
+    });
 
     const totalStars = Object.values(this.worldProgress.levelStars).reduce((s, v) => s + v, 0);
-    this.add.text(W / 2, barY + barH + 50, `${totalStars} / 12 stars in this world`, style('subhead', {
+    this.add.text(W / 2, barY + barH / 2 + 60, `${totalStars} / 12 stars in this world`, style('subhead', {
       fontSize: '34px',
       fill: '#aaaac0'
     })).setOrigin(0.5).setDepth(11);

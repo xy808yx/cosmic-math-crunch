@@ -9,12 +9,15 @@ export const SHIP_PARTS = [
   { id: 'hull_round',   slot: 'hull',  name: 'Bubble Hull',    price: 100, color: 0xffd86b, rarity: 'common' },
   { id: 'hull_sleek',   slot: 'hull',  name: 'Sleek Hull',     price: 150, color: 0x9be8a3, rarity: 'common' },
   { id: 'hull_bulky',   slot: 'hull',  name: 'Bulky Hull',     price: 250, color: 0xff9ec7, rarity: 'rare' },
+  { id: 'hull_vortex',  slot: 'hull',  name: 'Vortex Hull',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
+  { id: 'hull_wraith',  slot: 'hull',  name: 'Wraith Hull',    price: 1500, color: 0xa6f0e8, rarity: 'legendary' },
 
   // wings
   { id: 'wings_default', slot: 'wings', name: 'Stub Wings',  price: 0,   isDefault: true, color: 0x8b9bb4, rarity: 'common' },
   { id: 'wings_swept',   slot: 'wings', name: 'Swept Wings', price: 100, color: 0xff8b3d, rarity: 'common' },
   { id: 'wings_wide',    slot: 'wings', name: 'Wide Wings',  price: 150, color: 0xb5e6ff, rarity: 'common' },
   { id: 'wings_stub',    slot: 'wings', name: 'Snub Wings',  price: 250, color: 0xd5a6ff, rarity: 'rare' },
+  { id: 'wings_phantom', slot: 'wings', name: 'Phantom Wings', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
 
   // paints (recolor the body fill — some paints carry an embedded `pattern`
   // that the renderer overlays on top, replacing the old separate pattern slot)
@@ -34,6 +37,7 @@ export const SHIP_PARTS = [
   { id: 'paint_blaze',   slot: 'paint', name: 'Blaze',    price: 350, color: 0xff5b3d, color2: 0xffe07a, pattern: 'pattern_flames', rarity: 'rare' },
   { id: 'paint_sweetheart', slot: 'paint', name: 'Sweetheart', price: 350, color: 0xff9ec7, color2: 0xffffff, pattern: 'pattern_hearts', rarity: 'rare' },
   { id: 'paint_galaxy_swirl', slot: 'paint', name: 'Galaxy Swirl', price: 500, color: 0x4a2a55, color2: 0xc77eff, color3: 0x4ecdc4, pattern: 'pattern_galaxy_swirl', rarity: 'rare' },
+  { id: 'paint_frostbite',    slot: 'paint', name: 'Frostbite',    price: 350, color: 0x6ba8d8, color2: 0xeaf6ff, pattern: 'pattern_frost', rarity: 'rare' },
   // Legendary paints
   { id: 'paint_holo',    slot: 'paint', name: 'Holo',     price: 1200, color: 0xfce7ff, rarity: 'legendary' },
   { id: 'paint_cosmic',  slot: 'paint', name: 'Cosmic',   price: 1500, color: 0x12122a, color2: 0xfff3b8, color3: 0xc77eff, pattern: 'pattern_cosmic', rarity: 'legendary' },
@@ -45,6 +49,8 @@ export const SHIP_PARTS = [
   { id: 'decal_bolt',  slot: 'decal', name: 'Bolt Decal',  price: 100, color: 0xfff3b8, rarity: 'common' },
   { id: 'decal_skull', slot: 'decal', name: 'Skull Decal', price: 250, color: 0xffffff, rarity: 'rare' },
   { id: 'decal_comet', slot: 'decal', name: 'Comet Decal', price: 350, color: 0xb6e0ff, rarity: 'rare' },
+  { id: 'decal_phoenix',      slot: 'decal', name: 'Phoenix Decal', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
+  { id: 'decal_galaxy_swirl', slot: 'decal', name: 'Galaxy Decal',  price: 1500, color: 0xc77eff, rarity: 'legendary' },
 
   // patterns are now folded into paints (see paint_racing, paint_blaze, etc.).
   // Keep pattern_none as the default record so legacy progress.ship.parts.pattern

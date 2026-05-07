@@ -231,6 +231,30 @@ function starHelmet(item) {
   ], { O, B: c, H: h, K: W }];
 }
 
+function wizardHat(item) {
+  // Pointy conical hat with a wide brim and a couple of star sparkles. The
+  // tip is offset by 1 column so it has a slight whimsical lean.
+  const c = item.color;
+  const h = lighten(c, 0.30);
+  const star = 0xfff3b8;
+  const band = darken(c, 0.30);
+  return [[
+    '.......OO.......',
+    '......OBBO......',
+    '......OBHO......',
+    '.....OBHBBO.....',
+    '.....OBBKBO.....',
+    '....OBHBBBBO....',
+    '....OBBBBBBO....',
+    '...OBBBKHBBBO...',
+    '...OBBBBBBBBO...',
+    '..OBBHBBBBBBBO..',
+    '.OBBBBBBKBBBBBO.',
+    '.OdddddddddddddO',
+    'OOOOOOOOOOOOOOOO'
+  ], { O, B: c, H: h, K: star, d: band }];
+}
+
 function crownOfStars(item) {
   const c = item.color, h = lighten(c, 0.30);
   return [[
@@ -256,6 +280,7 @@ const HAT_DRAWERS = {
   hat_sushi: sushiHat,
   hat_propeller: propellerHat,
   hat_astronaut: astronaut,
+  hat_wizard: wizardHat,
   hat_starhat: starHelmet,
   hat_crown_stars: crownOfStars
 };
@@ -474,6 +499,8 @@ function drawAura(item, ctx) {
   if (item.id === 'aura_lightning') return auraLightning(item, ctx, aura);
   if (item.id === 'aura_planets')   return auraPlanets(item, ctx, aura);
   if (item.id === 'aura_galaxy')    return auraGalaxy(item, ctx, aura);
+  if (item.id === 'aura_embers')    return auraEmbers(item, ctx, aura);
+  if (item.id === 'aura_constellation') return auraConstellation(item, ctx, aura);
 }
 
 function orbitRadii(layout) {
@@ -752,6 +779,73 @@ function auraGalaxy(item, ctx, aura) {
     targets: core, scale: { from: 0.9, to: 1.4 },
     duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
   });
+}
+
+// Rising embers — chunky pixel sparks float up from the pet's feet, fade out.
+function auraEmbers(item, ctx, aura) {
+  const spread = ctx.layout.width * 0.55;
+  const baseY = ctx.layout.height * 0.5;
+  const top = -ctx.layout.height * 0.55;
+  const palette = [0xff5b3d, 0xff8b3d, 0xffd86b, 0xfff3b8];
+  const sparkGrid = ['.A.', 'AKA', '.A.'];
+  for (let i = 0; i < 8; i++) {
+    const launch = () => {
+      const ember = ctx.scene.add.graphics();
+      const c = palette[Math.floor(Math.random() * palette.length)];
+      drawPixelArt(ember, sparkGrid, { A: c, K: lighten(c, 0.45) }, 1.4 + Math.random() * 1.0);
+      ember.x = (Math.random() - 0.5) * spread;
+      ember.y = baseY;
+      aura.add(ember);
+      ctx.scene.tweens.add({
+        targets: ember,
+        y: top + Math.random() * 30,
+        x: ember.x + (Math.random() - 0.5) * 50,
+        alpha: { from: 1, to: 0 },
+        scale: { from: 1, to: 0.5 },
+        duration: 1500 + Math.random() * 900,
+        ease: 'Quad.easeOut',
+        onComplete: () => { ember.destroy(); launch(); }
+      });
+    };
+    ctx.scene.time.delayedCall(i * 240, launch);
+  }
+}
+
+// Constellation — five stars connected by faint lines, slowly rotating.
+function auraConstellation(item, ctx, aura) {
+  const { rx, ry } = orbitRadii(ctx.layout);
+  const points = 5;
+  const palette = [0xfff3b8, 0xb6e0ff, 0xffe07a, 0xffffff, 0xc77eff];
+  const positions = [];
+  for (let i = 0; i < points; i++) {
+    const a = (i / points) * Math.PI * 2 - Math.PI / 2;
+    positions.push({ x: Math.cos(a) * rx, y: Math.sin(a) * ry });
+  }
+  // Faint connecting lines (drawn first, behind stars)
+  const links = ctx.scene.add.graphics();
+  links.lineStyle(1, item.color, 0.55);
+  for (let i = 0; i < points; i++) {
+    const p = positions[i];
+    const q = positions[(i + 2) % points];
+    links.lineBetween(p.x, p.y, q.x, q.y);
+  }
+  aura.add(links);
+  const grid = ['..A..', '.AAA.', 'AAAAA', '.A.A.', 'A...A'];
+  positions.forEach((pos, i) => {
+    const star = ctx.scene.add.graphics();
+    drawPixelArt(star, grid, { A: palette[i % palette.length] }, 2);
+    star.x = pos.x;
+    star.y = pos.y;
+    aura.add(star);
+    ctx.scene.tweens.add({
+      targets: star,
+      scale: { from: 0.85, to: 1.15 },
+      alpha: { from: 0.75, to: 1 },
+      duration: 900 + i * 160,
+      yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  });
+  spinAura(ctx.scene, aura, 9000);
 }
 
 function drawPixelArt(g, grid, palette, px) {

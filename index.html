@@ -2,8 +2,9 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Math Crunch">
   <meta name="theme-color" content="#1a1a2e">
@@ -36,8 +37,22 @@
       right: 0;
       bottom: 0;
       width: 100vw;
+      /* Extend into iOS safe-area (notch / home indicator) so the canvas fills
+         the whole screen instead of leaving a status-bar-height gap. */
       height: 100vh;
       height: 100dvh;
+      padding-top: env(safe-area-inset-top, 0);
+      padding-bottom: env(safe-area-inset-bottom, 0);
+      padding-left: env(safe-area-inset-left, 0);
+      padding-right: env(safe-area-inset-right, 0);
+    }
+    /* When installed as a PWA, ignore safe-area padding and let the canvas
+       fill edge-to-edge — Phaser scales it to fit and centers it itself, so
+       any inset at the top reads as a blank band. */
+    @media (display-mode: standalone) {
+      body {
+        padding: 0;
+      }
     }
     #game-container {
       display: flex;

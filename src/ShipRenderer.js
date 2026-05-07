@@ -109,6 +109,54 @@ const HULL_BULKY = [
   '.....FfffF......'
 ];
 
+// Vortex — legendary spear-tipped hull with twin nose prongs and flared tail
+const HULL_VORTEX = [
+  '......XXXX......',
+  '.....XHHHHX.....',
+  '....XHBBBBHX....',
+  '...XHBBPPBBHX...',
+  '...XBBPPPPBBX...',
+  '..XHBBPPPPBBHX..',
+  '..XBBBPPPPBBBX..',
+  '.XHBBBPPPPBBBHX.',
+  '.XBBBBBBBBBBBBX.',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBBDBBBBBBBX',
+  'XHBBBBBBBBBBBBHX',
+  '.XBLBBBBBBBBLBX.',
+  '.XLLBBBBBBBBLLX.',
+  '..XLLBBBBBBLLX..',
+  '...XLLBBBBLLX...',
+  'X..XLLLLLLLLX..X',
+  'XX..XLLLLLLX..XX',
+  '.X...X....X...X.',
+  '......FfffF.....'
+];
+
+// Wraith — legendary asymmetric scout with offset cockpit, sleek profile
+const HULL_WRAITH = [
+  '........XX......',
+  '.......XHHX.....',
+  '......XHBBX.....',
+  '.....XHBBBBX....',
+  '....XHBPPPBX....',
+  '...XHBPPPPBX....',
+  '..XHBBPPPPBX....',
+  '.XHBBBPPPBBX....',
+  'XHBBBBBBBBBBX...',
+  'XBBBBBBBBBBBBX..',
+  'XBBBBBBDBBBBBX..',
+  'XBBBBBBBBBBBBBX.',
+  '.XBLBBBBBBBLBBX.',
+  '.XLLBBBBBBBLLBX.',
+  '..XLLBBBBBBLLX..',
+  '...XLLBBBBLLX...',
+  '....XLLLLLLX....',
+  '.....XLLLLX.....',
+  '.....X....X.....',
+  '......FfF.......'
+];
+
 // WING strip overlays --------------------------------------------------------
 // Each wing grid is 18 cols × 6 rows (slightly wider than hull).
 const WINGS_STUB = [
@@ -148,6 +196,16 @@ const WINGS_SNUB = [
   '....XWWWX......XWWWX...',
   '.....XXX........XXX....',
   '.......................'
+];
+
+// Phantom — legendary curved sweeping wings with feathered trailing edge.
+const WINGS_PHANTOM = [
+  'wWWW..............WWWw',
+  'WWWWWW..........WWWWWW',
+  'XWWWWWW........WWWWWWX',
+  'XWWWWWX........XWWWWWX',
+  '.XWWXX..........XXWWX.',
+  '..wW..............Ww..'
 ];
 
 function pixelGrid(scene, grid, ox, oy, pixelSize, paletteFn) {
@@ -198,6 +256,8 @@ export function drawShip(scene, x, y, opts = {}) {
   const hullGrid = parts.hull === 'hull_round' ? HULL_ROUND
                  : parts.hull === 'hull_sleek' ? HULL_SLEEK
                  : parts.hull === 'hull_bulky' ? HULL_BULKY
+                 : parts.hull === 'hull_vortex' ? HULL_VORTEX
+                 : parts.hull === 'hull_wraith' ? HULL_WRAITH
                  : HULL_STANDARD;
   const hullW = hullGrid[0].length * pixelSize;
   const hullH = hullGrid.length * pixelSize;
@@ -222,6 +282,7 @@ export function drawShip(scene, x, y, opts = {}) {
   const wingsGrid = parts.wings === 'wings_swept' ? WINGS_SWEPT
                   : parts.wings === 'wings_wide' ? WINGS_WIDE
                   : parts.wings === 'wings_stub' ? WINGS_SNUB
+                  : parts.wings === 'wings_phantom' ? WINGS_PHANTOM
                   : WINGS_STUB;
   const wingsW = wingsGrid[0].length * pixelSize;
   const wingsH = wingsGrid.length * pixelSize;
@@ -736,6 +797,19 @@ function drawPatternOverlay(scene, container, pattern, hullW, hullH, pixelSize) 
     drawStarShape(g, hullW * 0.20, -hullH * 0.05, 5, pixelSize * 1.2, pixelSize * 0.5);
     drawStarShape(g, -hullW * 0.10, hullH * 0.25, 5, pixelSize * 0.9, pixelSize * 0.4);
     drawStarShape(g, hullW * 0.10, hullH * 0.25, 5, pixelSize * 0.9, pixelSize * 0.4);
+  } else if (pattern.id === 'pattern_frost') {
+    // Snowflake six-point burst plus drifting flakes
+    const fx = pixelSize * 1.6;
+    g.lineStyle(pixelSize * 0.7, c1, 0.95);
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      g.lineBetween(0, hullH * 0.05, Math.cos(a) * fx * 1.6, hullH * 0.05 + Math.sin(a) * fx * 1.6);
+    }
+    g.fillStyle(c2 || 0xffffff, 0.85);
+    g.fillCircle(-hullW * 0.22, -hullH * 0.10, pixelSize * 0.5);
+    g.fillCircle(hullW * 0.22, -hullH * 0.10, pixelSize * 0.5);
+    g.fillCircle(-hullW * 0.18, hullH * 0.25, pixelSize * 0.4);
+    g.fillCircle(hullW * 0.18, hullH * 0.25, pixelSize * 0.4);
   }
   container.add(g);
 }
@@ -782,6 +856,20 @@ const DECAL_SPRITES = {
     '.AAA.',
     'AAA..',
     'A....'
+  ],
+  decal_phoenix: [
+    'A...A',
+    'AKBKA',
+    'AABAA',
+    '.AAA.',
+    '..A..'
+  ],
+  decal_galaxy_swirl: [
+    '.AAA.',
+    'AKBBA',
+    'ABKBA',
+    'ABBKA',
+    '.AAA.'
   ]
 };
 
