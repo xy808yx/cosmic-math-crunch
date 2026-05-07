@@ -730,22 +730,27 @@ export class GameScene extends Phaser.Scene {
     this.streakText.setText('0');
 
     if (asteroid.isBoss) {
+      this.state = 'feedback';
       this.attempts++;
       this.history.push({ problem: asteroid.problem, userAnswer: pickedValue, correct: false });
       progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, false);
       records.recordAnswer(asteroid.problem, false, performance.now() - asteroid.startedAtMs);
 
-      this.bossAttackBack(asteroid);
+      this.bossMockLaugh(asteroid);
       this.damageShip();
       this.cockpitPet?.slumpSad?.();
       audio.playShipDamage?.();
       this.setHp(this.shipHp - 1);
       bossTwistOn(this, 'onWrong', asteroid, btn);
-      // Disable this button until next problem cycle
-      btn.value = null;
-      btn.label.setColor('#5a5a72');
-      btn.setAlpha(0.45);
-      if (this.shipHp <= 0) this.failLevel();
+      if (this.shipHp <= 0) {
+        this.failLevel();
+        return;
+      }
+      this.time.delayedCall(700, () => {
+        if (this.state === 'failed' || this.state === 'ended') return;
+        this.cycleBossProblem(asteroid);
+        this.state = 'playing';
+      });
       return;
     }
 
@@ -856,6 +861,54 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  // Wrong-answer reaction: boss does a bouncy "ha-ha" laugh in place while a
+  // red vignette pulses. Halts the fall so cycleBossProblem can reset cleanly.
+  bossMockLaugh(asteroid) {
+    if (!asteroid?.container?.active) return;
+    if (asteroid.fallTween) asteroid.fallTween.stop();
+
+    const vignette = this.add.graphics().setDepth(50);
+    vignette.fillStyle(0xff3b3b, 0.30);
+    vignette.fillRect(0, 0, W, H);
+    this.tweens.add({
+      targets: vignette,
+      alpha: 0,
+      duration: 500,
+      ease: 'Quad.easeOut',
+      onComplete: () => vignette.destroy()
+    });
+
+    const c = asteroid.container;
+    const baseScaleX = c.scaleX;
+    const baseScaleY = c.scaleY;
+    this.tweens.add({
+      targets: c,
+      scaleX: baseScaleX * 1.12,
+      scaleY: baseScaleY * 1.12,
+      duration: 180,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (!c.active) return;
+        c.scaleX = baseScaleX;
+        c.scaleY = baseScaleY;
+      }
+    });
+    this.tweens.add({
+      targets: c,
+      rotation: { from: -0.12, to: 0.12 },
+      duration: 180,
+      yoyo: true,
+      repeat: 1,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        if (!c.active) return;
+        c.rotation = 0;
+      }
+    });
+  }
+
   cycleBossProblem(asteroid) {
     if (!asteroid?.container?.active || this.bossDefeated) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
@@ -883,30 +936,233 @@ export class GameScene extends Phaser.Scene {
     this.bossDefeated = true;
     this.state = 'feedback';
     if (asteroid.fallTween) asteroid.fallTween.stop();
+    this.tweens.killTweensOf(asteroid.container);
 
-    audio.playAsteroidBoom?.();
-    this.cameras.main.shake(620, 0.022);
+    this.playBossDefeatCeremony(asteroid, () => {
+      this.endRound({ bossWin: true });
+    });
+  }
 
+  // Multi-stage boss defeat ceremony (~2s blocking before endRound).
+  // Sequence: white flash → cascading bursts → pet dance overlay → final blast.
+  playBossDefeatCeremony(asteroid, onComplete) {
     const x = asteroid.container.x;
     const y = asteroid.container.y;
-    for (let burst = 0; burst < 3; burst++) {
-      this.time.delayedCall(burst * 160, () => {
-        this.explodeAsteroid({ x, y });
+    const bossRadius = ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale;
+
+    const whiteOverlay = this.add.graphics().setDepth(8);
+    whiteOverlay.fillStyle(0xffffff, 1);
+    whiteOverlay.fillCircle(0, 0, bossRadius * 1.15);
+    whiteOverlay.alpha = 0;
+    asteroid.container.add(whiteOverlay);
+    this.tweens.add({
+      targets: whiteOverlay,
+      alpha: { from: 0, to: 0.85 },
+      duration: 75,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+      onComplete: () => whiteOverlay.destroy()
+    });
+    audio.playBossImpact?.();
+
+    const burstCount = 4;
+    for (let i = 0; i < burstCount; i++) {
+      const delay = 220 + i * 200;
+      this.time.delayedCall(delay, () => {
+        const a = Math.random() * Math.PI * 2;
+        const r = Math.random() * bossRadius * 0.55;
+        this.explodeAsteroid({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
         audio.playAsteroidBoom?.();
       });
     }
 
-    this.time.delayedCall(180, () => {
+    this.time.delayedCall(1080, () => this.playPetVictoryDance());
+
+    this.time.delayedCall(1200, () => {
+      this.bossFinalBlast(x, y);
       if (asteroid.container?.active) asteroid.container.destroy();
       if (this.bossHpBar?.active) this.bossHpBar.destroy();
       this.bossContainer = null;
       this.bossHpBar = null;
     });
 
-    audio.playWorldClearFanfare?.();
+    this.time.delayedCall(2000, () => onComplete?.());
+  }
 
-    this.time.delayedCall(900, () => {
-      this.endRound({ bossWin: true });
+  // Final huge blast: layers extra ring, shards, and screen flash on top of
+  // a normal explodeAsteroid for the world-clear hit.
+  bossFinalBlast(x, y) {
+    this.explodeAsteroid({ x, y }, { big: true });
+
+    const ring = this.add.graphics().setDepth(9);
+    ring.lineStyle(14, 0xffffff, 1);
+    ring.strokeCircle(0, 0, 80);
+    ring.x = x;
+    ring.y = y;
+    this.tweens.add({
+      targets: ring,
+      scale: 7,
+      alpha: 0,
+      duration: 600,
+      ease: 'Quad.easeOut',
+      onComplete: () => ring.destroy()
+    });
+
+    const colors = [this.world.accentColor, 0xffffff, 0xf7dc6f, 0xff8b3d];
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = 220 + Math.random() * 200;
+      const shard = this.add.graphics().setDepth(9);
+      shard.fillStyle(colors[i % colors.length], 1);
+      shard.fillCircle(0, 0, 8 + Math.random() * 8);
+      shard.x = x;
+      shard.y = y;
+      this.tweens.add({
+        targets: shard,
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist,
+        alpha: 0,
+        duration: 800 + Math.random() * 320,
+        ease: 'Quad.easeOut',
+        onComplete: () => shard.destroy()
+      });
+    }
+
+    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0).setDepth(100);
+    this.tweens.add({
+      targets: flash,
+      alpha: { from: 0, to: 0.4 },
+      duration: 100,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy()
+    });
+
+    this.cameras.main.shake(520, 0.026);
+    audio.playAsteroidBoom?.();
+    audio.playWorldClearFanfare?.();
+  }
+
+  // Pet pops out of the cockpit, bounces 3x with a tinted halo, retreats.
+  // Shared animation across all species; tinted by species accent.
+  playPetVictoryDance() {
+    if (!this.shipContainer || !companion.hasStarter()) return;
+    const sp = companion.getSpecies();
+    const accent = sp ? sp.accent : 0xc77eff;
+
+    const portholeX = this.shipContainer.x + (this.shipContainer.portholeCenter?.x || 0);
+    const portholeY = this.shipContainer.y + (this.shipContainer.portholeCenter?.y || -120);
+    const petY = portholeY - 120;
+
+    const halo = this.add.graphics().setDepth(11);
+    halo.fillStyle(accent, 1);
+    halo.fillCircle(0, 0, 90);
+    halo.x = portholeX;
+    halo.y = petY;
+    halo.setScale(0.3);
+    halo.alpha = 0;
+    this.tweens.add({
+      targets: halo,
+      scale: 1.7,
+      alpha: { from: 0.7, to: 0 },
+      duration: 1100,
+      ease: 'Quad.easeOut',
+      onComplete: () => halo.destroy()
+    });
+
+    // Hide the cockpit pet so the dance pet reads as the same animal popping out.
+    this.cockpitPet?.setVisible(false);
+
+    const pet = drawCompanion(this, portholeX, petY, { scale: 1.4 }).setDepth(12);
+    pet.setScale(0);
+
+    this.tweens.add({
+      targets: pet,
+      scale: 1.4,
+      duration: 220,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        let n = 0;
+        const bounce = () => {
+          if (n >= 3) {
+            this.tweens.add({
+              targets: pet,
+              scale: 0,
+              y: portholeY,
+              duration: 200,
+              ease: 'Back.easeIn',
+              onComplete: () => {
+                this.cockpitPet?.setVisible(true);
+                pet.destroy();
+              }
+            });
+            return;
+          }
+          n++;
+          pet.bounceHappy?.();
+          this.tweens.add({
+            targets: pet,
+            y: { from: petY, to: petY - 32 },
+            duration: 250,
+            yoyo: true,
+            ease: 'Sine.easeInOut',
+            onComplete: bounce
+          });
+        };
+        bounce();
+      }
+    });
+  }
+
+  // Auto-dismissing world-clear banner: slides down from top, sits 2.5s, slides out.
+  // Calls onComplete when fully dismissed.
+  showWorldClearBanner(onComplete) {
+    const bannerW = 960;
+    const bannerH = 140;
+    const accent = this.world.accentColor;
+    const startY = -bannerH / 2 - 20;
+    const restY = 200;
+
+    const banner = this.add.container(W / 2, startY).setDepth(70);
+
+    const bg = this.add.graphics();
+    bg.fillStyle(accent, 0.95);
+    bg.fillRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 24);
+    bg.lineStyle(4, 0x0a0a1a, 1);
+    bg.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 24);
+    banner.add(bg);
+
+    banner.add(this.add.text(0, 0, `${this.world.name.toUpperCase()} CLEARED!`, style('display', {
+      fontSize: '54px',
+      fill: '#ffffff',
+      stroke: '#0a0a1a',
+      strokeThickness: 5,
+      fontStyle: '900'
+    })).setOrigin(0.5));
+
+    this.tweens.add({
+      targets: banner,
+      y: restY,
+      duration: 350,
+      ease: 'Back.easeOut'
+    });
+
+    // Triple-burst chord matches the first-mastery banner pattern in showSummary.
+    audio.playStar?.();
+    this.time.delayedCall(180, () => audio.playStar?.());
+    this.time.delayedCall(360, () => audio.playStar?.());
+
+    this.time.delayedCall(350 + 2500, () => {
+      this.tweens.add({
+        targets: banner,
+        y: startY,
+        duration: 350,
+        ease: 'Back.easeIn',
+        onComplete: () => {
+          banner.destroy();
+          onComplete?.();
+        }
+      });
     });
   }
 
@@ -1211,6 +1467,10 @@ export class GameScene extends Phaser.Scene {
     const prevBestStars = progress.worldProgress[this.worldId]?.levelStars?.[this.currentLevel] || 0;
     const firstMastery = stars === 3 && prevBestStars < 3;
 
+    // Capture pre-completion state so we know if THIS run cleared the world
+    // (vs a replay of the boss after it was already cleared).
+    const wasFullyCleared = progress.isWorldFullyCleared(this.worldId);
+
     progress.completeLevel(this.worldId, this.currentLevel, stars);
 
     let baseBonus = 0;
@@ -1236,20 +1496,27 @@ export class GameScene extends Phaser.Scene {
     const evolvedTo = companion.checkEvolutionEligibility();
 
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
+    const clearedThisRun = bossWin && !wasFullyCleared && worldFullyCleared;
 
     const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus };
 
+    const proceedToSummary = () => {
+      if (evolvedTo) {
+        // Evolution gets a full-screen cinematic before the summary.
+        import('../EvolutionCinematic.js').then(({ playEvolutionCinematic }) => {
+          playEvolutionCinematic(this, evolvedTo, () => this.showSummary(summaryArgs));
+        });
+      } else {
+        this.showSummary(summaryArgs);
+      }
+    };
+
     if (bossWin && this.worldId === 11 && worldFullyCleared) {
       this.showFinalCinematic();
-    } else if (bossWin && worldFullyCleared) {
-      this.showStoryCard({ stars });
-    } else if (evolvedTo) {
-      // Evolution gets a full-screen cinematic before the summary.
-      import('../EvolutionCinematic.js').then(({ playEvolutionCinematic }) => {
-        playEvolutionCinematic(this, evolvedTo, () => this.showSummary(summaryArgs));
-      });
+    } else if (clearedThisRun) {
+      this.showWorldClearBanner(() => proceedToSummary());
     } else {
-      this.showSummary(summaryArgs);
+      proceedToSummary();
     }
   }
 
@@ -1570,72 +1837,6 @@ export class GameScene extends Phaser.Scene {
     return [...stats.values()]
       .filter(e => e.total >= 1 && e.correct < e.total)
       .sort((a, b) => (a.correct / a.total) - (b.correct / b.total));
-  }
-
-  showStoryCard({ stars }) {
-    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0)
-      .setDepth(50).setInteractive();
-    this.tweens.add({ targets: overlay, alpha: 0.85, duration: 400 });
-
-    const panelW = 920;
-    const panelH = 600;
-    const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
-
-    const bg = this.add.graphics();
-    bg.fillStyle(0x12122a, 0.98);
-    bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
-    bg.lineStyle(3, this.world.accentColor, 0.95);
-    bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
-    panel.add(bg);
-
-    panel.add(this.add.text(0, -panelH / 2 + 80, 'World Cleared', style('display', {
-      fontSize: '54px',
-      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
-    })).setOrigin(0.5));
-
-    panel.add(this.add.text(0, -panelH / 2 + 150, this.world.name, style('subhead', {
-      fontSize: '36px',
-      fill: '#ffffff'
-    })).setOrigin(0.5));
-
-    const starY = -panelH / 2 + 260;
-    for (let i = 0; i < 3; i++) {
-      const filled = i < stars;
-      const star = this.makeStarShape(filled);
-      star.x = -120 + i * 120;
-      star.y = starY;
-      star.setScale(0);
-      panel.add(star);
-      this.tweens.add({
-        targets: star,
-        scale: 0.95,
-        duration: 250,
-        delay: 600 + i * 180,
-        ease: 'Back.easeOut',
-        onStart: () => filled && audio.playStar()
-      });
-    }
-
-    panel.add(this.add.text(0, 100, this.world.flavorText || 'World cleared.', style('body', {
-      fontSize: '28px',
-      fill: '#cfcfe0',
-      align: 'center',
-      wordWrap: { width: panelW - 120 }
-    })).setOrigin(0.5));
-
-    panel.add(createButton(this, {
-      x: 0, y: panelH / 2 - 100, label: 'Onward',
-      width: 320, height: 92,
-      color: this.world.accentColor,
-      onClick: () => this.exitToLevelSelect()
-    }));
-
-    this.tweens.add({
-      targets: panel,
-      y: H / 2,
-      duration: 520,
-      ease: 'Back.easeOut'
-    });
   }
 
   showFinalCinematic() {
