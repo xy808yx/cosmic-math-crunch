@@ -53,8 +53,6 @@ export const SHIP_PARTS = [
   { id: 'decal_star',  slot: 'decal', name: 'Star Decal',  price: 50,  color: 0xf7dc6f, rarity: 'common' },
   { id: 'decal_heart', slot: 'decal', name: 'Heart Decal', price: 75,  color: 0xff9ec7, rarity: 'common' },
   { id: 'decal_crown', slot: 'decal', name: 'Crown Decal', price: 100, color: 0xffe07a, rarity: 'common' },
-  { id: 'decal_bolt',  slot: 'decal', name: 'Bolt Decal',  price: 100, color: 0xfff3b8, rarity: 'common' },
-  { id: 'decal_skull',   slot: 'decal', name: 'Skull Decal',   price: 250, color: 0xffffff, rarity: 'rare' },
   { id: 'decal_comet',   slot: 'decal', name: 'Comet Decal',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
   { id: 'decal_compass', slot: 'decal', name: 'Compass Decal', price: 300, color: 0xffd86b, rarity: 'rare' },
   { id: 'decal_phoenix',      slot: 'decal', name: 'Phoenix Decal', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
@@ -71,8 +69,6 @@ export const SHIP_PARTS = [
   { id: 'trail_fire_swirl',    slot: 'trail', name: 'Fire Swirl',     price: 100, color: 0xff5b3d, rarity: 'common' },
   { id: 'trail_lightning',     slot: 'trail', name: 'Lightning',      price: 100, color: 0xfff3b8, rarity: 'common' },
   { id: 'trail_bubbles',       slot: 'trail', name: 'Bubbles',        price: 100, color: 0xb6e0ff, rarity: 'common' },
-  // 5 NEW TRAILS — designed to match the existing particle-emitter style.
-  { id: 'trail_starlight',     slot: 'trail', name: 'Starlight',      price: 100, color: 0xfff3b8, rarity: 'common' },
   { id: 'trail_pixel_smoke',   slot: 'trail', name: '8-Bit Smoke',    price: 100, color: 0xc8c8d8, rarity: 'common' },
   { id: 'trail_neon_grid',     slot: 'trail', name: 'Neon Grid',      price: 250, color: 0x4ecdc4, rarity: 'rare' },
   { id: 'trail_snowflake',     slot: 'trail', name: 'Snowflakes',     price: 350, color: 0xffffff, rarity: 'rare' },
