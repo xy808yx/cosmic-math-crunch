@@ -138,13 +138,13 @@ const TIDE_EGG = [
   '......OOO.....'
 ];
 
-// Driplet — teardrop with 2 eyes + droplet antennae
+// Driplet — teardrop with 2 eyes + droplet antennae (round bulb on top of stem)
 const TIDE_BABY = [
-  '....A.....A.....',
-  '....A.....A.....',
   '...AaA...AaA....',
-  '...OAO...OAO....',
-  '....O.....O.....',
+  '...AaA...AaA....',
+  '....A.....A.....',
+  '....A.....A.....',
+  '....A.....A.....',
   '....OOOOOOO.....',
   '..OOBHHHHHBOO...',
   '.OBHHHHHHHHHBO..',
@@ -160,10 +160,10 @@ const TIDE_BABY = [
   '......OOOOO.....'
 ];
 
-// Wavemite — teardrop with side fins + tail
+// Wavemite — teardrop with side fins + tail (single droplet bulb on stem)
 const TIDE_TEEN = [
-  '..........A.........',
   '.........AaA........',
+  '..........A.........',
   '..........A.........',
   '......OOOOOOO.......',
   '....OOBHHHHHBOO.....',

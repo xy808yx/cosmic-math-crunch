@@ -13,6 +13,7 @@ import {
 } from '../GameData.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
+import { getWorldBackground } from '../WorldBackgrounds.js';
 import { createButton, createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
@@ -89,8 +90,11 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    const wb = getWorldBackground(this.worldId);
     createStarfield(this, {
       width: W, height: H,
+      bgTopColor: wb.bgTop,
+      bgBottomColor: wb.bgBottom,
       accentColor: this.world.accentColor,
       accentStrength: 0.18
     });
@@ -283,10 +287,9 @@ export class GameScene extends Phaser.Scene {
   // PLAY AREA — ship at bottom, asteroids drifting in
   // ============================================================
   createPlayArea() {
-    // Faint horizon
-    const horizon = this.add.graphics().setDepth(2);
-    horizon.lineStyle(2, this.world.accentColor, 0.18);
-    horizon.lineBetween(60, ASTEROID_IMPACT_Y + 24, W - 60, ASTEROID_IMPACT_Y + 24);
+    // Per-world horizon silhouette behind asteroids/ship.
+    const wb = getWorldBackground(this.worldId);
+    wb.drawHorizon(this, { width: W, y: ASTEROID_IMPACT_Y + 24, world: this.world });
 
     this.shipContainer = this.add.container(W / 2, SHIP_Y).setDepth(8);
     const shipG = drawShip(this, 0, 0, {
@@ -705,7 +708,7 @@ export class GameScene extends Phaser.Scene {
 
     this.time.delayedCall(220, () => {
       audio.playAsteroidBoom?.();
-      this.explodeAsteroid(asteroid);
+      this.explodeAsteroid(asteroid, { big: true });
       this.removeAsteroid(asteroid);
       this.time.delayedCall(180, () => {
         if (this.state === 'feedback' || this.state === 'playing') {
@@ -948,15 +951,27 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const big = !!opts.big;
     const colors = opts.onShip
       ? [0xff6b6b, 0xff8b3d, 0xffd86b]
-      : [0xf7dc6f, 0xff8b3d, 0xffffff];
-    for (let i = 0; i < 14; i++) {
-      const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
-      const dist = 80 + Math.random() * 100;
+      : big
+        ? [this.world.accentColor, 0xffffff, 0xf7dc6f, 0xff8b3d]
+        : [0xf7dc6f, 0xff8b3d, 0xffffff];
+
+    const shardCount = big ? 18 : 14;
+    const distMin   = big ? 90 : 80;
+    const distSpan  = big ? 110 : 100;
+    const sizeMin   = big ? 4  : 5;
+    const sizeSpan  = big ? 8  : 5;
+    const durMin    = big ? 600 : 500;
+    const durSpan   = big ? 240 : 200;
+
+    for (let i = 0; i < shardCount; i++) {
+      const angle = (i / shardCount) * Math.PI * 2 + Math.random() * 0.4;
+      const dist = distMin + Math.random() * distSpan;
       const shard = this.add.graphics().setDepth(9);
       shard.fillStyle(colors[i % colors.length], 1);
-      shard.fillCircle(0, 0, 5 + Math.random() * 5);
+      shard.fillCircle(0, 0, sizeMin + Math.random() * sizeSpan);
       shard.x = x;
       shard.y = y;
       this.tweens.add({
@@ -964,24 +979,69 @@ export class GameScene extends Phaser.Scene {
         x: x + Math.cos(angle) * dist,
         y: y + Math.sin(angle) * dist,
         alpha: 0,
-        duration: 500 + Math.random() * 200,
+        duration: durMin + Math.random() * durSpan,
         ease: 'Quad.easeOut',
         onComplete: () => shard.destroy()
       });
     }
 
+    const ringRadius = big ? 50 : 40;
     const ring = this.add.graphics().setDepth(9);
-    ring.lineStyle(7, 0xffffff, 1);
-    ring.strokeCircle(0, 0, 40);
+    ring.lineStyle(big ? 9 : 7, 0xffffff, 1);
+    ring.strokeCircle(0, 0, ringRadius);
     ring.x = x;
     ring.y = y;
     this.tweens.add({
       targets: ring,
-      scale: 4,
+      scale: big ? 5 : 4,
       alpha: 0,
-      duration: 380,
+      duration: big ? 450 : 380,
       ease: 'Quad.easeOut',
       onComplete: () => ring.destroy()
+    });
+
+    if (!big) return;
+
+    // Debris chunks: small polygonal shards with rotation + gravity-ish fall.
+    const debrisColor = darken(this.world.color, 0.15);
+    for (let i = 0; i < 5; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 80 + Math.random() * 120;
+      const vx = Math.cos(angle) * speed;
+      const vy = Math.sin(angle) * speed * 0.6 - 60; // bias upward initially
+      const size = 14 + Math.random() * 10;
+      const chunk = this.add.graphics().setDepth(9);
+      chunk.fillStyle(debrisColor, 1);
+      // Quad shaped like an irregular shard
+      const half = size / 2;
+      chunk.fillTriangle(-half, -half * 0.6, half, -half * 0.4, half * 0.3, half * 0.7);
+      chunk.fillTriangle(-half, -half * 0.6, half * 0.3, half * 0.7, -half * 0.4, half * 0.5);
+      chunk.x = x;
+      chunk.y = y;
+      chunk.angle = Math.random() * 360;
+      const targetX = x + vx * 0.6;
+      const targetY = y + vy * 0.6 + 200; // gravity drop
+      this.tweens.add({
+        targets: chunk,
+        x: targetX,
+        y: targetY,
+        angle: chunk.angle + (Math.random() < 0.5 ? -1 : 1) * (180 + Math.random() * 200),
+        alpha: 0,
+        duration: 600,
+        ease: 'Quad.easeIn',
+        onComplete: () => chunk.destroy()
+      });
+    }
+
+    // Brief screen flash: full-screen white rect, alpha 0 -> 0.25 -> 0 over ~120ms.
+    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0).setDepth(100);
+    this.tweens.add({
+      targets: flash,
+      alpha: { from: 0, to: 0.25 },
+      duration: 60,
+      yoyo: true,
+      ease: 'Quad.easeOut',
+      onComplete: () => flash.destroy()
     });
   }
 
@@ -1267,6 +1327,30 @@ export class GameScene extends Phaser.Scene {
       fill: '#ff8b3d'
     })).setOrigin(0.5));
     panel.add(this.add.text(220, statY + 60, 'BEST STREAK', style('caption')).setOrigin(0.5));
+
+    // Always-celebratory pet, top-right corner of the summary panel.
+    // Spec: pet visible regardless of star count; positive reinforcement.
+    if (companion.hasStarter()) {
+      const pet = drawCompanion(this, 320, -260, { scale: 0.9 });
+      panel.add(pet);
+      pet.setScale(0);
+      this.tweens.add({
+        targets: pet,
+        scale: 0.9,
+        duration: 320,
+        delay: 600,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          pet.bounceHappy?.();
+          const loop = this.time.addEvent({
+            delay: 1600,
+            loop: true,
+            callback: () => pet.bounceHappy?.()
+          });
+          pet.once('destroy', () => loop.destroy());
+        }
+      });
+    }
 
     if (evolvedTo) {
       const banner = this.add.container(0, -panelH / 2 + 30);
