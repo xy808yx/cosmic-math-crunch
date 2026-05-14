@@ -339,12 +339,14 @@ export class CreditsScene extends Phaser.Scene {
     // bottom of the screen, behind the hero text).
     this.startChronoChoreography();
 
-    // Slow dark wash — gives the hero text a quiet stage.
+    // Slow dark wash — gives the hero text a quiet stage. Paced to the 52s
+    // credits song: cards (~14s) + evolution (~4s) + this hero card (~34s)
+    // ≈ 52s, with the Onward button landing as the song resolves.
     const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 1).setDepth(60);
     wash.alpha = 0;
     this.tweens.add({
       targets: wash, alpha: 0.92,
-      duration: 2400, ease: 'Quad.easeIn'
+      duration: 3000, ease: 'Quad.easeIn'
     });
 
     // Soft gold halo backdrop behind where the names will appear.
@@ -358,7 +360,7 @@ export class CreditsScene extends Phaser.Scene {
     heroContainer.add(halo);
     this.tweens.add({
       targets: halo, alpha: 1,
-      duration: 2200, delay: 1200,
+      duration: 2800, delay: 1500,
       ease: 'Quad.easeOut'
     });
 
@@ -391,7 +393,7 @@ export class CreditsScene extends Phaser.Scene {
       nameObjects.push(t);
     });
 
-    const NAME_REVEAL_DELAYS = [2800, 5300, 7800]; // t in ms from now
+    const NAME_REVEAL_DELAYS = [4500, 8500, 12500]; // t in ms from now
     nameStrings.forEach((str, idx) => {
       this.time.delayedCall(NAME_REVEAL_DELAYS[idx], () => {
         const target = nameObjects[idx];
@@ -435,11 +437,11 @@ export class CreditsScene extends Phaser.Scene {
     msg.alpha = 0;
     msg.setScale(0.85);
     heroContainer.add(msg);
-    this.time.delayedCall(11000, () => {
+    this.time.delayedCall(17000, () => {
       this.tweens.add({
         targets: msg,
         alpha: 1, scale: 1,
-        duration: 1800, ease: 'Back.easeOut',
+        duration: 2200, ease: 'Back.easeOut',
         onComplete: () => {
           // Heartbeat pulse — slow, twice.
           this.tweens.add({
@@ -454,7 +456,7 @@ export class CreditsScene extends Phaser.Scene {
 
     // Slow expanding gold rings around the message — repeats forever, the
     // visual hum of the moment.
-    this.time.delayedCall(13500, () => {
+    this.time.delayedCall(20500, () => {
       const ringSpawner = this.time.addEvent({
         delay: 2400, loop: true,
         callback: () => {
@@ -496,8 +498,9 @@ export class CreditsScene extends Phaser.Scene {
     });
     this._driftStars = driftStars;
 
-    // "Onward" button arrives late — let the moment breathe.
-    this.time.delayedCall(20000, () => {
+    // "Onward" button arrives at ~33s, landing right as the 52s song
+    // resolves (cards 14s + evolution 4s + this 33s ≈ 51s).
+    this.time.delayedCall(33000, () => {
       const btn = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100,
