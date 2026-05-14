@@ -58,6 +58,8 @@ export const SHIP_PARTS = [
   { id: 'decal_phoenix',      slot: 'decal', name: 'Phoenix Decal', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
   { id: 'decal_galaxy_swirl', slot: 'decal', name: 'Galaxy Decal',  price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'decal_dragon',       slot: 'decal', name: 'Dragon Decal',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
+  // Reward-only: awarded by clearing the Glitch World boss fight.
+  { id: 'decal_glitch',       slot: 'decal', name: 'Glitch Decal',  price: 0, unlock_only: true, color: 0x39ff14, rarity: 'legendary', desc: 'Spoils of war from Datamosh.' },
 
   // patterns are now folded into paints (see paint_racing, paint_blaze, etc.).
   // Keep pattern_none as the default record so legacy progress.ship.parts.pattern

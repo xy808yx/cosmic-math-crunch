@@ -39,6 +39,8 @@ export const PET_COSMETICS = [
   { id: 'acc_starbow',      slot: 'accessory', name: 'Rainbow Scarf', price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'acc_phoenix_cape', slot: 'accessory', name: 'Phoenix Cape',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
   { id: 'acc_void_amulet',  slot: 'accessory', name: 'Void Amulet',   price: 1500, color: 0x6c2bd9, rarity: 'legendary' },
+  // Reward-only: awarded by finding all 10 items in Dad's Garage.
+  { id: 'acc_dad_glasses',  slot: 'accessory', name: "Dad's Glasses", price: 0, unlock_only: true, color: 0xffd86b, rarity: 'legendary', desc: 'Found in the workshop.' },
 
   // ---- AURAS ----
   { id: 'aura_none',      slot: 'aura', name: 'None',           price: 0,    isDefault: true, color: 0x000000, rarity: 'common' },

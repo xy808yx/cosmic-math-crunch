@@ -3,6 +3,7 @@
 
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
@@ -22,6 +23,7 @@ export class RecordsScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    music.ensurePlaying(this);
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
     records.refreshWorldsCleared(progress, WORLDS);
@@ -219,41 +221,74 @@ export class RecordsScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // TOP FAST FACTS
+  // TOP FAST FACTS — top-5 fact records as elevated cards.
   // ============================================================
   createTopFacts() {
-    const sectionY = 1700;
+    const sectionY = 1710;
     this.add.text(W / 2, sectionY, 'FASTEST FACTS', style('subhead', {
-      fontSize: '24px',
+      fontSize: '28px',
       fill: '#58d68d'
     })).setOrigin(0.5).setDepth(11);
 
     const top = records.getTopFastFacts(5);
     if (top.length === 0) {
-      this.add.text(W / 2, sectionY + 50, 'No records yet — keep playing!', style('caption', {
+      this.add.text(W / 2, sectionY + 60, 'No records yet — keep playing!', style('caption', {
         fontSize: '20px',
         fill: '#7a7a90'
       })).setOrigin(0.5).setDepth(11);
       return;
     }
 
-    const startY = sectionY + 40;
-    const itemW = 200;
-    const startX = W / 2 - (top.length * itemW) / 2 + itemW / 2;
+    const cardW = 170;
+    const cardH = 150;
+    const gap = 14;
+    const startY = sectionY + 30 + cardH / 2;
+    const totalW = top.length * cardW + (top.length - 1) * gap;
+    const startX = W / 2 - totalW / 2 + cardW / 2;
+
     top.forEach((f, i) => {
-      const x = startX + i * itemW;
-      this.add.text(x, startY, `#${i + 1}`, style('caption', {
-        fontSize: '18px',
-        fill: '#7a7a90'
-      })).setOrigin(0.5).setDepth(11);
-      this.add.text(x, startY + 32, formatFactKey(f.key), style('subhead', {
-        fontSize: '28px',
+      const x = startX + i * (cardW + gap);
+      const c = this.add.container(x, startY).setDepth(11);
+
+      // Shadow for depth.
+      const shadow = this.add.graphics();
+      shadow.fillStyle(0x000000, 0.35);
+      shadow.fillRoundedRect(-cardW / 2 + 3, -cardH / 2 + 6, cardW, cardH, 16);
+      c.add(shadow);
+
+      // Card body — top-three get a gold/silver/bronze tint, rest blend in.
+      const tintColor = i === 0 ? 0xffd86b
+                       : i === 1 ? 0xcfcfe0
+                       : i === 2 ? 0xff8b3d
+                       : 0x4a4a64;
+      const bg = this.add.graphics();
+      bg.fillStyle(COLORS.bgPanel, 0.96);
+      bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 16);
+      bg.lineStyle(3, tintColor, i < 3 ? 1 : 0.65);
+      bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 16);
+      c.add(bg);
+
+      // Rank chip.
+      const chip = this.add.graphics();
+      chip.fillStyle(tintColor, 0.95);
+      chip.fillRoundedRect(-cardW / 2 + 8, -cardH / 2 + 8, 40, 22, 6);
+      c.add(chip);
+      c.add(this.add.text(-cardW / 2 + 28, -cardH / 2 + 19, `#${i + 1}`, style('caption', {
+        fontSize: '14px', fill: '#0a0a1a', fontStyle: '900'
+      })).setOrigin(0.5));
+
+      // Fact text.
+      c.add(this.add.text(0, -16, formatFactKey(f.key), style('subhead', {
+        fontSize: '32px',
         fill: '#ffffff'
-      })).setOrigin(0.5).setDepth(11);
-      this.add.text(x, startY + 70, `${(f.ms / 1000).toFixed(2)}s`, style('caption', {
-        fontSize: '20px',
-        fill: '#58d68d'
-      })).setOrigin(0.5).setDepth(11);
+      })).setOrigin(0.5));
+
+      // Time.
+      c.add(this.add.text(0, 32, `${(f.ms / 1000).toFixed(2)}s`, style('caption', {
+        fontSize: '22px',
+        fill: '#58d68d',
+        fontStyle: '900'
+      })).setOrigin(0.5));
     });
   }
 }

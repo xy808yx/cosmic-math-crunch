@@ -1,5 +1,8 @@
-// Procedural audio using Web Audio API
-// No external files needed - generates all sounds programmatically
+// Procedural SFX (Web Audio API, no asset files). Background music is a
+// separate concern handled by MusicManager — wired here so the global mute
+// toggle drives both at once.
+
+import { music } from './MusicManager.js';
 
 export class AudioManager {
   constructor() {
@@ -59,17 +62,6 @@ export class AudioManager {
 
     osc.start(this.context.currentTime + delay);
     osc.stop(this.context.currentTime + delay + duration);
-  }
-
-  // Tile select sound - soft blip
-  playSelect() {
-    this.playTone(600, 0.1, 'sine', 0.2);
-  }
-
-  // Tile swap sound - two quick tones
-  playSwap() {
-    this.playTone(400, 0.08, 'sine', 0.25);
-    this.playTone(500, 0.08, 'sine', 0.25, 0.05);
   }
 
   // Correct match - happy ascending arpeggio
@@ -499,6 +491,7 @@ export class AudioManager {
 
   toggleEnabled() {
     this.enabled = !this.enabled;
+    music.setEnabled(this.enabled);
     return this.enabled;
   }
 }

@@ -1,13 +1,11 @@
-// S-curve path connecting the 11 worlds on the home map.
-// Coordinates are in the 1080×1920 canvas, with the path occupying the
-// region y ≈ 280..1620 (below the header band, above the footer band).
+// S-curve path connecting the 11 visible worlds on the 1080×1920 canvas.
 //
-// Returns a Phaser.Curves.Path that the ship can follow, and the precomputed
+// Returns a Phaser.Curves.Path the ship can follow, and the precomputed
 // node anchor positions {x, y} for each world.
 
 import Phaser from 'phaser';
 
-const NODE_POSITIONS = [
+const POSITIONS = [
   // 11 hand-tuned points to feel like a meandering S-curve.
   { x: 240,  y: 1500 },  // 1 — bottom-left
   { x: 540,  y: 1430 },  // 2
@@ -23,18 +21,17 @@ const NODE_POSITIONS = [
 ];
 
 export function getNodePositions() {
-  return NODE_POSITIONS.map(p => ({ ...p }));
+  return POSITIONS.map(p => ({ ...p }));
 }
 
 // Build a Phaser Path that smoothly threads all node positions, suitable for
 // `this.tweens.add({ targets: ship, ...path.getPoint(t) })` style traversal.
 export function buildMapPath() {
-  const start = NODE_POSITIONS[0];
+  const start = POSITIONS[0];
   const path = new Phaser.Curves.Path(start.x, start.y);
-  for (let i = 1; i < NODE_POSITIONS.length; i++) {
-    const prev = NODE_POSITIONS[i - 1];
-    const curr = NODE_POSITIONS[i];
-    // Smooth bezier per segment — control points biased to make the curve weave.
+  for (let i = 1; i < POSITIONS.length; i++) {
+    const prev = POSITIONS[i - 1];
+    const curr = POSITIONS[i];
     const cx1 = prev.x + (curr.x - prev.x) * 0.3 + (i % 2 === 0 ? 80 : -80);
     const cy1 = prev.y + (curr.y - prev.y) * 0.3;
     const cx2 = prev.x + (curr.x - prev.x) * 0.7 + (i % 2 === 0 ? -80 : 80);
@@ -50,9 +47,8 @@ export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc
   const g = scene.add.graphics();
   if (visibleSegmentCount <= 0) return g;
 
-  // We approximate the path with sampled points and draw dashes.
   const totalPoints = 240;
-  const visibleCutoff = Math.min(1, visibleSegmentCount / (NODE_POSITIONS.length - 1));
+  const visibleCutoff = Math.min(1, visibleSegmentCount / Math.max(1, POSITIONS.length - 1));
   const samples = path.getPoints(totalPoints);
   const limit = Math.floor(samples.length * visibleCutoff);
 
@@ -69,7 +65,6 @@ export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc
     g.lineBetween(a.x, a.y, b.x, b.y);
   }
 
-  // Sparkle dots along the visible portion
   for (let i = 0; i < limit; i += 14) {
     const p = samples[i];
     g.fillStyle(0xffffff, 0.6);
@@ -81,7 +76,21 @@ export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc
 
 // Returns the param t along the path for a given node index (0-based).
 export function tForNodeIndex(idx) {
-  const total = NODE_POSITIONS.length - 1;
+  const total = POSITIONS.length - 1;
   if (total <= 0) return 0;
   return Math.max(0, Math.min(1, idx / total));
 }
+
+// Off-S-curve positions for the two hidden worlds. Placed in the empty pockets
+// of the map so each reads as a distinct "side branch" off its host world.
+export const HIDDEN_NODE_POSITIONS = {
+  15: { x: 970, y: 880 }, // Glitch — branches up-right from W5 (700, 1060)
+  16: { x: 160, y: 540 }  // Garage — branches up-left from W9 (660, 660)
+};
+
+// Host world id each hidden world is connected to. Used to draw the dashed
+// branch connector from host → hidden.
+export const HIDDEN_HOST_INDEX = {
+  15: 4,  // W5 (index 4)
+  16: 8   // W9 (index 8)
+};

@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import {
-  WORLDS,
   MODES,
   BOSS_CONFIG,
   getProblemForWorld,
@@ -9,22 +9,22 @@ import {
   getProblemSecondsForWorldAndMode,
   getAsteroidCountForWorld,
   getBossHpForWorld,
+  isFinalVisibleWorld,
+  findWorld,
+  getHiddenWorldForHost,
   progress
 } from '../GameData.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { getWorldBackground } from '../WorldBackgrounds.js';
-import { createButton, createIconButton } from '../buttonHelper.js';
+import { createButton } from '../buttonHelper.js';
+import { createModal } from '../modalHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { drawShip } from '../ShipRenderer.js';
 import { economy, claimDailyBonusIfDue } from '../EconomyManager.js';
 import { records } from '../RecordsManager.js';
-import {
-  drawFlameIcon, drawStarIcon, drawHourglassIcon,
-  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon,
-  drawSparkleIcon
-} from '../StatIcons.js';
+import { drawStarIcon, drawHeartIcon, drawSparkleIcon } from '../StatIcons.js';
 import { cosmetics } from '../CosmeticManager.js';
 import { drawQuestionBody, drawBossBody as drawWorldBoss } from '../QuestionObjectArt.js';
 import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
@@ -57,8 +57,23 @@ export class GameScene extends Phaser.Scene {
     this.worldId = this.registry.get('currentWorldId') || 1;
     this.currentLevel = this.registry.get('currentLevel') || 1;
     this.mode = this.registry.get('levelMode') || 'mult';
-    this.world = WORLDS[this.worldId - 1];
+    this.world = findWorld(this.worldId);
     this.isBoss = this.mode === 'boss';
+    this.freePlay = !!this.registry.get('freePlay');
+
+    // Hidden-world warp asteroid: when the kid plays a host level (e.g. W5
+    // div) for the first time, a warp asteroid will spawn ~30-45s in. State
+    // moves null → 'pending' → 'ready' → 'spawned'. Suppressed for boss,
+    // free-play, hidden-world replays, and already-discovered hosts.
+    this.warpTargetId = null;
+    this.warpState = null;
+    if (!this.isBoss && !this.freePlay && !this.world?.hidden) {
+      const hidden = getHiddenWorldForHost(this.worldId, this.mode);
+      if (hidden && !progress.isHiddenWorldDiscovered(hidden.id)) {
+        this.warpTargetId = hidden.id;
+        this.warpState = 'pending';
+      }
+    }
     this.bossMaxHp = getBossHpForWorld(this.worldId);
 
     this.modeConfig = this.isBoss
@@ -92,6 +107,7 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    music.ensurePlaying(this, this.isBoss ? 'bossTheme' : 'levelTheme');
     const wb = getWorldBackground(this.worldId);
     createStarfield(this, {
       width: W, height: H,
@@ -134,7 +150,67 @@ export class GameScene extends Phaser.Scene {
         });
       }
       this.time.delayedCall(450, () => { this.state = 'playing'; });
+
+      if (this.warpState === 'pending') {
+        const delay = 28000 + Math.floor(Math.random() * 12000);
+        this.time.delayedCall(delay, () => {
+          if (this.state === 'ended' || this.state === 'failed') return;
+          if (this.warpState === 'pending') this.warpState = 'ready';
+        });
+      }
+
+      // First-time-player nudge: short hint near the answer buttons.
+      // Auto-dismisses on the first correct answer.
+      if (!progress.tutorialSeen) {
+        this.time.delayedCall(900, () => {
+          if (this.state === 'failed' || this.state === 'ended') return;
+          this.showTutorialHint();
+        });
+      }
     }
+  }
+
+  showTutorialHint() {
+    if (this._tutorialHint) return;
+    const c = this.add.container(W / 2, H - 540).setDepth(50);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x12122a, 0.92);
+    bg.fillRoundedRect(-360, -48, 720, 96, 18);
+    bg.lineStyle(3, 0xffd86b, 1);
+    bg.strokeRoundedRect(-360, -48, 720, 96, 18);
+    c.add(bg);
+    c.add(this.add.text(0, -8, 'Tap the matching answer', style('subhead', {
+      fontSize: '28px',
+      fill: '#ffd86b',
+      fontStyle: '900'
+    })).setOrigin(0.5));
+    c.add(this.add.text(0, 22, 'to crunch the asteroid', style('caption', {
+      fontSize: '20px',
+      fill: '#cfcfe0'
+    })).setOrigin(0.5));
+    // Gentle pulse to draw the eye.
+    this.tweens.add({
+      targets: c,
+      scale: { from: 1, to: 1.05 },
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+    this._tutorialHint = c;
+  }
+
+  dismissTutorialHint() {
+    if (!this._tutorialHint) return;
+    const c = this._tutorialHint;
+    this._tutorialHint = null;
+    progress.markTutorialSeen();
+    this.tweens.add({
+      targets: c,
+      alpha: 0, scale: 0.9,
+      duration: 300,
+      onComplete: () => c.destroy()
+    });
   }
 
   setHp(newHp) {
@@ -173,17 +249,16 @@ export class GameScene extends Phaser.Scene {
     wb.drawHorizon(this, { width: W, y: ASTEROID_IMPACT_Y + 24, world: this.world });
 
     this.shipContainer = this.add.container(W / 2, SHIP_Y).setDepth(8);
-    const shipG = drawShip(this, 0, 0, {
+    this.shipG = drawShip(this, 0, 0, {
       scale: 1.8,
       parts: progress.ship?.parts
     });
-    this.shipContainer.add(shipG);
+    this.shipContainer.add(this.shipG);
 
-    // Pet rides INSIDE the cockpit porthole at ~2× current scale
     if (companion.hasStarter()) {
-      const pc = shipG.portholeCenter;
+      const pc = this.shipG.portholeCenter;
       this.cockpitPet = drawCompanion(this, pc.x, pc.y, { scale: 0.7 });
-      shipG.add(this.cockpitPet);
+      this.shipG.add(this.cockpitPet);
     }
 
     this.tweens.add({
@@ -203,6 +278,12 @@ export class GameScene extends Phaser.Scene {
     if (this.state === 'ended' || this.state === 'failed') return;
     if (this.bossDefeated) return;
     if (this.activeAsteroids.length >= this.asteroidSlots) return;
+
+    if (this.warpState === 'ready') {
+      this.warpState = 'spawned';
+      this.spawnWarpAsteroid();
+      return;
+    }
 
     const problem = getProblemForWorld(this.worldId, this.mode);
 
@@ -534,6 +615,7 @@ export class GameScene extends Phaser.Scene {
   handleCorrect(asteroid, btn) {
     this.state = 'feedback';
     this.attempts++;
+    if (this._tutorialHint) this.dismissTutorialHint();
     const elapsed = performance.now() - asteroid.startedAtMs;
     this.history.push({ problem: asteroid.problem, userAnswer: btn.value, correct: true });
     progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, true);
@@ -567,6 +649,12 @@ export class GameScene extends Phaser.Scene {
 
     audio.playLaser?.();
     this.fireLaserAt(asteroid);
+
+    if (asteroid._isWarp) {
+      this.removeAsteroid(asteroid);
+      this.triggerWarp(asteroid);
+      return;
+    }
 
     if (asteroid.isBoss) {
       this.bossHp = Math.max(0, this.bossHp - 1);
@@ -1025,8 +1113,8 @@ export class GameScene extends Phaser.Scene {
     const sp = companion.getSpecies();
     const accent = sp ? sp.accent : COLORS.accentPurple;
 
-    const portholeX = this.shipContainer.x + (this.shipContainer.portholeCenter?.x || 0);
-    const portholeY = this.shipContainer.y + (this.shipContainer.portholeCenter?.y || -120);
+    const portholeX = this.shipContainer.x + (this.shipG?.portholeCenter?.x || 0);
+    const portholeY = this.shipContainer.y + (this.shipG?.portholeCenter?.y || -120);
     const petY = portholeY - 120;
 
     const halo = this.add.graphics().setDepth(11);
@@ -1093,41 +1181,82 @@ export class GameScene extends Phaser.Scene {
   // Calls onComplete when fully dismissed.
   showWorldClearBanner(onComplete) {
     const bannerW = 960;
-    const bannerH = 140;
+    const bannerH = 160;
     const accent = this.world.accentColor;
     const startY = -bannerH / 2 - 20;
-    const restY = 200;
+    const restY = 220;
 
     const banner = this.add.container(W / 2, startY).setDepth(70);
 
     const bg = this.add.graphics();
     bg.fillStyle(accent, 0.95);
-    bg.fillRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 24);
+    bg.fillRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 26);
     bg.lineStyle(4, 0x0a0a1a, 1);
-    bg.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 24);
+    bg.strokeRoundedRect(-bannerW / 2, -bannerH / 2, bannerW, bannerH, 26);
     banner.add(bg);
 
     banner.add(this.add.text(0, 0, `${this.world.name.toUpperCase()} CLEARED!`, style('display', {
-      fontSize: '54px',
+      fontSize: '58px',
       fill: '#ffffff',
       stroke: '#0a0a1a',
       strokeThickness: 5,
       fontStyle: '900'
     })).setOrigin(0.5));
 
+    // Drop + pop: ease in, then briefly scale 1.0 → 1.08 → 1.0 for impact.
+    banner.setScale(0.9);
     this.tweens.add({
       targets: banner,
       y: restY,
-      duration: 350,
-      ease: 'Back.easeOut'
+      scale: 1,
+      duration: 380,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: banner,
+          scale: 1.08,
+          duration: 130,
+          yoyo: true,
+          ease: 'Sine.easeInOut'
+        });
+      }
     });
+
+    // Pet bounces in beside the banner — happy victory hop loop.
+    let petContainer = null;
+    if (companion.hasStarter()) {
+      const petX = bannerW / 2 - 70;
+      petContainer = this.add.container(petX, 0);
+      banner.add(petContainer);
+      const pet = drawCompanion(this, 0, 0, { scale: 0.95 });
+      petContainer.add(pet);
+      pet.setScale(0);
+      this.time.delayedCall(280, () => {
+        this.tweens.add({
+          targets: pet,
+          scale: 1,
+          duration: 240,
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            this.tweens.add({
+              targets: petContainer,
+              y: -22,
+              duration: 220,
+              yoyo: true,
+              repeat: 2,
+              ease: 'Sine.easeInOut'
+            });
+          }
+        });
+      });
+    }
 
     // Triple-burst chord matches the first-mastery banner pattern in showSummary.
     audio.playStar?.();
     this.time.delayedCall(180, () => audio.playStar?.());
     this.time.delayedCall(360, () => audio.playStar?.());
 
-    this.time.delayedCall(350 + 2500, () => {
+    this.time.delayedCall(380 + 2700, () => {
       this.tweens.add({
         targets: banner,
         y: startY,
@@ -1486,9 +1615,19 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
-    if (bossWin && this.worldId === 11 && worldFullyCleared) {
-      this.showFinalCinematic();
-    } else if (clearedThisRun) {
+    // Final boss of the entire game (W11 Void Devourer): first time triggers
+    // the full endgame finale (cinematic → credits → personalized shout-out).
+    // After that, beating it again skips to the normal summary panel.
+    if (bossWin && isFinalVisibleWorld(this.worldId) && worldFullyCleared && !progress.endingSeen) {
+      this.registry.set('currentWorldId', this.worldId);
+      this.scene.start('CreditsScene', { bossWin: true });
+      return;
+    }
+
+    // World cleared (any non-final visible world): mark for auto-advance,
+    // show banner, then summary. Continue button routes back to the map.
+    if (clearedThisRun && !this.freePlay && !this.world?.hidden) {
+      progress.setJustClearedWorld(this.worldId);
       this.showWorldClearBanner(() => proceedToSummary());
     } else {
       proceedToSummary();
@@ -1920,6 +2059,342 @@ export class GameScene extends Phaser.Scene {
   }
 
   exitToLevelSelect() {
-    this.scene.start('LevelSelectScene');
+    // If a world clear is pending auto-advance, jump straight to the map
+    // so the ship animates to the next world.
+    if (progress.justClearedWorld) {
+      this.scene.start('WorldMapScene');
+    } else {
+      this.scene.start('LevelSelectScene');
+    }
+  }
+
+  openPauseMenu() {
+    if (this._pauseOpen) return;
+    this._pauseOpen = true;
+    audio.playClick?.();
+    // Pause timers + physics so the asteroid clock stops.
+    this.tweens.pauseAll();
+    this.time.paused = true;
+    if (this.physics?.world) this.physics.world.pause();
+
+    const { card, close } = createModal(this, {
+      width: 760, height: 760,
+      depth: 100,
+      overlayAlpha: 0.7,
+      accentColor: this.world.accentColor,
+      showCloseHint: false
+    });
+
+    card.add(this.add.text(0, -300, 'PAUSED', style('display', {
+      fontSize: '64px',
+      fill: '#ffffff'
+    })).setOrigin(0.5));
+
+    const resumeAll = () => {
+      this.tweens.resumeAll();
+      this.time.paused = false;
+      if (this.physics?.world) this.physics.world.resume();
+      this._pauseOpen = false;
+    };
+
+    card.add(createButton(this, {
+      x: 0, y: -160, width: 420, height: 88,
+      label: 'Resume',
+      color: 0x39ff14,
+      textOverrides: { fontSize: '30px', fill: '#0a0a1a', fontStyle: '900' },
+      onClick: () => {
+        resumeAll();
+        close();
+      }
+    }));
+
+    // Sound + Music toggles — render once, redraw on tap.
+    let soundBtn = null, musicBtn = null;
+    const labelFor = (on, kind) => `${kind}: ${on ? 'ON' : 'OFF'}`;
+    const rebuild = () => {
+      if (soundBtn) soundBtn.destroy();
+      if (musicBtn) musicBtn.destroy();
+      soundBtn = createButton(this, {
+        x: 0, y: -50, width: 420, height: 80,
+        label: labelFor(audio.enabled, 'Sound'),
+        color: audio.enabled ? 0xb6e0ff : 0x4a4a5a,
+        textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
+        onClick: () => {
+          audio.toggleEnabled?.();
+          rebuild();
+        }
+      });
+      musicBtn = createButton(this, {
+        x: 0, y: 50, width: 420, height: 80,
+        label: labelFor(music.enabled, 'Music'),
+        color: music.enabled ? 0xc77eff : 0x4a4a5a,
+        textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
+        onClick: () => {
+          music.setEnabled?.(!music.enabled);
+          rebuild();
+        }
+      });
+      card.add(soundBtn);
+      card.add(musicBtn);
+    };
+    rebuild();
+
+    card.add(createButton(this, {
+      x: 0, y: 180, width: 420, height: 88,
+      label: 'Quit to Map',
+      color: 0xff5b6e,
+      textOverrides: { fontSize: '30px', fill: '#ffffff', fontStyle: '900' },
+      onClick: () => {
+        resumeAll();
+        close();
+        this.scene.start('WorldMapScene');
+      }
+    }));
+  }
+
+  // ============================================================
+  // WARP ASTEROID — discovery gateway to hidden worlds.
+  // Spawns once per session when the kid plays a host level (W5 div or
+  // W9 mixed) and the hidden world isn't yet discovered.
+  // ============================================================
+  spawnWarpAsteroid() {
+    const problem = getProblemForWorld(this.worldId, this.mode);
+
+    // Centered chonky asteroid, falls slower.
+    const xLane = W / 2;
+    const container = this.add.container(xLane, ASTEROID_TOP_Y).setDepth(7);
+
+    // Body: bigger purple-magenta gradient blob with floating "?" glyphs.
+    const body = this.add.graphics();
+    body.fillStyle(0x7c3aed, 1);
+    body.fillCircle(0, 0, ASTEROID_RADIUS * 1.5);
+    body.fillStyle(0xf0abfc, 0.4);
+    body.fillCircle(-30, -28, ASTEROID_RADIUS * 0.8);
+    body.lineStyle(6, 0xff00ff, 0.95);
+    body.strokeCircle(0, 0, ASTEROID_RADIUS * 1.5);
+    container.add(body);
+
+    // Sparkles
+    for (let i = 0; i < 8; i++) {
+      const sp = this.add.graphics();
+      sp.fillStyle(0xffffff, 1);
+      sp.fillCircle(0, 0, 4);
+      const a = (i / 8) * Math.PI * 2;
+      sp.x = Math.cos(a) * (ASTEROID_RADIUS * 1.55);
+      sp.y = Math.sin(a) * (ASTEROID_RADIUS * 1.55);
+      container.add(sp);
+      this.tweens.add({
+        targets: sp,
+        alpha: { from: 0.3, to: 1 },
+        duration: 600 + i * 80,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    // Floating "?" glyphs orbiting
+    for (let i = 0; i < 3; i++) {
+      const q = this.add.text(0, 0, '?', style('display', {
+        fontSize: '54px',
+        fill: '#ff00ff',
+        stroke: '#0a0a1a',
+        strokeThickness: 4
+      })).setOrigin(0.5);
+      const baseAngle = (i / 3) * Math.PI * 2;
+      const r = ASTEROID_RADIUS * 1.85;
+      q.x = Math.cos(baseAngle) * r;
+      q.y = Math.sin(baseAngle) * r;
+      container.add(q);
+      this.tweens.add({
+        targets: q,
+        scale: { from: 0.9, to: 1.15 },
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    // The equation text
+    const text = this.add.text(0, 0, problem.display, style('display', {
+      fontSize: '70px',
+      fill: '#ffffff',
+      stroke: '#0a0a1a',
+      strokeThickness: 7
+    })).setOrigin(0.5);
+    container.add(text);
+
+    // Slow rotational sway for the whole asteroid
+    this.tweens.add({
+      targets: container,
+      angle: 4,
+      duration: 2400,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    const fallSeconds = this.problemSeconds * 2.4; // Falls much slower.
+    const asteroid = {
+      container, text, problem,
+      slotIdx: null,
+      lockedOut: false,
+      fallTween: null,
+      startedAtMs: performance.now(),
+      isBoss: false,
+      _isWarp: true
+    };
+    asteroid.fallTween = this.tweens.add({
+      targets: container,
+      y: ASTEROID_IMPACT_Y,
+      duration: fallSeconds * 1000,
+      ease: 'Linear',
+      onComplete: () => this.onAsteroidImpact(asteroid)
+    });
+    this.activeAsteroids.push(asteroid);
+    this.playPetFreakout();
+  }
+
+  playPetFreakout() {
+    if (!this.cockpitPet) return;
+    const sp = companion.getSpecies();
+    const accent = sp?.accent || 0xff00ff;
+
+    if (this.shipContainer) {
+      const halo = this.add.graphics().setDepth(7);
+      halo.fillStyle(accent, 0.7);
+      halo.fillCircle(0, 0, 60);
+      halo.x = this.shipContainer.x + (this.shipG?.portholeCenter?.x || 0);
+      halo.y = this.shipContainer.y + (this.shipG?.portholeCenter?.y || -120);
+      halo.alpha = 0;
+      halo.setScale(0.3);
+      this.tweens.add({
+        targets: halo,
+        alpha: { from: 0.6, to: 0 },
+        scale: 2.5,
+        duration: 900,
+        ease: 'Quad.easeOut',
+        onComplete: () => halo.destroy()
+      });
+    }
+
+    this.tweens.add({
+      targets: this.cockpitPet,
+      scaleX: 0.85,
+      scaleY: 0.85,
+      duration: 140,
+      yoyo: true,
+      repeat: 3,
+      ease: 'Sine.easeInOut'
+    });
+
+    const exclaim = this.add.text(this.shipContainer.x, this.shipContainer.y - 200, '!', style('display', {
+      fontSize: '80px',
+      fill: '#ff00ff',
+      stroke: '#0a0a1a',
+      strokeThickness: 6
+    })).setOrigin(0.5).setDepth(20);
+    exclaim.setScale(0);
+    this.tweens.add({
+      targets: exclaim,
+      scale: 1.4,
+      duration: 300,
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        this.time.delayedCall(900, () => {
+          this.tweens.add({
+            targets: exclaim,
+            alpha: 0,
+            y: exclaim.y - 30,
+            duration: 400,
+            onComplete: () => exclaim.destroy()
+          });
+        });
+      }
+    });
+
+    audio.playPetChirp?.();
+  }
+
+  triggerWarp(asteroid) {
+    // Lock the scene and play a hyperspace warp animation, then load the
+    // hidden world. Marks discovery so it doesn't re-spawn here next time.
+    this.state = 'feedback';
+    if (this.warpTargetId) {
+      progress.discoverHiddenWorld(this.warpTargetId);
+    }
+
+    const hiddenId = this.warpTargetId;
+    const dest = findWorld(hiddenId);
+    const destName = dest?.name?.toUpperCase() || 'HIDDEN WORLD';
+
+    const streak = this.add.graphics().setDepth(80);
+    streak.fillStyle(0x000010, 1);
+    streak.fillRect(0, 0, W, H);
+    streak.alpha = 0;
+    this.tweens.add({
+      targets: streak,
+      alpha: 1,
+      duration: 600,
+      ease: 'Quad.easeIn'
+    });
+
+    const streakLayer = this.add.container(W / 2, H / 2).setDepth(82);
+    for (let i = 0; i < 60; i++) {
+      const angle = Math.random() * Math.PI * 2;
+      const r0 = 100 + Math.random() * 400;
+      const star = this.add.graphics();
+      star.fillStyle(0xffffff, 1);
+      star.fillRect(-2, -2, 4, 60);
+      star.rotation = angle + Math.PI / 2;
+      star.x = Math.cos(angle) * r0;
+      star.y = Math.sin(angle) * r0;
+      streakLayer.add(star);
+      this.tweens.add({
+        targets: star,
+        x: Math.cos(angle) * (r0 * 3),
+        y: Math.sin(angle) * (r0 * 3),
+        scaleY: 6,
+        alpha: 0,
+        duration: 900 + Math.random() * 300,
+        ease: 'Quad.easeIn'
+      });
+    }
+
+    this.time.delayedCall(600, () => {
+      const banner = this.add.container(W / 2, H / 2).setDepth(85);
+      const bg = this.add.graphics();
+      bg.fillStyle(0x0a0a1a, 0.95);
+      bg.fillRoundedRect(-440, -120, 880, 240, 24);
+      bg.lineStyle(5, 0xff00ff, 1);
+      bg.strokeRoundedRect(-440, -120, 880, 240, 24);
+      banner.add(bg);
+      banner.add(this.add.text(0, -40, 'WARP ACTIVATED', style('display', {
+        fontSize: '54px',
+        fill: '#ff00ff',
+        stroke: '#0a0a1a',
+        strokeThickness: 5
+      })).setOrigin(0.5));
+      banner.add(this.add.text(0, 40, `→  ${destName}`, style('subhead', {
+        fontSize: '40px',
+        fill: '#ffffff'
+      })).setOrigin(0.5));
+      banner.setScale(0.5);
+      banner.alpha = 0;
+      this.tweens.add({
+        targets: banner,
+        scale: 1,
+        alpha: 1,
+        duration: 380,
+        ease: 'Back.easeOut'
+      });
+      audio.playBossIntroSlam?.();
+    });
+
+    this.time.delayedCall(2200, () => {
+      this.registry.set('hiddenWorldId', hiddenId);
+      this.scene.start('HiddenWorldScene', { worldId: hiddenId });
+    });
   }
 }

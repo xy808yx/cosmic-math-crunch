@@ -4,6 +4,7 @@
 
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
@@ -35,6 +36,16 @@ const TABS = [
 
 const TAB_BY_ID = Object.fromEntries(TABS.map(t => [t.id, t]));
 
+// Generic flavor line shown when an item has no explicit `desc` field.
+function rarityFlavor(rarity) {
+  switch (rarity) {
+    case 'legendary': return 'A true cosmic rarity.';
+    case 'rare':      return 'Catches the eye.';
+    case 'common':
+    default:          return 'A reliable choice.';
+  }
+}
+
 export class ShopScene extends Phaser.Scene {
   constructor() {
     super({ key: 'ShopScene' });
@@ -42,6 +53,7 @@ export class ShopScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    music.ensurePlaying(this);
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
     this.activeTab = 'style';
@@ -220,7 +232,48 @@ export class ShopScene extends Phaser.Scene {
       this.tabContainers[tab.id] = c;
     });
 
+    this.createRarityLegend();
     this.refreshTabBar();
+  }
+
+  createRarityLegend() {
+    // Tiny chip strip showing common / rare / legendary colors, mounted just
+    // below the tab bar so card colors are decodable at a glance.
+    const legend = this.add.container(W / 2, 340).setDepth(29);
+    const items = [
+      { label: 'common',    color: RARITY_COLOR.common },
+      { label: 'rare',      color: RARITY_COLOR.rare },
+      { label: 'legendary', color: RARITY_COLOR.legendary }
+    ];
+    const chipH = 18;
+    const padX = 8;
+    let cursor = 0;
+    // First pass: measure each chip width so the row centers properly.
+    const measured = items.map(it => {
+      const dotW = 12;
+      const txt = this.add.text(0, 0, it.label, style('caption', {
+        fontSize: '13px', fill: '#cfcfe0'
+      })).setOrigin(0, 0.5);
+      const totalW = dotW + 6 + txt.width + padX * 2;
+      return { ...it, txt, totalW };
+    });
+    const gap = 12;
+    const fullW = measured.reduce((s, m) => s + m.totalW, 0) + gap * (measured.length - 1);
+    cursor = -fullW / 2;
+    for (const m of measured) {
+      const chip = this.add.graphics();
+      chip.fillStyle(0x14142a, 0.85);
+      chip.fillRoundedRect(cursor, -chipH / 2, m.totalW, chipH, chipH / 2);
+      legend.add(chip);
+      const dot = this.add.graphics();
+      dot.fillStyle(m.color, 1);
+      dot.fillCircle(cursor + padX + 6, 0, 5);
+      legend.add(dot);
+      m.txt.x = cursor + padX + 14;
+      m.txt.y = 0;
+      legend.add(m.txt);
+      cursor += m.totalW + gap;
+    }
   }
 
   refreshTabBar() {
@@ -447,6 +500,16 @@ export class ShopScene extends Phaser.Scene {
       wordWrap: { width: w - 32 }
     })).setOrigin(0.5));
 
+    // One-line flavor under the name (falls back to a generic line by rarity).
+    const descText = item.desc || rarityFlavor(rarity);
+    c.add(this.add.text(0, h / 2 - 98, descText, style('caption', {
+      fontSize: '15px',
+      fill: '#9aa0b0',
+      align: 'center',
+      wordWrap: { width: w - 32 },
+      fontStyle: 'italic'
+    })).setOrigin(0.5));
+
     // Status badge
     const badgeY = h / 2 - 50;
     let badgeText = '';
@@ -457,6 +520,7 @@ export class ShopScene extends Phaser.Scene {
     if (equipped && isDefault) { badgeText = 'EQUIPPED'; badgeColor = COLORS.success; }
     else if (equipped) { badgeText = 'TAP TO UNEQUIP'; badgeColor = COLORS.success; }
     else if (owned) { badgeText = 'TAP TO EQUIP'; badgeColor = COLORS.accentTeal; }
+    else if (item.unlock_only) { badgeText = '??? — UNLOCK BY PLAYING'; badgeColor = 0x3a3a4a; badgeFill = '#7a7a90'; }
     else if (item.price === 0) { badgeText = 'FREE'; badgeColor = COLORS.accentPurple; }
     else { badgeText = `${item.price} STARDUST`; badgeColor = canAfford ? COLORS.accentPurple : 0x3a3a4a; if (!canAfford) badgeFill = '#7a7a90'; }
 
@@ -465,7 +529,7 @@ export class ShopScene extends Phaser.Scene {
     badge.fillRoundedRect(-w / 2 + 24, badgeY - 22, w - 48, 44, 22);
     c.add(badge);
     c.add(this.add.text(0, badgeY, badgeText, style('caption', {
-      fontSize: '20px',
+      fontSize: badgeText.length > 18 ? '16px' : '20px',
       fill: badgeFill,
       fontStyle: '900'
     })).setOrigin(0.5));
@@ -499,8 +563,8 @@ export class ShopScene extends Phaser.Scene {
       this.tweens.add({ targets: c, scale: 1, duration: 100 });
     });
 
-    // Locked items (unowned + can't afford) fade so the eye skips past them.
-    if (!owned && !canAfford && item.price > 0) {
+    // Locked items (unowned + can't afford OR unlock-only) fade out.
+    if ((!owned && !canAfford && item.price > 0) || (!owned && item.unlock_only)) {
       c.setAlpha(0.55);
     }
 
@@ -533,6 +597,12 @@ export class ShopScene extends Phaser.Scene {
       return;
     }
     if (item.price > 0 && !canAfford) {
+      audio.playClick();
+      return;
+    }
+
+    // Unlock-only items — can't be bought, can't be claimed. Just acknowledge.
+    if (item.unlock_only) {
       audio.playClick();
       return;
     }

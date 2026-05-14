@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { SPECIES, companion, drawCompanion } from '../CompanionManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
@@ -17,6 +18,7 @@ export class StarterPickerScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    music.ensurePlaying(this);
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
     this.add.text(W / 2, 180, 'Pick Your Companion', style('display', {
