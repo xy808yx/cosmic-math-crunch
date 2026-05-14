@@ -7,6 +7,13 @@ import { ParentDashboardScene } from './scenes/ParentDashboardScene.js';
 import { StarterPickerScene } from './scenes/StarterPickerScene.js';
 import { ShopScene } from './scenes/ShopScene.js';
 import { RecordsScene } from './scenes/RecordsScene.js';
+import { CreditsScene } from './scenes/CreditsScene.js';
+import { HiddenWorldScene } from './scenes/HiddenWorldScene.js';
+import { ArcadeMenuScene } from './scenes/ArcadeMenuScene.js';
+import { EndlessScene } from './scenes/EndlessScene.js';
+import { BossRushScene } from './scenes/BossRushScene.js';
+import { DevMenuScene } from './scenes/DevMenuScene.js';
+import { SettingsScene } from './scenes/SettingsScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -30,7 +37,12 @@ const config = {
       height: 1920
     }
   },
-  scene: [BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene, ShopScene, RecordsScene, ParentDashboardScene]
+  scene: [
+    BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene,
+    ShopScene, RecordsScene, ParentDashboardScene,
+    CreditsScene, HiddenWorldScene,
+    ArcadeMenuScene, EndlessScene, BossRushScene, DevMenuScene, SettingsScene
+  ]
 };
 
 const game = new Phaser.Game(config);

@@ -7,7 +7,7 @@ import { createIconButton } from './buttonHelper.js';
 import { style } from './textStyles.js';
 import {
   drawFlameIcon, drawStarIcon, drawHourglassIcon,
-  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon
+  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon, drawPauseIcon
 } from './StatIcons.js';
 import { COLORS } from './colorPalette.js';
 
@@ -46,12 +46,12 @@ export function createTopBar(scene, topBarH) {
     fontStyle: '900'
   })).setOrigin(0.5));
 
-  // Sound toggle (top-right)
+  // Pause (top-right) — opens a modal with Resume / Sound / Music / Quit.
   createIconButton(scene, {
     x: W - 80, y: 70, radius: 36,
     accentColor: scene.world.accentColor,
-    drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
-    onClick: () => audio.toggleEnabled()
+    drawIcon: (g, size) => drawPauseIcon(g, 0, 0, size),
+    onClick: () => scene.openPauseMenu?.()
   }).setDepth(15);
 
   // Row 1: STREAK / SCORE / TIME with pixel icons

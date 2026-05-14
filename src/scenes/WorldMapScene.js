@@ -4,8 +4,12 @@
 // unlocked next world animates the ship along the path to it.
 
 import Phaser from 'phaser';
-import { WORLDS, progress } from '../GameData.js';
+import {
+  WORLDS, VISIBLE_WORLDS, HIDDEN_WORLDS,
+  progress, getNextVisibleWorldId
+} from '../GameData.js';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
@@ -14,12 +18,13 @@ import { companion, drawCompanion } from '../CompanionManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
-import { buildMapPath, getNodePositions, drawPath, tForNodeIndex } from '../MapPath.js';
+import { buildMapPath, getNodePositions, drawPath, tForNodeIndex, HIDDEN_NODE_POSITIONS, HIDDEN_HOST_INDEX } from '../MapPath.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
+import { drawGlitchPlanetNode, drawGarageNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
 import {
   drawSparkleIcon, drawStarIcon,
-  drawGearIcon, drawShoppingBagIcon, drawHelmetIcon
+  drawGearIcon, drawShoppingBagIcon, drawHelmetIcon, drawSoundIcon
 } from '../StatIcons.js';
 import { COLORS } from '../colorPalette.js';
 import { createModal } from '../modalHelper.js';
@@ -34,6 +39,11 @@ export class WorldMapScene extends Phaser.Scene {
 
   create() {
     audio.init();
+    music.ensurePlaying(this);
+
+    // Returning to the map always ends a free-play session, so the next
+    // normal tap into a level plays for progression as usual.
+    this.registry.set('freePlay', false);
 
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
@@ -45,8 +55,12 @@ export class WorldMapScene extends Phaser.Scene {
 
     this.createHeader();
     this.createMap();
+    this.createHiddenNodes();
     this.createShipOnActiveWorld();
     this.createBottomChrome();
+
+    // If the player just cleared a world, auto-advance the ship one node.
+    this.tryAutoAdvance();
 
     this.events.on('wake', this.onSceneWake, this);
     this.events.on('resume', this.onSceneWake, this);
@@ -80,14 +94,61 @@ export class WorldMapScene extends Phaser.Scene {
     bg.fillStyle(COLORS.bgDark, 0.20);
     bg.fillRect(0, 244, W, 16);
 
-    this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
+    const title = this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
       fontSize: '54px',
       fill: '#ffffff',
       stroke: '#0a0a1a',
       strokeThickness: 4
-    })).setOrigin(0.5).setDepth(14);
+    })).setOrigin(0.5).setDepth(14).setInteractive({ useHandCursor: true });
+
+    // Hidden dev-menu trigger: long-press (~1.5s) on the title opens the
+    // parent menu. Kids tapping briefly do nothing.
+    let pressTimer = null;
+    title.on('pointerdown', () => {
+      pressTimer = this.time.delayedCall(1500, () => {
+        audio.playClick?.();
+        new TransitionManager(this).fadeToScene('DevMenuScene');
+      });
+    });
+    const cancelPress = () => {
+      if (pressTimer) { pressTimer.remove(); pressTimer = null; }
+    };
+    title.on('pointerup', cancelPress);
+    title.on('pointerout', cancelPress);
 
     this.createChipRow();
+
+    // Cosmic Arcade chip — appears only after the kid has seen the endgame.
+    // Anchored to the bottom-right corner so it never collides with map nodes.
+    if (progress.endingSeen) {
+      const ax = W - 200, ay = 1640;
+      const arcade = this.add.container(ax, ay).setDepth(18);
+      const bg = this.add.graphics();
+      bg.fillStyle(0x0a0a1a, 0.95);
+      bg.fillRoundedRect(-150, -28, 300, 56, 18);
+      bg.lineStyle(3, 0xfbbf24, 1);
+      bg.strokeRoundedRect(-150, -28, 300, 56, 18);
+      arcade.add(bg);
+      arcade.add(this.add.text(0, 0, '★ COSMIC ARCADE ★', style('caption', {
+        fontSize: '24px',
+        fill: '#fbbf24',
+        fontStyle: '900'
+      })).setOrigin(0.5));
+      this.tweens.add({
+        targets: arcade,
+        scale: { from: 1, to: 1.06 },
+        duration: 1400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      const hit = this.add.rectangle(ax, ay, 300, 56, 0, 0)
+        .setInteractive({ useHandCursor: true }).setDepth(19);
+      hit.on('pointerdown', () => {
+        audio.playClick();
+        new TransitionManager(this).fadeToScene('ArcadeMenuScene');
+      });
+    }
 
     // Top-left cluster: Gear | Logbook
     createIconButton(this, {
@@ -107,6 +168,16 @@ export class WorldMapScene extends Phaser.Scene {
       onClick: () => {
         audio.playClick();
         new TransitionManager(this).fadeToScene('RecordsScene');
+      }
+    }).setDepth(15);
+
+    createIconButton(this, {
+      x: 282, y: 88, radius: 38,
+      accentColor: 0xb6e0ff,
+      drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled && music.enabled),
+      onClick: () => {
+        audio.playClick();
+        new TransitionManager(this).fadeToScene('SettingsScene');
       }
     }).setDepth(15);
 
@@ -301,7 +372,7 @@ export class WorldMapScene extends Phaser.Scene {
       height: H,
       nodePositions: this.nodePositions,
       furthestUnlocked: this.furthestUnlockedIndex,
-      accentColors: WORLDS.map(w => w.accentColor)
+      accentColors: VISIBLE_WORLDS.map(w => w.accentColor)
     });
 
     // Path — only segments up to (and including) the current world segment
@@ -311,8 +382,8 @@ export class WorldMapScene extends Phaser.Scene {
 
     // Nodes — unlocked render in full color, locked render as silhouette+?.
     this.nodeContainers = {};
-    for (let i = 0; i < WORLDS.length; i++) {
-      const world = WORLDS[i];
+    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
+      const world = VISIBLE_WORLDS[i];
       const pos = this.nodePositions[i];
       const isLocked = i > this.furthestUnlockedIndex;
 
@@ -387,7 +458,11 @@ export class WorldMapScene extends Phaser.Scene {
         halo.fillStyle(world.accentColor, 0.05);
         halo.fillCircle(pos.x, pos.y, 170);
 
-        const chip = this.add.container(pos.x, pos.y - 130).setDepth(8);
+        // Flip the chip below the world when the world sits near the top
+        // of the map, where the header would otherwise crop the chip.
+        const chipAbove = pos.y > 480;
+        const chipY = chipAbove ? pos.y - 130 : pos.y + 140;
+        const chip = this.add.container(pos.x, chipY).setDepth(16);
         const chipBg = this.add.graphics();
         chipBg.fillStyle(world.accentColor, 0.95);
         chipBg.fillRoundedRect(-92, -18, 184, 36, 18);
@@ -402,7 +477,7 @@ export class WorldMapScene extends Phaser.Scene {
         chip.add(chipText);
         this.tweens.add({
           targets: chip,
-          y: pos.y - 130 - 4,
+          y: chipY - 4,
           duration: 2400,
           yoyo: true,
           repeat: -1,
@@ -461,7 +536,7 @@ export class WorldMapScene extends Phaser.Scene {
     fade.fillStyle(COLORS.bgDark, 0.7);
     fade.fillRect(0, 1700, W, 220);
 
-    const world = WORLDS[this.currentWorldIndex];
+    const world = VISIBLE_WORLDS[this.currentWorldIndex];
     const wp = progress.getWorldProgress(world.id);
     const fullyCleared = progress.isWorldFullyCleared(world.id);
 
@@ -515,10 +590,10 @@ export class WorldMapScene extends Phaser.Scene {
     }
 
     // Animate ship along path to the new world
-    this.travelTo(targetIndex);
+    this.travelTo(targetIndex, () => this.enterWorld(targetIndex));
   }
 
-  travelTo(targetIndex) {
+  travelTo(targetIndex, onArrive) {
     if (this._traveling) return;
     this._traveling = true;
     this.input.enabled = false;
@@ -534,7 +609,7 @@ export class WorldMapScene extends Phaser.Scene {
     audio.playLaser?.();
 
     const tween = { t: startT };
-    this.tweens.add({
+    return this.tweens.add({
       targets: tween,
       t: endT,
       duration: 1500,
@@ -555,18 +630,220 @@ export class WorldMapScene extends Phaser.Scene {
         this.currentWorldIndex = targetIndex;
         this._traveling = false;
         this.input.enabled = true;
-        // Subtle landing shake
+        this._startShipBob();
         this.cameras.main.shake(180, 0.004);
-        this.time.delayedCall(180, () => this.enterWorld(targetIndex));
+        if (onArrive) {
+          this.time.delayedCall(180, onArrive);
+        }
       }
     });
   }
 
   enterWorld(idx) {
-    const world = WORLDS[idx];
+    const world = VISIBLE_WORLDS[idx];
     this.registry.set('selectedWorld', world.id);
     this.registry.set('shipParkedWorldId', world.id);
     new TransitionManager(this).fadeToScene('LevelSelectScene');
+  }
+
+  // ============================================================
+  // HIDDEN WORLD NODES
+  // ============================================================
+  createHiddenNodes() {
+    for (const h of HIDDEN_WORLDS) {
+      if (!progress.isHiddenWorldDiscovered(h.id)) continue;
+      const pos = HIDDEN_NODE_POSITIONS[h.id];
+      if (!pos) continue;
+
+      // Dashed branch path from host visible world → hidden world. Read as a
+      // "side route" that branches off the main S-curve.
+      const hostIdx = HIDDEN_HOST_INDEX[h.id];
+      if (hostIdx != null) {
+        const host = this.nodePositions[hostIdx];
+        if (host) this.drawHiddenBranch(host, pos, h.accentColor);
+      }
+
+      const node = this.add.container(pos.x, pos.y).setDepth(5);
+      const NODE_R = 62;
+
+      if (h.id === 15) {
+        const planet = drawGlitchPlanetNode(this, 0, 0, NODE_R);
+        node.add(planet);
+        this.tweens.add({
+          targets: node,
+          x: pos.x + 3,
+          duration: 110,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Linear'
+        });
+      } else if (h.id === 16) {
+        const garage = drawGarageNode(this, 0, 0, NODE_R);
+        node.add(garage);
+        this.tweens.add({
+          targets: node,
+          y: pos.y - 6,
+          duration: 1800,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
+
+      // Label — sits below the larger node
+      this.add.text(pos.x, pos.y + NODE_R + 22, h.name.toUpperCase(), style('caption', {
+        fontSize: '24px',
+        fill: '#' + h.accentColor.toString(16).padStart(6, '0'),
+        fontStyle: '900',
+        stroke: '#0a0a1a',
+        strokeThickness: 3
+      })).setOrigin(0.5).setDepth(6);
+
+      // Tap → enter hidden world
+      const hit = this.add.circle(pos.x, pos.y, NODE_R + 8, 0, 0)
+        .setInteractive({ useHandCursor: true }).setDepth(7);
+      hit.on('pointerdown', () => {
+        audio.playClick();
+        this.registry.set('selectedWorld', h.id);
+        this.registry.set('hiddenWorldId', h.id);
+        new TransitionManager(this).fadeToScene('HiddenWorldScene');
+      });
+    }
+  }
+
+  drawHiddenBranch(host, dest, accent) {
+    // Sampled dashed line with a midpoint pull so the branch arcs slightly.
+    const mx = (host.x + dest.x) / 2;
+    const my = (host.y + dest.y) / 2;
+    // Pull the midpoint perpendicular to the host→dest line for an arc.
+    const dx = dest.x - host.x;
+    const dy = dest.y - host.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const perpX = -dy / len;
+    const perpY = dx / len;
+    const arc = 40;
+    const cx = mx + perpX * arc;
+    const cy = my + perpY * arc;
+
+    const g = this.add.graphics().setDepth(2);
+    const samples = 60;
+    const pts = [];
+    for (let i = 0; i <= samples; i++) {
+      const t = i / samples;
+      // Quadratic Bezier through (host, control=cx/cy, dest)
+      const x = (1 - t) * (1 - t) * host.x + 2 * (1 - t) * t * cx + t * t * dest.x;
+      const y = (1 - t) * (1 - t) * host.y + 2 * (1 - t) * t * cy + t * t * dest.y;
+      pts.push({ x, y });
+    }
+    // Dark underlay
+    g.lineStyle(6, 0x121225, 0.85);
+    for (let i = 1; i < pts.length; i++) {
+      g.lineBetween(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+    }
+    // Dashed accent on top
+    g.lineStyle(3, accent, 0.85);
+    for (let i = 1; i < pts.length; i += 2) {
+      g.lineBetween(pts[i - 1].x, pts[i - 1].y, pts[i].x, pts[i].y);
+    }
+    // Sparkles along the branch
+    g.fillStyle(0xffffff, 0.55);
+    for (let i = 4; i < pts.length; i += 10) {
+      g.fillCircle(pts[i].x, pts[i].y, 2);
+    }
+  }
+
+  // ============================================================
+  // AUTO-ADVANCE SHIP (after a world is cleared)
+  // ============================================================
+  tryAutoAdvance() {
+    const cleared = progress.justClearedWorld;
+    if (!cleared) return;
+
+    const nextId = getNextVisibleWorldId(cleared);
+    if (!nextId) {
+      // Just cleared the final world — credits handle the flow, nothing to do.
+      progress.consumeJustClearedWorld();
+      return;
+    }
+
+    const clearedIdx = VISIBLE_WORLDS.findIndex(w => w.id === cleared);
+    const nextIdx = VISIBLE_WORLDS.findIndex(w => w.id === nextId);
+
+    if (clearedIdx < 0 || nextIdx < 0) {
+      progress.consumeJustClearedWorld();
+      return;
+    }
+
+    // Position ship at cleared world, animate to next.
+    this.currentWorldIndex = clearedIdx;
+    const startPos = this.nodePositions[clearedIdx];
+    this.shipPet.x = startPos.x;
+    this.shipPet.y = startPos.y - 30;
+
+    progress.consumeJustClearedWorld();
+
+    // Allow a tap to skip the animation.
+    const skipHit = this.add.rectangle(W / 2, H / 2, W, H, 0, 0)
+      .setInteractive().setDepth(50);
+    let skipped = false;
+    let travelTween = null;
+    const skip = () => {
+      if (skipped) return;
+      skipped = true;
+      if (travelTween) travelTween.stop();
+      const dest = this.nodePositions[nextIdx];
+      this.shipPet.x = dest.x;
+      this.shipPet.y = dest.y - 30;
+      this.shipPet.rotation = 0;
+      this.currentWorldIndex = nextIdx;
+      this._traveling = false;
+      this._startShipBob();
+      skipHit.destroy();
+      this.input.enabled = true;
+      this.showNewWorldTooltip(nextIdx);
+    };
+    skipHit.on('pointerdown', skip);
+
+    this.time.delayedCall(400, () => {
+      if (skipped) return;
+      travelTween = this.travelTo(nextIdx, () => {
+        skipHit.destroy();
+        this.showNewWorldTooltip(nextIdx);
+      });
+    });
+  }
+
+  showNewWorldTooltip(nextIdx) {
+    const pos = this.nodePositions[nextIdx];
+    if (!pos) return;
+    const tip = this.add.container(pos.x, pos.y - 150).setDepth(18);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0a0a1a, 0.92);
+    bg.fillRoundedRect(-140, -22, 280, 44, 12);
+    bg.lineStyle(2, 0xfbbf24, 0.95);
+    bg.strokeRoundedRect(-140, -22, 280, 44, 12);
+    tip.add(bg);
+    tip.add(this.add.text(0, 0, 'NEW WORLD UNLOCKED', style('caption', {
+      fontSize: '20px',
+      fill: '#fbbf24',
+      fontStyle: '900'
+    })).setOrigin(0.5));
+    tip.alpha = 0;
+    this.tweens.add({
+      targets: tip,
+      alpha: 1,
+      y: pos.y - 160,
+      duration: 300,
+      ease: 'Quad.easeOut'
+    });
+    this.time.delayedCall(2200, () => {
+      this.tweens.add({
+        targets: tip,
+        alpha: 0,
+        duration: 400,
+        onComplete: () => tip.destroy()
+      });
+    });
   }
 
   // ============================================================
@@ -693,24 +970,24 @@ export class WorldMapScene extends Phaser.Scene {
   findCurrentWorldIndex() {
     const parkedId = this.registry.get('shipParkedWorldId');
     if (parkedId) {
-      const parkedIdx = WORLDS.findIndex(w => w.id === parkedId);
-      if (parkedIdx >= 0 && progress.isWorldUnlocked(WORLDS[parkedIdx].id)) {
+      const parkedIdx = VISIBLE_WORLDS.findIndex(w => w.id === parkedId);
+      if (parkedIdx >= 0 && progress.isWorldUnlocked(VISIBLE_WORLDS[parkedIdx].id)) {
         return parkedIdx;
       }
     }
-    for (let i = 0; i < WORLDS.length; i++) {
-      const w = WORLDS[i];
+    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
+      const w = VISIBLE_WORLDS[i];
       if (!progress.isWorldUnlocked(w.id)) return Math.max(0, i - 1);
       const wp = progress.getWorldProgress(w.id);
       if (wp.levelsCompleted < w.levelsRequired) return i;
     }
-    return WORLDS.length - 1;
+    return VISIBLE_WORLDS.length - 1;
   }
 
   findFurthestUnlockedIndex() {
     let idx = 0;
-    for (let i = 0; i < WORLDS.length; i++) {
-      if (progress.isWorldUnlocked(WORLDS[i].id)) idx = i;
+    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
+      if (progress.isWorldUnlocked(VISIBLE_WORLDS[i].id)) idx = i;
     }
     return idx;
   }

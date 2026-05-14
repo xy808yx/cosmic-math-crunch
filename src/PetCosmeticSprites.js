@@ -323,6 +323,20 @@ function shades(item) {
   ], { O, B: c, H: h }];
 }
 
+// Round wire-rim glasses — dad style. Two round lenses with a thin wire bridge.
+function dadGlasses(item) {
+  const frame = item.color, lens = 0xeaf6ff, h = 0xffffff;
+  return [[
+    '..OOOO....OOOO..',
+    '.OllllO..OllllO.',
+    'OlhlllOOOlhlllOO',
+    'OllllllllllllllO',
+    'OllllllOOlllllllO',
+    '.OllllO..OllllO.',
+    '..OOOO....OOOO..'
+  ], { O, l: lens, h, F: frame }];
+}
+
 function bobaTea(item) {
   const cup = lighten(item.color, 0.30), tea = item.color, lid = 0xfafaf0,
         straw = 0xff5b6e, pearl = 0x12122a;
@@ -529,7 +543,8 @@ const ACC_DRAWERS = {
   acc_wings: tinyWings,
   acc_cape: heroCape,
   acc_phoenix_cape: phoenixCape,
-  acc_void_amulet: voidAmulet
+  acc_void_amulet: voidAmulet,
+  acc_dad_glasses: dadGlasses
   // acc_starhalo handled separately (orbiting container)
 };
 
@@ -547,7 +562,8 @@ const ACC_ANCHORS = {
   acc_cape:     { name: 'back', mode: 'below' },
   acc_starbow:  { name: 'neck' },
   acc_phoenix_cape: { name: 'back', mode: 'below' },
-  acc_void_amulet: { name: 'neck' }
+  acc_void_amulet: { name: 'neck' },
+  acc_dad_glasses: { name: 'head_eye' }
 };
 
 // ============================================================================

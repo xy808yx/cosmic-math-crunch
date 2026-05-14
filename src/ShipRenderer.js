@@ -1041,6 +1041,14 @@ const DECAL_SPRITES = {
     '.ABBA',
     'ABBAA',
     'AA.A.'
+  ],
+  // Glitch decal — corrupted-block pattern with bright center pixel.
+  decal_glitch: [
+    'A.BAB',
+    'BAABA',
+    'ABKBA',
+    'ABABB',
+    'BABA.'
   ]
 };
 

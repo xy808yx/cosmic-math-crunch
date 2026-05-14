@@ -5,6 +5,7 @@ import Phaser from 'phaser';
 import { progress, WORLDS } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { style } from '../textStyles.js';
 import { createIconButton, createButton } from '../buttonHelper.js';
@@ -25,6 +26,7 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   create() {
+    music.ensurePlaying(this);
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
     this.add.rectangle(W / 2, H / 2, W, H, COLORS.bgDark, 0.65).setDepth(0);
 

@@ -227,6 +227,14 @@ export function drawArrowLeftIcon(g, x, y, size, color = 0xffffff) {
   g.strokePath();
 }
 
+export function drawPauseIcon(g, x, y, size, color = 0xffffff) {
+  g.fillStyle(color, 1);
+  const w = size * 0.22, h = size * 0.9;
+  const gap = size * 0.18;
+  g.fillRect(x - gap - w, y - h / 2, w, h);
+  g.fillRect(x + gap, y - h / 2, w, h);
+}
+
 export function drawSoundIcon(g, x, y, size, color = 0xffffff, on = true) {
   g.fillStyle(color, 1);
   g.fillRect(x - size * 0.5, y - size * 0.25, size * 0.3, size * 0.5);

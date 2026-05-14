@@ -4,6 +4,7 @@
 import Phaser from 'phaser';
 import { WORLDS, MODES, progress } from '../GameData.js';
 import { audio } from '../AudioManager.js';
+import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createProgressBar } from '../buttonHelper.js';
@@ -26,6 +27,7 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create() {
+    music.ensurePlaying(this);
     const worldId = this.registry.get('selectedWorld') || 1;
     this.world = WORLDS[worldId - 1];
     this.worldProgress = progress.getWorldProgress(worldId);
@@ -63,14 +65,13 @@ export class LevelSelectScene extends Phaser.Scene {
       onClick: () => new TransitionManager(this).fadeToScene('WorldMapScene')
     }).setDepth(15);
 
-    this.add.text(W / 2, 70, 'MISSION BRIEFING', style('caption', {
-      fontSize: '40px',
+    this.add.text(W / 2, 70, 'MISSION BRIEFING', style('headline', {
       fill: '#cfcfe0',
       fontStyle: '900'
     })).setOrigin(0.5).setDepth(15);
 
     this.add.text(W / 2, 145, this.world.name, style('display', {
-      fontSize: '78px',
+      fontSize: '76px',
       fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
     })).setOrigin(0.5).setDepth(15);
 

@@ -114,12 +114,76 @@ export const WORLDS = [
     name: "Universe's End",
     color: 0x4a4a8c,
     accentColor: 0xfff3b8,
-    description: 'The last horizon. Beyond, only theories.',
+    description: 'The last horizon. The final stand against the Void.',
     villain: 'The Void Devourer',
     flavorText: 'The Void shatters. Stars relight across every world.',
-    levelsRequired: 4
+    levelsRequired: 4,
+    bigBoss: true
+  },
+  // Hidden worlds — discovered via warp asteroids in specific levels.
+  // Not part of the main world map S-curve. Don't gate the ending.
+  {
+    id: 15,
+    name: 'Glitch World',
+    color: 0x39ff14,
+    accentColor: 0xff00ff,
+    description: 'Something is wrong with the math here.',
+    villain: 'Datamosh',
+    flavorText: 'The glitches settle. You sense the system breathing.',
+    levelsRequired: 1,
+    hidden: true,
+    discoveredFrom: { worldId: 5, mode: 'div' },
+    kind: 'gauntlet'
+  },
+  {
+    id: 16,
+    name: "Dad's Garage",
+    color: 0xc88a3a,
+    accentColor: 0xffe07a,
+    description: "The garage where Dad tinkers between worlds.",
+    villain: null,
+    flavorText: 'You found it. Dad smiles at the screen.',
+    levelsRequired: 1,
+    hidden: true,
+    discoveredFrom: { worldId: 9, mode: 'mixed' },
+    kind: 'exploration'
   }
 ];
+
+// Visible worlds — the main world map S-curve.
+export const VISIBLE_WORLDS = WORLDS.filter(w => !w.hidden);
+
+// Hidden worlds — discoverable via warp asteroids.
+export const HIDDEN_WORLDS = WORLDS.filter(w => w.hidden);
+
+// The final visible boss — beating it triggers the endgame cinematic + credits.
+export const FINAL_VISIBLE_WORLD_ID =
+  VISIBLE_WORLDS[VISIBLE_WORLDS.length - 1].id;
+
+// True if this world is the FINAL visible world (last boss = end-of-game).
+export function isFinalVisibleWorld(worldId) {
+  return worldId === FINAL_VISIBLE_WORLD_ID;
+}
+
+// Returns the next visible world id (for ship auto-advance), or null at the end.
+export function getNextVisibleWorldId(currentId) {
+  const idx = VISIBLE_WORLDS.findIndex(w => w.id === currentId);
+  if (idx < 0 || idx === VISIBLE_WORLDS.length - 1) return null;
+  return VISIBLE_WORLDS[idx + 1].id;
+}
+
+// Find a world by id (visible or hidden). Used by GameScene/HiddenWorldScene.
+export function findWorld(worldId) {
+  return WORLDS.find(w => w.id === worldId) || null;
+}
+
+// Which hidden world (if any) is reachable from this (worldId, mode) host?
+export function getHiddenWorldForHost(worldId, mode) {
+  return HIDDEN_WORLDS.find(h =>
+    h.discoveredFrom?.worldId === worldId &&
+    h.discoveredFrom?.mode === mode
+  ) || null;
+}
 
 // Mode → human-readable label and config used by GameScene/LevelSelectScene.
 // Cut: speed/missing/multi — every level is timed now (timer comes from world),
@@ -135,7 +199,9 @@ export const MODES = {
 // drive multi-asteroid spawn cadence.
 const WORLD_PROBLEM_SECONDS = {
   1: 7.0,  2: 6.0,  3: 5.5,  4: 5.0,  5: 4.5,
-  6: 4.0,  7: 3.5,  8: 3.0,  9: 2.5,  10: 2.0,  11: 1.5
+  6: 4.0,  7: 3.5,  8: 3.0,  9: 2.5,  10: 2.0,  11: 1.5,
+  // Hidden worlds use their own pacing (read lazily).
+  15: 2.0,  16: 4.0
 };
 
 function getProblemSecondsForWorld(worldId) {
@@ -143,7 +209,10 @@ function getProblemSecondsForWorld(worldId) {
 }
 
 // Number of asteroids on screen at once. Worlds 1–5 = 1, 6–8 = 2, 9–11 = 3.
+// Hidden Glitch World (15) plays with W11 density; Workshop (16) is non-combat.
 export function getAsteroidCountForWorld(worldId) {
+  if (worldId === 15) return 3;
+  if (worldId === 16) return 0;
   if (worldId <= 5) return 1;
   if (worldId <= 8) return 2;
   return 3;
@@ -165,10 +234,12 @@ export const BOSS_CONFIG = {
   asteroidScale: 3.4
 };
 
-// Boss HP per world: 10 at world 1, +2 per world, 30 at world 11.
-// Stays inside the 90s timer at every world (world 1 ≈ 8s/problem × 10 = 80s;
-// world 11 ≈ 2.5s/problem × 30 = 75s).
+// Boss HP per world: 10 at world 1, +2 per world up to W10 (28 HP).
+// W11 is the BIG boss (Void Devourer) and gets a hard override — 4 phases.
+// Stays inside the 90s boss timer at every world.
 export function getBossHpForWorld(worldId) {
+  if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
+  if (worldId === 15) return 14;       // Glitch World mini-boss (Datamosh).
   return 8 + worldId * 2;
 }
 
@@ -355,6 +426,18 @@ class PlayerProgress {
         this.economy = { ...this.getDefaultEconomy(), ...(data.economy || {}) };
         this.ship = this.mergeShip(data.ship);
         this.cosmetics = this.mergeCosmetics(data.cosmetics);
+        // Act 2 / hidden / arcade additions — backward-compatible defaults.
+        this.endingSeen = !!data.endingSeen;
+        this.justClearedWorld = data.justClearedWorld || null;
+        this.hiddenWorldDiscovered = { 15: false, 16: false, ...(data.hiddenWorldDiscovered || {}) };
+        this.hiddenWorldCleared = { 15: false, 16: false, ...(data.hiddenWorldCleared || {}) };
+        this.hiddenWorldBest = { 15: null, ...(data.hiddenWorldBest || {}) };
+        this.arcade = { endlessBest: 0, bossRushBest: null, ...(data.arcade || {}) };
+        this.petHelperUsed = !!data.petHelperUsed; // big-boss helper consumed
+        this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
+        this.tutorialSeen = !!data.tutorialSeen;
+        if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
+        this.checkWorldUnlock(null);
       } else {
         this.reset();
       }
@@ -372,6 +455,15 @@ class PlayerProgress {
     this.economy = this.getDefaultEconomy();
     this.ship = this.getDefaultShip();
     this.cosmetics = this.getDefaultCosmetics();
+    this.endingSeen = false;
+    this.justClearedWorld = null;
+    this.hiddenWorldDiscovered = { 15: false, 16: false };
+    this.hiddenWorldCleared = { 15: false, 16: false };
+    this.hiddenWorldBest = { 15: null };
+    this.arcade = { endlessBest: 0, bossRushBest: null };
+    this.petHelperUsed = false;
+    this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
+    this.tutorialSeen = false;
     this.save();
   }
 
@@ -404,7 +496,7 @@ class PlayerProgress {
 
   getWorldsClearedCount() {
     let count = 0;
-    for (const w of WORLDS) {
+    for (const w of VISIBLE_WORLDS) {
       if (this.isWorldFullyCleared(w.id)) count++;
     }
     return count;
@@ -519,11 +611,151 @@ class PlayerProgress {
         companion: this.companion,
         economy: this.economy,
         ship: this.ship,
-        cosmetics: this.cosmetics
+        cosmetics: this.cosmetics,
+        endingSeen: this.endingSeen,
+        justClearedWorld: this.justClearedWorld,
+        hiddenWorldDiscovered: this.hiddenWorldDiscovered,
+        hiddenWorldCleared: this.hiddenWorldCleared,
+        hiddenWorldBest: this.hiddenWorldBest,
+        arcade: this.arcade,
+        petHelperUsed: this.petHelperUsed,
+        dadNoteState: this.dadNoteState,
+        tutorialSeen: this.tutorialSeen
       }));
     } catch (e) {
       console.warn('Could not save progress');
     }
+  }
+
+  // Mark the ending sequence as seen (so it doesn't auto-replay next final-boss win).
+  markEndingSeen() {
+    if (this.endingSeen) return;
+    this.endingSeen = true;
+    this.save();
+  }
+
+  // Force-replay the ending on next final-boss win (dev menu only).
+  resetEndingSeen() {
+    if (!this.endingSeen) return;
+    this.endingSeen = false;
+    this.save();
+  }
+
+  // Mark a hidden world as discovered (warp asteroid was solved). UI updates.
+  discoverHiddenWorld(worldId) {
+    if (this.hiddenWorldDiscovered[worldId]) return false;
+    this.hiddenWorldDiscovered[worldId] = true;
+    this.save();
+    return true;
+  }
+
+  // Mark a hidden world as cleared (after its boss / exploration completes).
+  clearHiddenWorld(worldId) {
+    if (this.hiddenWorldCleared[worldId]) return;
+    this.hiddenWorldCleared[worldId] = true;
+    this.save();
+  }
+
+  isHiddenWorldDiscovered(worldId) {
+    return !!this.hiddenWorldDiscovered?.[worldId];
+  }
+
+  isHiddenWorldCleared(worldId) {
+    return !!this.hiddenWorldCleared?.[worldId];
+  }
+
+  // Set after a world is cleared by a boss win; consumed by WorldMapScene to
+  // auto-advance the ship one node. Null when nothing is pending.
+  setJustClearedWorld(worldId) {
+    if (this.justClearedWorld === worldId) return;
+    this.justClearedWorld = worldId;
+    this.save();
+  }
+
+  consumeJustClearedWorld() {
+    const v = this.justClearedWorld;
+    if (v === null) return null;
+    this.justClearedWorld = null;
+    this.save();
+    return v;
+  }
+
+  // Force-unlock every visible world (dev menu only).
+  unlockAllVisibleWorlds() {
+    let changed = false;
+    for (const w of VISIBLE_WORLDS) {
+      const wp = this.worldProgress[w.id];
+      if (wp && !wp.unlocked) {
+        wp.unlocked = true;
+        changed = true;
+      }
+    }
+    if (changed) this.save();
+  }
+
+  // Glitch World best clear time. Lower is better. Returns true if updated.
+  recordGlitchClearTime(timeMs) {
+    const prev = this.hiddenWorldBest?.[15];
+    if (prev == null || timeMs < prev) {
+      this.hiddenWorldBest = { ...(this.hiddenWorldBest || {}), 15: timeMs };
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  getGlitchBest() {
+    return this.hiddenWorldBest?.[15] ?? null;
+  }
+
+  // Dad's Garage daily note. Returns { isNewDay, message, index } where
+  // isNewDay=true means caller should award the daily stardust and show
+  // the note as "today's". Cycles sequentially through the notes array.
+  claimDailyDadNoteIfDue(notes) {
+    if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
+    const today = new Date().toISOString().slice(0, 10);
+    const state = this.dadNoteState || { lastClaimDate: null, nextIndex: 0 };
+    const isNewDay = state.lastClaimDate !== today;
+    const index = state.nextIndex % notes.length;
+    const message = notes[index];
+    if (isNewDay) {
+      this.dadNoteState = {
+        lastClaimDate: today,
+        nextIndex: (index + 1) % notes.length
+      };
+      this.save();
+    }
+    return { isNewDay, message, index };
+  }
+
+  markTutorialSeen() {
+    if (this.tutorialSeen) return;
+    this.tutorialSeen = true;
+    this.save();
+  }
+
+  // Endless mode best (60s timed sprint score).
+  recordEndlessScore(score) {
+    if (score > (this.arcade.endlessBest || 0)) {
+      this.arcade.endlessBest = score;
+      this.save();
+      return true;
+    }
+    return false;
+  }
+
+  // Boss Rush best (lower time + higher accuracy is better — caller decides).
+  recordBossRushResult({ won, timeMs, correct, total }) {
+    const accuracy = total > 0 ? correct / total : 0;
+    const prev = this.arcade.bossRushBest;
+    const isBest = !prev || (won && (!prev.won || accuracy > prev.accuracy
+      || (accuracy === prev.accuracy && timeMs < prev.timeMs)));
+    if (isBest) {
+      this.arcade.bossRushBest = { won, timeMs, correct, total, accuracy };
+      this.save();
+      return true;
+    }
+    return false;
   }
 
   // Record a fact attempt with spaced repetition (Section 4.3)
@@ -607,22 +839,29 @@ class PlayerProgress {
   }
 
   checkWorldUnlock(_completedWorldId) {
-    // Phase 3: world N+1 unlocks when world N has all 4 challenges cleared
-    // (mult, div, mixed, boss). World 1 is always unlocked.
-    for (let i = 0; i < WORLDS.length; i++) {
-      const world = WORLDS[i];
+    // World N+1 unlocks when world N has all 4 challenges cleared. World 1 is
+    // always unlocked. Hidden worlds (15+) are NOT part of this sequential
+    // chain — they unlock via warp-asteroid discovery (see discoverHiddenWorld).
+    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
+      const world = VISIBLE_WORLDS[i];
       const wp = this.worldProgress[world.id];
       if (!wp) continue;
       if (i === 0) {
         wp.unlocked = true;
         continue;
       }
-      const prev = WORLDS[i - 1];
+      const prev = VISIBLE_WORLDS[i - 1];
       const prevWp = this.worldProgress[prev.id];
       const prevCleared = prevWp && Object.keys(prevWp.levelStars).length >= prev.levelsRequired;
       if (prevCleared && !wp.unlocked) {
         wp.unlocked = true;
       }
+    }
+    // Hidden worlds: unlocked iff discovered. (They are accessed from glitch
+    // nodes on the map, not the sequential chain.)
+    for (const h of HIDDEN_WORLDS) {
+      const wp = this.worldProgress[h.id];
+      if (wp) wp.unlocked = this.isHiddenWorldDiscovered(h.id);
     }
   }
 
