@@ -26,7 +26,6 @@ import { drawShip } from '../ShipRenderer.js';
 import { economy, claimDailyBonusIfDue } from '../EconomyManager.js';
 import { records } from '../RecordsManager.js';
 import { drawStarIcon, drawHeartIcon, drawSparkleIcon } from '../StatIcons.js';
-import { cosmetics } from '../CosmeticManager.js';
 import { drawQuestionBody, drawBossBody as drawWorldBoss, drawDatamoshBlob } from '../QuestionObjectArt.js';
 import { ship } from '../ShipManager.js';
 import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
