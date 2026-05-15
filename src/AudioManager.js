@@ -440,6 +440,60 @@ export class AudioManager {
     this._playNoiseBurst?.({ duration: 0.35, startOffset: 0, peakGain: 0.18, amplitude: 0.5 });
   }
 
+  // Hyperspace warp — used when the warp asteroid is solved and the kid is
+  // pulled into Glitch World / Dad's Garage. Three layers: a rising whoosh
+  // (sub-bass climbing to a high siren), filtered noise sweeping up like
+  // wind past the ship, and a final shimmer pop at the punch-out.
+  playWarp() {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    const t0 = this.context.currentTime;
+
+    // Whoosh layer — sawtooth swept 90Hz → 1400Hz, with a long tail.
+    const o1 = this.context.createOscillator();
+    o1.type = 'sawtooth';
+    o1.frequency.setValueAtTime(90, t0);
+    o1.frequency.exponentialRampToValueAtTime(1400, t0 + 0.85);
+    const g1 = this.context.createGain();
+    g1.gain.setValueAtTime(0.001, t0);
+    g1.gain.exponentialRampToValueAtTime(0.30, t0 + 0.25);
+    g1.gain.exponentialRampToValueAtTime(0.05, t0 + 0.95);
+    g1.gain.exponentialRampToValueAtTime(0.001, t0 + 1.20);
+    o1.connect(g1); g1.connect(this.sfxGain);
+    o1.start(t0); o1.stop(t0 + 1.25);
+
+    // Air-rush layer — wide bandpass noise sweeping up.
+    const buffSize = Math.floor(this.context.sampleRate * 1.2);
+    const buff = this.context.createBuffer(1, buffSize, this.context.sampleRate);
+    const data = buff.getChannelData(0);
+    for (let i = 0; i < buffSize; i++) data[i] = (Math.random() * 2 - 1) * 0.7;
+    const noise = this.context.createBufferSource();
+    noise.buffer = buff;
+    const filt = this.context.createBiquadFilter();
+    filt.type = 'bandpass';
+    filt.Q.value = 1.4;
+    filt.frequency.setValueAtTime(400, t0);
+    filt.frequency.exponentialRampToValueAtTime(4200, t0 + 0.85);
+    const ng = this.context.createGain();
+    ng.gain.setValueAtTime(0.001, t0);
+    ng.gain.exponentialRampToValueAtTime(0.20, t0 + 0.30);
+    ng.gain.exponentialRampToValueAtTime(0.001, t0 + 1.15);
+    noise.connect(filt); filt.connect(ng); ng.connect(this.sfxGain);
+    noise.start(t0); noise.stop(t0 + 1.20);
+
+    // Punch-out shimmer — bright triangle stab at the top of the climb.
+    const o2 = this.context.createOscillator();
+    o2.type = 'triangle';
+    o2.frequency.setValueAtTime(1800, t0 + 0.80);
+    o2.frequency.exponentialRampToValueAtTime(2600, t0 + 1.00);
+    const g2 = this.context.createGain();
+    g2.gain.setValueAtTime(0.001, t0 + 0.80);
+    g2.gain.exponentialRampToValueAtTime(0.18, t0 + 0.90);
+    g2.gain.exponentialRampToValueAtTime(0.001, t0 + 1.20);
+    o2.connect(g2); g2.connect(this.sfxGain);
+    o2.start(t0 + 0.80); o2.stop(t0 + 1.25);
+  }
+
   // Evolution buildup — soft ascending shimmer.
   playEvolutionBuildup() {
     if (!this.enabled || !this.initialized) return;

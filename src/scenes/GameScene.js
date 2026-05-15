@@ -2472,6 +2472,26 @@ export class GameScene extends Phaser.Scene {
     const dest = findWorld(hiddenId);
     const destName = dest?.name?.toUpperCase() || 'HIDDEN WORLD';
 
+    // Audio kicks in the instant the answer lands — long whoosh that runs
+    // through the streak phase and resolves just before the scene swap.
+    audio.playWarp?.();
+    // Quick magenta flash + a held camera shake sells the "engine kick".
+    this.cameras.main.flash(220, 180, 0, 200);
+    this.cameras.main.shake(1400, 0.010);
+
+    // Pull the ship "into hyperspace" — it lifts off, shrinks, and fades
+    // the same way a ship leaving a node on the world map would feel.
+    if (this.shipContainer) {
+      this.tweens.add({
+        targets: this.shipContainer,
+        y: this.shipContainer.y - 220,
+        scale: 0.2,
+        alpha: 0,
+        duration: 700,
+        ease: 'Quad.easeIn'
+      });
+    }
+
     const streak = this.add.graphics().setDepth(80);
     streak.fillStyle(0x000010, 1);
     streak.fillRect(0, 0, W, H);
@@ -2484,9 +2504,9 @@ export class GameScene extends Phaser.Scene {
     });
 
     const streakLayer = this.add.container(W / 2, H / 2).setDepth(82);
-    for (let i = 0; i < 60; i++) {
+    for (let i = 0; i < 80; i++) {
       const angle = Math.random() * Math.PI * 2;
-      const r0 = 100 + Math.random() * 400;
+      const r0 = 80 + Math.random() * 460;
       const star = this.add.graphics();
       star.fillStyle(0xffffff, 1);
       star.fillRect(-2, -2, 4, 60);
@@ -2496,12 +2516,31 @@ export class GameScene extends Phaser.Scene {
       streakLayer.add(star);
       this.tweens.add({
         targets: star,
-        x: Math.cos(angle) * (r0 * 3),
-        y: Math.sin(angle) * (r0 * 3),
-        scaleY: 6,
+        x: Math.cos(angle) * (r0 * 3.4),
+        y: Math.sin(angle) * (r0 * 3.4),
+        scaleY: 8,
         alpha: 0,
-        duration: 900 + Math.random() * 300,
+        duration: 950 + Math.random() * 350,
         ease: 'Quad.easeIn'
+      });
+    }
+
+    // Concentric portal rings rushing outward — a "tunnel" feel that
+    // reinforces the moving-into-the-world animation.
+    for (let i = 0; i < 4; i++) {
+      const ring = this.add.graphics().setDepth(81);
+      ring.lineStyle(6, 0xff00ff, 0.85);
+      ring.strokeCircle(0, 0, 30);
+      ring.x = W / 2; ring.y = H / 2;
+      ring.alpha = 0;
+      this.tweens.add({
+        targets: ring,
+        scale: 24,
+        alpha: { from: 0.9, to: 0 },
+        duration: 1100,
+        delay: i * 180,
+        ease: 'Quad.easeOut',
+        onComplete: () => ring.destroy()
       });
     }
 
