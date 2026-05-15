@@ -10,6 +10,8 @@ import { createStarfield } from '../starfieldHelper.js';
 import { style } from '../textStyles.js';
 import { createButton } from '../buttonHelper.js';
 import { createModal } from '../modalHelper.js';
+import { PET_COSMETICS } from '../CosmeticManager.js';
+import { SHIP_PARTS } from '../ShipManager.js';
 
 const W = 1080;
 const H = 1920;
@@ -36,6 +38,11 @@ export class DevMenuScene extends Phaser.Scene {
     })).setOrigin(0.5);
 
     const buttons = [
+      {
+        label: 'JUICE',
+        color: 0xff00ff,
+        onClick: () => this.juiceItUp()
+      },
       {
         label: 'Replay endgame credits',
         color: 0xfbbf24,
@@ -91,6 +98,29 @@ export class DevMenuScene extends Phaser.Scene {
     });
 
     new TransitionManager(this).fadeIn(260);
+  }
+
+  juiceItUp() {
+    // Default to Ember if no species picked — needed for 'adult' stage to render.
+    if (!progress.companion.speciesId) {
+      progress.companion.speciesId = 'ember';
+    }
+    progress.companion.stage = 'adult';
+
+    for (const item of PET_COSMETICS) {
+      if (!progress.cosmetics.ownedIds.includes(item.id)) {
+        progress.cosmetics.ownedIds.push(item.id);
+      }
+    }
+    for (const part of SHIP_PARTS) {
+      if (!progress.ship.ownedParts.includes(part.id)) {
+        progress.ship.ownedParts.push(part.id);
+      }
+    }
+
+    progress.economy.stardust = 8888;
+    progress.save();
+    this.flashToast('Juiced. Pet maxed, all unlocked, 8888 ⭐');
   }
 
   flashToast(text) {

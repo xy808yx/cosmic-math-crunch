@@ -239,8 +239,72 @@ export const BOSS_CONFIG = {
 // Stays inside the 90s boss timer at every world.
 export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
-  if (worldId === 15) return 14;       // Glitch World mini-boss (Datamosh).
+  if (worldId === 15) return 22;       // Glitch World boss (Datamosh) — mid-game spike.
   return 8 + worldId * 2;
+}
+
+const GLITCH_MATH_WORLDS = [6, 7, 8];
+
+export function getGlitchProblem() {
+  const worldForMath = GLITCH_MATH_WORLDS[Math.floor(Math.random() * GLITCH_MATH_WORLDS.length)];
+  const base = getProblemForWorld(worldForMath, 'boss');
+
+  const roll = Math.random();
+  if (roll < 0.25) {
+    return { ...base, glitchKind: 'clean', glitchChoices: null };
+  }
+
+  if (roll < 0.625) {
+    const answerStr = base.answer.toString();
+    const hiddenIdx = Math.floor(Math.random() * answerStr.length);
+    const hiddenDigit = parseInt(answerStr[hiddenIdx], 10);
+    const display = `${base.display} = ${answerStr.slice(0, hiddenIdx)}▓${answerStr.slice(hiddenIdx + 1)}`;
+
+    const choiceSet = new Set([hiddenDigit]);
+    for (let d = 1; d <= 9 && choiceSet.size < 6; d++) {
+      if (hiddenDigit - d >= 0) choiceSet.add(hiddenDigit - d);
+      if (choiceSet.size < 6 && hiddenDigit + d <= 9) choiceSet.add(hiddenDigit + d);
+    }
+    const choices = [...choiceSet].sort((a, b) => a - b);
+
+    return {
+      ...base,
+      display,
+      answer: hiddenDigit,
+      glitchKind: 'hidden-digit',
+      glitchChoices: choices
+    };
+  }
+
+  const hideLeft = Math.random() < 0.5;
+  const match = base.display.match(/^(\d+)\s*([×÷])\s*(\d+)$/);
+  if (!match) {
+    return { ...base, glitchKind: 'clean', glitchChoices: null };
+  }
+  const left = parseInt(match[1], 10);
+  const op = match[2];
+  const right = parseInt(match[3], 10);
+  const hiddenOperand = hideLeft ? left : right;
+  const display = hideLeft
+    ? `? ${op} ${right} = ${base.answer}`
+    : `${left} ${op} ? = ${base.answer}`;
+
+  // Division-dividends can exceed 12 (e.g. 96), so the cap is generous.
+  const upperBound = Math.max(12, hiddenOperand + 8);
+  const choiceSet = new Set([hiddenOperand]);
+  for (let d = 1; d <= 11 && choiceSet.size < 6; d++) {
+    if (hiddenOperand - d >= 1) choiceSet.add(hiddenOperand - d);
+    if (choiceSet.size < 6 && hiddenOperand + d <= upperBound) choiceSet.add(hiddenOperand + d);
+  }
+  const choices = [...choiceSet].sort((a, b) => a - b);
+
+  return {
+    ...base,
+    display,
+    answer: hiddenOperand,
+    glitchKind: 'hidden-operand',
+    glitchChoices: choices
+  };
 }
 
 // Smart distractors: build 3 wrong answers that mimic real kid mistakes for
@@ -431,7 +495,6 @@ class PlayerProgress {
         this.justClearedWorld = data.justClearedWorld || null;
         this.hiddenWorldDiscovered = { 15: false, 16: false, ...(data.hiddenWorldDiscovered || {}) };
         this.hiddenWorldCleared = { 15: false, 16: false, ...(data.hiddenWorldCleared || {}) };
-        this.hiddenWorldBest = { 15: null, ...(data.hiddenWorldBest || {}) };
         this.arcade = { endlessBest: 0, bossRushBest: null, ...(data.arcade || {}) };
         this.petHelperUsed = !!data.petHelperUsed; // big-boss helper consumed
         this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
@@ -459,7 +522,6 @@ class PlayerProgress {
     this.justClearedWorld = null;
     this.hiddenWorldDiscovered = { 15: false, 16: false };
     this.hiddenWorldCleared = { 15: false, 16: false };
-    this.hiddenWorldBest = { 15: null };
     this.arcade = { endlessBest: 0, bossRushBest: null };
     this.petHelperUsed = false;
     this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
@@ -506,6 +568,8 @@ class PlayerProgress {
     return {
       speciesId: null,
       stage: 'egg',
+      cosmicForm: false,
+      displayStage: null,
       // Trophy shelf: pets the player has fully raised. Each entry is
       // { speciesId, retiredAt }. Read-only — not re-equippable.
       completed: []
@@ -525,7 +589,7 @@ class PlayerProgress {
         hull: 'hull_default',
         wings: 'wings_default',
         paint: 'paint_default',
-        decal: null,
+        addon: null,
         pattern: 'pattern_none',
         trail: 'trail_default_flame'
       },
@@ -557,6 +621,31 @@ class PlayerProgress {
     if (parts.pattern && parts.pattern !== 'pattern_none') {
       parts.pattern = 'pattern_none';
     }
+    // Migration: decal slot → addon slot.
+    const DECAL_TO_ADDON = {
+      decal_star: 'addon_antenna',
+      decal_heart: 'addon_spoiler',
+      decal_crown: 'addon_periscope',
+      decal_comet: 'addon_cannons',
+      decal_compass: 'addon_satellite',
+      decal_phoenix: 'addon_phoenix_crest',
+      decal_galaxy_swirl: 'addon_galaxy_orb',
+      decal_dragon: 'addon_dragon_horns',
+      decal_glitch: 'addon_glitch_module'
+    };
+    for (let i = ownedParts.length - 1; i >= 0; i--) {
+      const id = ownedParts[i];
+      if (DECAL_TO_ADDON[id]) {
+        const addonId = DECAL_TO_ADDON[id];
+        if (!ownedParts.includes(addonId)) ownedParts.push(addonId);
+        ownedParts.splice(i, 1);
+      }
+    }
+    if (parts.decal && DECAL_TO_ADDON[parts.decal]) {
+      parts.addon = DECAL_TO_ADDON[parts.decal];
+    }
+    delete parts.decal;
+    if (!('addon' in parts)) parts.addon = null;
     return { parts, ownedParts };
   }
 
@@ -568,6 +657,27 @@ class PlayerProgress {
     const pet = { hat: null, accessory: null, aura: 'aura_none', ...(saved.pet || {}) };
     delete pet.outfit;
     if (!pet.aura) pet.aura = 'aura_none';
+    // Migration: food hat slot → accessory slot.
+    const FOOD_IDS = new Set([
+      'hat_strawberry','hat_banana','hat_avocado','hat_pizza',
+      'hat_donut','hat_onigiri','hat_taiyaki','hat_sushi'
+    ]);
+    if (FOOD_IDS.has(pet.hat)) {
+      if (!pet.accessory) pet.accessory = pet.hat;
+      pet.hat = null;
+    }
+    // Migration: drop retired wearables.
+    const RETIRED_IDS = new Set([
+      'hat_propeller','hat_astronaut','hat_wizard',
+      'hat_starhat','hat_crown_stars','hat_galaxy_helm',
+      'acc_jetpack','acc_antenna','acc_starhalo',
+      'acc_wings','acc_cape','acc_starbow','acc_phoenix_cape'
+    ]);
+    for (let i = ownedIds.length - 1; i >= 0; i--) {
+      if (RETIRED_IDS.has(ownedIds[i])) ownedIds.splice(i, 1);
+    }
+    if (RETIRED_IDS.has(pet.hat)) pet.hat = null;
+    if (RETIRED_IDS.has(pet.accessory)) pet.accessory = null;
     return { pet, ownedIds };
   }
 
@@ -616,7 +726,6 @@ class PlayerProgress {
         justClearedWorld: this.justClearedWorld,
         hiddenWorldDiscovered: this.hiddenWorldDiscovered,
         hiddenWorldCleared: this.hiddenWorldCleared,
-        hiddenWorldBest: this.hiddenWorldBest,
         arcade: this.arcade,
         petHelperUsed: this.petHelperUsed,
         dadNoteState: this.dadNoteState,
@@ -691,21 +800,6 @@ class PlayerProgress {
       }
     }
     if (changed) this.save();
-  }
-
-  // Glitch World best clear time. Lower is better. Returns true if updated.
-  recordGlitchClearTime(timeMs) {
-    const prev = this.hiddenWorldBest?.[15];
-    if (prev == null || timeMs < prev) {
-      this.hiddenWorldBest = { ...(this.hiddenWorldBest || {}), 15: timeMs };
-      this.save();
-      return true;
-    }
-    return false;
-  }
-
-  getGlitchBest() {
-    return this.hiddenWorldBest?.[15] ?? null;
   }
 
   // Dad's Garage daily note. Returns { isNewDay, message, index } where

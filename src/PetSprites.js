@@ -302,12 +302,62 @@ const SPROUT_ADULT = [
   '....OOOO...OOOOO....'
 ];
 
+// ---------- COSMIC FORMS ----------------------------------------------------
+
+const EMBER_COSMIC = [
+  '........A.......',
+  '.......AaA......',
+  '........A.......',
+  '..OOOOOOOOOOOO..',
+  '..OBHHHHHHHHBO..',
+  'AaOBHWEKHKEWBOaA',
+  'A.OBHEEHHEEHBO.A',
+  '..OBHHHMMHHHBO..',
+  '..OBHHHTTHHHBO..',
+  '..OBHHHHHHHHBO..',
+  '...OBBHHHHBBO...',
+  '....OOOOOOOO....'
+];
+
+const TIDE_COSMIC = [
+  '....OOOOOOOO....',
+  '...OBHHHHHHBO...',
+  '..OBHHHHHHHHBO..',
+  '..OBHWEKHKEWBO..',
+  '..OBHEEHHEEHBO..',
+  '..OBHHHMMHHHBO..',
+  '..OBHHHTTHHHBO..',
+  '..OBTBHHHHBTBO..',
+  '..OBHBBHHBBHBO..',
+  '..OBHHHHHHHHBO..',
+  '...OBBHHHHBBO...',
+  '....OOOOOOOO....',
+  '....S.S..S.S....',
+  '....S.S..S.S....',
+  '....T.A..A.T....'
+];
+
+const SPROUT_COSMIC = [
+  '....OOOOOOOO....',
+  '...OBHHHHHHBO...',
+  '...OBHAHHAHBO...',
+  '...OBHHHHHHBO...',
+  '...OBWEHHEWBO...',
+  'AaAOBHEKKEHBOAaA',
+  'AaAOBHHMMHHBOAaA',
+  '...OBHHTTHHBO...',
+  '...OBHAHHHABO...',
+  '...OBHHHHHHBO...',
+  '....OBBBBBBO....',
+  '.....OOOOOO.....'
+];
+
 // ----------------------------------------------------------------------------
 
 export const PET_SPRITES = {
-  ember: { egg: EMBER_EGG, baby: EMBER_BABY, teen: EMBER_TEEN, adult: EMBER_ADULT },
-  tide:  { egg: TIDE_EGG,  baby: TIDE_BABY,  teen: TIDE_TEEN,  adult: TIDE_ADULT  },
-  sprout:{ egg: SPROUT_EGG,baby: SPROUT_BABY,teen: SPROUT_TEEN,adult: SPROUT_ADULT}
+  ember:  { egg: EMBER_EGG,  baby: EMBER_BABY,  teen: EMBER_TEEN,  adult: EMBER_ADULT,  cosmic: EMBER_COSMIC  },
+  tide:   { egg: TIDE_EGG,   baby: TIDE_BABY,   teen: TIDE_TEEN,   adult: TIDE_ADULT,   cosmic: TIDE_COSMIC   },
+  sprout: { egg: SPROUT_EGG, baby: SPROUT_BABY, teen: SPROUT_TEEN, adult: SPROUT_ADULT, cosmic: SPROUT_COSMIC }
 };
 
 // Per-stage anchor points in CELL coordinates (col, row) where (0,0) is the
@@ -325,19 +375,22 @@ const PET_ANCHORS = {
     egg:   { head_top:[7,1],  head_eye:[6,7],  neck:[7,12], chest:[7,9],  back:[7,9],  foot:[7,13] },
     baby:  { head_top:[8,0],  head_eye:[8,9],  neck:[8,14], chest:[8,15], back:[8,11], foot:[8,17] },
     teen:  { head_top:[9,0],  head_eye:[9,7],  neck:[9,11], chest:[9,11], back:[5,7],  foot:[9,19] },
-    adult: { head_top:[8,0],  head_eye:[8,9],  neck:[8,12], chest:[8,15], back:[3,7],  foot:[8,22] }
+    adult: { head_top:[8,0],  head_eye:[8,9],  neck:[8,12], chest:[8,15], back:[3,7],  foot:[8,22] },
+    cosmic:{ head_top:[7,3],  head_eye:[7,5],  neck:[7,7],  chest:[7,9],  back:[4,5],  foot:[7,11] }
   },
   tide: {
     egg:   { head_top:[7,1],  head_eye:[6,8],  neck:[7,12], chest:[7,9],  back:[7,9],  foot:[7,13] },
     baby:  { head_top:[8,0],  head_eye:[8,9],  neck:[8,12], chest:[8,14], back:[8,10], foot:[8,17] },
     teen:  { head_top:[10,0], head_eye:[10,7], neck:[10,12],chest:[10,12],back:[5,8],  foot:[10,19] },
-    adult: { head_top:[5,0],  head_eye:[5,8],  neck:[5,11], chest:[10,10],back:[10,4], foot:[10,17] }
+    adult: { head_top:[5,0],  head_eye:[5,8],  neck:[5,11], chest:[10,10],back:[10,4], foot:[10,17] },
+    cosmic:{ head_top:[7,0],  head_eye:[7,3],  neck:[7,6],  chest:[7,8],  back:[4,4],  foot:[7,14] }
   },
   sprout: {
     egg:   { head_top:[7,1],  head_eye:[6,8],  neck:[7,12], chest:[7,9],  back:[7,9],  foot:[7,14] },
     baby:  { head_top:[8,0],  head_eye:[8,9],  neck:[8,12], chest:[8,14], back:[8,11], foot:[8,17] },
     teen:  { head_top:[9,0],  head_eye:[9,9],  neck:[9,12], chest:[9,13], back:[5,8],  foot:[10,20] },
-    adult: { head_top:[10,0], head_eye:[10,9], neck:[10,12],chest:[10,14],back:[5,8],  foot:[10,21] }
+    adult: { head_top:[10,0], head_eye:[10,9], neck:[10,12],chest:[10,14],back:[5,8],  foot:[10,21] },
+    cosmic:{ head_top:[7,0],  head_eye:[7,4],  neck:[7,6],  chest:[7,8],  back:[4,5],  foot:[7,11] }
   }
 };
 

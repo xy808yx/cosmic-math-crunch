@@ -2,12 +2,11 @@
 // HP hearts, and the time-bar at the bottom. Mutates the scene to expose
 // the references the rest of GameScene needs (streakText, scoreText, etc.).
 
-import { audio } from './AudioManager.js';
 import { createIconButton } from './buttonHelper.js';
 import { style } from './textStyles.js';
 import {
   drawFlameIcon, drawStarIcon, drawHourglassIcon,
-  drawHeartIcon, drawSkullIcon, drawSoundIcon, drawArrowLeftIcon, drawPauseIcon
+  drawHeartIcon, drawSkullIcon, drawArrowLeftIcon, drawPauseIcon
 } from './StatIcons.js';
 import { COLORS } from './colorPalette.js';
 

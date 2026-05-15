@@ -1,46 +1,44 @@
-// Pet cosmetic items (hats + accessories + auras). Ownership and equip live
-// on `progress.cosmetics`. Items have a single slot.
-//
-// Optional fields on an item:
-//   `animation` — name of a method on the pet container to invoke.
-//   `trigger`   — when to invoke it: 'correct' (per correct answer),
-//                 'streak' (on streak events), or 'always' (idle loop).
+// Pet cosmetic items (accessories + auras). Ownership and equip live
+// on `progress.cosmetics`. Each item has a single slot.
 
 import { progress } from './GameData.js';
 
 export const PET_COSMETICS = [
-  // ---- HATS (snacks + a few classics) ----
-  { id: 'hat_strawberry', slot: 'hat', name: 'Strawberry',     price: 80,   color: 0xff5b6e, rarity: 'common' },
-  { id: 'hat_banana',     slot: 'hat', name: 'Banana Slip',    price: 80,   color: 0xffe07a, rarity: 'common' },
-  { id: 'hat_avocado',    slot: 'hat', name: 'Avocado',        price: 100,  color: 0x9be8a3, rarity: 'common' },
-  { id: 'hat_pizza',      slot: 'hat', name: 'Pizza Slice',    price: 120,  color: 0xffae8a, rarity: 'common' },
-  { id: 'hat_donut',      slot: 'hat', name: 'Frosted Donut',  price: 100,  color: 0xff9ec7, rarity: 'common' },
-  { id: 'hat_onigiri',    slot: 'hat', name: 'Onigiri',        price: 100,  color: 0xffffff, rarity: 'common' },
-  { id: 'hat_taiyaki',    slot: 'hat', name: 'Taiyaki',        price: 120,  color: 0xffd86b, rarity: 'common' },
-  { id: 'hat_sushi',      slot: 'hat', name: 'Salmon Nigiri',  price: 100,  color: 0xff8b3d, rarity: 'common' },
-  { id: 'hat_propeller',  slot: 'hat', name: 'Propeller Hat',  price: 250,  color: 0x4ecdc4, rarity: 'rare', animation: 'propellerSpin', trigger: 'correct' },
-  { id: 'hat_astronaut',  slot: 'hat', name: 'Astronaut',      price: 250,  color: 0xb6e0ff, rarity: 'rare' },
-  { id: 'hat_wizard',     slot: 'hat', name: 'Wizard Hat',     price: 280,  color: 0x6c2bd9, rarity: 'rare' },
-  { id: 'hat_starhat',     slot: 'hat', name: 'Star Helmet',    price: 1500, color: 0xffd86b, rarity: 'legendary' },
-  { id: 'hat_crown_stars', slot: 'hat', name: 'Crown of Stars', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
-  { id: 'hat_galaxy_helm', slot: 'hat', name: 'Galaxy Helm',    price: 1500, color: 0x6c2bd9, rarity: 'legendary' },
+  // ---- ACCESSORIES ----
+  // Common
+  { id: 'hat_strawberry', slot: 'accessory', name: 'Strawberry',    price: 80,  color: 0xff5b6e, rarity: 'common' },
+  { id: 'hat_banana',     slot: 'accessory', name: 'Banana',        price: 80,  color: 0xffe07a, rarity: 'common' },
+  { id: 'hat_avocado',    slot: 'accessory', name: 'Avocado',       price: 100, color: 0x9be8a3, rarity: 'common' },
+  { id: 'acc_pineapple',  slot: 'accessory', name: 'Pineapple',     price: 100, color: 0xffd86b, rarity: 'common' },
+  { id: 'acc_mango',      slot: 'accessory', name: 'Mango',         price: 100, color: 0xff8b3d, rarity: 'common' },
+  { id: 'acc_watermelon', slot: 'accessory', name: 'Watermelon',    price: 100, color: 0xff5b6e, rarity: 'common' },
+  { id: 'acc_coconut',    slot: 'accessory', name: 'Coconut',       price: 100, color: 0x8b6420, rarity: 'common' },
+  { id: 'acc_lollipop',   slot: 'accessory', name: 'Lollipop',      price: 80,  color: 0xff5b6e, rarity: 'common' },
+  { id: 'acc_chocolate',  slot: 'accessory', name: 'Chocolate Bar', price: 100, color: 0xc77a4a, rarity: 'common' },
+  { id: 'acc_popsicle',   slot: 'accessory', name: 'Popsicle',      price: 100, color: 0xb6e0ff, rarity: 'common' },
+  { id: 'acc_pocky',      slot: 'accessory', name: 'Pocky Stick',   price: 80,  color: 0xff9ec7, rarity: 'common' },
+  { id: 'acc_cookie',     slot: 'accessory', name: 'Cookie',        price: 100, color: 0xc77a4a, rarity: 'common' },
+  { id: 'acc_dango',      slot: 'accessory', name: 'Tanghulu Skewer', price: 100, color: 0xff9ec7, rarity: 'common' },
+  { id: 'hat_pizza',      slot: 'accessory', name: 'Pizza Slice',   price: 100, color: 0xffae8a, rarity: 'common' },
+  { id: 'hat_donut',      slot: 'accessory', name: 'Frosted Donut', price: 100, color: 0xff9ec7, rarity: 'common' },
+  { id: 'acc_baseball',   slot: 'accessory', name: 'Baseball',      price: 100, color: 0xfafaf0, rarity: 'common' },
 
-  // ---- ACCESSORIES (snacks + classics) ----
-  { id: 'acc_shades',   slot: 'accessory', name: 'Sun Shades',   price: 100, color: 0x12122a, rarity: 'common' },
-  { id: 'acc_boba',     slot: 'accessory', name: 'Boba Tea',     price: 120, color: 0xc77eff, rarity: 'common' },
-  { id: 'acc_pocky',    slot: 'accessory', name: 'Pocky Stick',  price: 80,  color: 0xff9ec7, rarity: 'common' },
-  { id: 'acc_cookie',   slot: 'accessory', name: 'Cookie',       price: 100, color: 0xc77a4a, rarity: 'common' },
-  { id: 'acc_dango',    slot: 'accessory', name: 'Dango Skewer', price: 120, color: 0xff9ec7, rarity: 'common' },
-  { id: 'acc_jetpack',  slot: 'accessory', name: 'Mini Jetpack', price: 250, color: 0xff8b3d, rarity: 'rare', animation: 'rocketBoost', trigger: 'streak' },
-  { id: 'acc_antenna',  slot: 'accessory', name: 'Star Antenna', price: 250, color: 0xffd86b, rarity: 'rare', animation: 'radioWavePing', trigger: 'streak' },
-  { id: 'acc_starhalo', slot: 'accessory', name: 'Star Halo',    price: 250, color: 0xffeaa7, rarity: 'rare', animation: 'starHaloOrbit', trigger: 'always' },
-  { id: 'acc_wings',    slot: 'accessory', name: 'Tiny Wings',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
-  { id: 'acc_cape',     slot: 'accessory', name: 'Hero Cape',    price: 250, color: 0xff9ec7, rarity: 'rare' },
-  { id: 'acc_starbow',      slot: 'accessory', name: 'Rainbow Scarf', price: 1500, color: 0xc77eff, rarity: 'legendary' },
-  { id: 'acc_phoenix_cape', slot: 'accessory', name: 'Phoenix Cape',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
-  { id: 'acc_void_amulet',  slot: 'accessory', name: 'Void Amulet',   price: 1500, color: 0x6c2bd9, rarity: 'legendary' },
-  // Reward-only: awarded by finding all 10 items in Dad's Garage.
-  { id: 'acc_dad_glasses',  slot: 'accessory', name: "Dad's Glasses", price: 0, unlock_only: true, color: 0xffd86b, rarity: 'legendary', desc: 'Found in the workshop.' },
+  // Rare
+  { id: 'acc_shades',     slot: 'accessory', name: 'Sun Shades',    price: 250, color: 0x12122a, rarity: 'rare' },
+  { id: 'acc_boba',       slot: 'accessory', name: 'Boba Tea',      price: 300, color: 0xc77eff, rarity: 'rare' },
+  { id: 'acc_icecream',   slot: 'accessory', name: 'Ice Cream',     price: 300, color: 0xff9ec7, rarity: 'rare' },
+  { id: 'hat_onigiri',    slot: 'accessory', name: 'Onigiri',       price: 280, color: 0xffffff, rarity: 'rare' },
+  { id: 'hat_taiyaki',    slot: 'accessory', name: 'Kontatsu',      price: 300, color: 0xffd86b, rarity: 'rare' },
+  { id: 'hat_sushi',      slot: 'accessory', name: 'Salmon Nigiri', price: 280, color: 0xff8b3d, rarity: 'rare' },
+  { id: 'acc_basketball', slot: 'accessory', name: 'Basketball',    price: 350, color: 0xff8b3d, rarity: 'rare' },
+  { id: 'acc_soccer',     slot: 'accessory', name: 'Soccer Ball',   price: 350, color: 0xffffff, rarity: 'rare' },
+  { id: 'acc_tennis',     slot: 'accessory', name: 'Tennis Ball',   price: 350, color: 0xd9ed3a, rarity: 'rare' },
+
+  // Legendary
+  { id: 'acc_star_wand',  slot: 'accessory', name: 'Star Wand',     price: 1500, color: 0xffd86b, rarity: 'legendary' },
+  { id: 'acc_trophy',     slot: 'accessory', name: 'Cosmic Trophy', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  { id: 'acc_cosmic_orb', slot: 'accessory', name: 'Cosmic Orb',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
+  { id: 'acc_dad_glasses', slot: 'accessory', name: "Dad's Glasses", price: 0, unlock_only: true, color: 0x0a0a1a, rarity: 'legendary', desc: 'Found in the workshop.' },
 
   // ---- AURAS ----
   { id: 'aura_none',      slot: 'aura', name: 'None',           price: 0,    isDefault: true, color: 0x000000, rarity: 'common' },
@@ -94,15 +92,6 @@ class CosmeticManager {
     progress.cosmetics.pet[item.slot] = id;
     progress.save();
     return true;
-  }
-
-  // Returns equipped items that have a matching trigger ('correct'|'streak'|'always').
-  itemsWithTrigger(trigger) {
-    const eq = this.getEquipped();
-    return [eq.hat, eq.accessory, eq.aura]
-      .filter(Boolean)
-      .map(id => PET_COSMETICS.find(c => c.id === id))
-      .filter(item => item && item.trigger === trigger);
   }
 
   getItemById(id) {

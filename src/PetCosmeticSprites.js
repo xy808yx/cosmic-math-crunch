@@ -35,10 +35,6 @@ function drawSprite(scene, parent, grid, palette, cx, cy, pxSize) {
   return g;
 }
 
-function anchorOnTop(anchor, gridRows, pxSize) {
-  return { x: anchor.x, y: anchor.y - (gridRows / 2) * pxSize };
-}
-
 // ============================================================================
 // HATS — snacks first, then a few classics
 // ============================================================================
@@ -184,130 +180,6 @@ function sushiHat() {
   ], { O, S: salmon, H: salmonH, n: seaweed, W: rice, h: riceH }];
 }
 
-function propellerHat(item) {
-  const c = item.color, h = lighten(c, 0.30);
-  return [[
-    'AAAAA.....AAAAA',
-    'AAAAA..O..AAAAA',
-    '......OBO......',
-    '...OOOOOOOOO...',
-    '..OBHHHHHHHBO..',
-    '.OBHHBBBBBBBBO.',
-    'OBBBBBBBBBBBBBO',
-    'OOOOOOOOOOOOOOO'
-  ], { O, B: c, H: h, A: 0xff5b6e }];
-}
-
-function astronaut(item) {
-  const c = item.color;
-  return [[
-    '....OOOOOOOO....',
-    '..OOBBBBBBBBOO..',
-    '.OBBBBHHHHBBBBO.',
-    'OBBBBHHHHHHBBBBO',
-    'OBBOOOOOOOOBBBBO',
-    'OBBOVVVVVKOBBBBO',
-    'OBBOVVVVVVOBBBBO',
-    'OBBOVVVVVVOBBBBO',
-    'OBBOOOOOOOOBBBBO',
-    'OBBBBBBBBBBBBBBO',
-    'OOOOOOOOOOOOOOOO'
-  ], { O, B: c, H: lighten(c, 0.30), V: 0x4a90c2, K: 0xb6e0ff }];
-}
-
-function starHelmet(item) {
-  const c = item.color, h = lighten(c, 0.30);
-  return [[
-    '...OOOOOOOOO...',
-    '..OBHHHHHHHBO..',
-    '.OBBHHHHHHHHBBO.',
-    'OBBHHHKKKHHHBBO',
-    'OBHHKKKKKKKHHBO',
-    'OBHKKKKKKKKKHBO',
-    'OBHKKK.K.KKKHBO',
-    'OBBHKK...KKHBBO',
-    'OBBBHHHHHHHBBBO',
-    'OOOOOOOOOOOOOOO'
-  ], { O, B: c, H: h, K: W }];
-}
-
-function wizardHat(item) {
-  // Pointy conical hat with a wide brim and a couple of star sparkles. The
-  // tip is offset by 1 column so it has a slight whimsical lean.
-  const c = item.color;
-  const h = lighten(c, 0.30);
-  const star = 0xfff3b8;
-  const band = darken(c, 0.30);
-  return [[
-    '.......OO.......',
-    '......OBBO......',
-    '......OBHO......',
-    '.....OBHBBO.....',
-    '.....OBBKBO.....',
-    '....OBHBBBBO....',
-    '....OBBBBBBO....',
-    '...OBBBKHBBBO...',
-    '...OBBBBBBBBO...',
-    '..OBBHBBBBBBBO..',
-    '.OBBBBBBKBBBBBO.',
-    '.OdddddddddddddO',
-    'OOOOOOOOOOOOOOOO'
-  ], { O, B: c, H: h, K: star, d: band }];
-}
-
-function crownOfStars(item) {
-  const c = item.color, h = lighten(c, 0.30);
-  return [[
-    '..O....O....O...',
-    '.OAO..OAO..OAO..',
-    '.OAO..OAO..OAO..',
-    'OAAOAAOAOAAOAAO.',
-    'OBBBBBBBBBBBBBBO',
-    'OBHHHHHHHHHHHBHBO',
-    'OBKBKBKBKBKBKBO.',
-    'OOOOOOOOOOOOOOO.'
-  ], { O, B: c, H: h, A: 0xffd86b, K: 0xff9ec7 }];
-}
-
-// Galaxy Helm — legendary cosmic helmet with swirl band and orbital ring
-function galaxyHelm() {
-  const purple = 0x6c2bd9;
-  const lavender = 0xc77eff;
-  const cyan = 0x4ecdc4;
-  const star = 0xffd86b;
-  return [[
-    '......OOOO......',
-    '.....OBBBBO.....',
-    '....OBHHHHBO....',
-    '...OBHHHHHHBO...',
-    '...OBHCCCHHBO...',
-    '..OBHCKCKCHHBO..',
-    '..OBHHCKCHHHBO..',
-    '...OBHHHHHHBO...',
-    '....OBBBBBBO....',
-    '....OBKBKBKO....',
-    '...OAOOOOOOAO...',
-    '..OAA......AAO..'
-  ], { O, B: purple, H: lavender, C: cyan, K: 0xffffff, A: star }];
-}
-
-const HAT_DRAWERS = {
-  hat_strawberry: strawberryHat,
-  hat_banana: bananaHat,
-  hat_avocado: avocadoHat,
-  hat_pizza: pizzaHat,
-  hat_donut: donutHat,
-  hat_onigiri: onigiriHat,
-  hat_taiyaki: taiyakiHat,
-  hat_sushi: sushiHat,
-  hat_propeller: propellerHat,
-  hat_astronaut: astronaut,
-  hat_wizard: wizardHat,
-  hat_starhat: starHelmet,
-  hat_crown_stars: crownOfStars,
-  hat_galaxy_helm: galaxyHelm
-};
-
 // ============================================================================
 // ACCESSORIES
 // ============================================================================
@@ -323,18 +195,17 @@ function shades(item) {
   ], { O, B: c, H: h }];
 }
 
-// Round wire-rim glasses — dad style. Two round lenses with a thin wire bridge.
-function dadGlasses(item) {
-  const frame = item.color, lens = 0xeaf6ff, h = 0xffffff;
+function dadGlasses() {
+  const lens = 0xfff170;
   return [[
-    '..OOOO....OOOO..',
-    '.OllllO..OllllO.',
-    'OlhlllOOOlhlllOO',
-    'OllllllllllllllO',
-    'OllllllOOlllllllO',
-    '.OllllO..OllllO.',
-    '..OOOO....OOOO..'
-  ], { O, l: lens, h, F: frame }];
+    '.OOOOOOOOOOOOOO.',
+    'OyyyyyyOOyyyyyyO',
+    'OyyyyyyOOyyyyyyO',
+    'OyyyyyyyyyyyyyyO',
+    'OyyyyyyyyyyyyyyO',
+    '.yyyyyyyyyyyyyy.',
+    '..yyyyyyyyyyyy..'
+  ], { O, y: lens }];
 }
 
 function bobaTea(item) {
@@ -397,173 +268,341 @@ function dangoSkewer(item) {
   ], { O, P: p, H: lighten(p, 0.30), G: g, W: w, s: stick }];
 }
 
-function jetpack(item) {
-  const c = item.color, d = darken(c, 0.35);
+// ---- TROPICAL FRUITS ----
+
+function pineapple() {
+  const y = 0xffd86b, h = 0xfff3b8, d = 0xc88a3a, g = 0x4f956b, G = 0x9be8a3;
   return [[
-    '.OOO.....OOO.',
-    'OBHBO...OBHBO',
-    'OBBBO...OBBBO',
-    'OBBBO...OBBBO',
-    'OBBBO...OBBBO',
-    'OdddO...OdddO',
-    'OOOOO...OOOOO'
-  ], { O, B: c, H: lighten(c, 0.30), d: d }];
+    '....g.G.g....',
+    '...gGgGgGg...',
+    '..gGgGGgGgg..',
+    '...gGgGggg...',
+    '....OOOOO....',
+    '...OyhYhYyO..',
+    '..OyhYhYhYhO.',
+    '.OyhYdyhYhYyO',
+    '.OYhyhYhdyhYO',
+    '.OyhYhYdyhYhO',
+    '.OYhydYhyhYhO',
+    '..OYhYhYhYyO.',
+    '...OYhyhYhO..',
+    '....OOOOO....'
+  ], { O, y, Y: y, h, d, g, G }];
 }
 
-function antennaSprite(item) {
-  const c = item.color;
+function mango() {
+  const o = 0xff8b3d, h = 0xffd86b, d = 0xc77a4a, g = 0x4f956b;
   return [[
-    '..AAA..',
-    '.AaaaA.',
-    'AaaKaaA',
-    '.AaaaA.',
-    '..AAA..',
-    '...A...',
-    '...A...',
-    '...O...',
-    '...O...'
-  ], { O, A: c, a: lighten(c, 0.40), K: W }];
+    '.....g.....',
+    '....gGg....',
+    '....OO.....',
+    '...OhhhO...',
+    '..OhhhhhhO.',
+    '.OhhhHHhhhO',
+    '.OhHHhhhhhO',
+    '.OhHhhhhhhO',
+    '.OohhhhhhhO',
+    '.OohhhhhhhO',
+    '.OohhhhhhoO',
+    '..OohhhohO.',
+    '...OoooooO.',
+    '....OOOOO..'
+  ], { O, o, h, H: 0xfff3b8, d, g, G: 0x9be8a3 }];
 }
 
-function rainbowScarf() {
+function watermelon() {
+  const r = 0xff5b6e, p = 0xffb3c1, g = 0x4f956b, G = 0x6fb88c, w = 0xfafaf0, s = 0x121225;
   return [[
-    'OOOOOOOOOOOOOOOO',
-    'O11111111111111O',
-    'O22222222222222O',
-    'O33333333333333O',
-    'O44444444444444O',
-    'O55555555555555O',
-    'O66666666666666O',
-    'OOOOOOOO.OOOOOOO',
-    '......OO111O....',
-    '......OO222O....',
-    '......OO333O....',
-    '......OO444O....',
-    '......OO555O....',
-    '.......OOOOO....'
-  ], {
-    O,
-    '1': 0xff5b6e, '2': 0xff8b3d, '3': 0xffd86b,
-    '4': 0x58d68d, '5': 0x4ecdc4, '6': 0xc77eff
-  }];
+    '.....OOO.....',
+    '....OrprO....',
+    '...OrprprO...',
+    '..OrprsprpO..',
+    '..OprsrprprO.',
+    '.OrprprprsrpO',
+    '.OprprsprprpO',
+    'OrprsprprprprO',  // overshoot will get clamped to row chars
+    'OprprprspsrprO',
+    '.OwwwwwwwwwwO',
+    '.OGgGgGgGgGgO',
+    '..OOOOOOOOOO.'
+  ], { O, r, p, g, G, w, s }];
 }
 
-function tinyWings(item) {
-  const c = item.color, h = lighten(c, 0.40);
+function coconut() {
+  const b = 0x8b6420, h = 0xc77a4a, w = 0xfafaf0, d = 0x4a2a1a, wh = 0xfff3e0;
   return [[
-    '.OOOO........OOOO.',
-    'OBBBHO......OHBBBO',
-    'OBHHHHO....OHHHHBO',
-    'OBHHHHHO..OHHHHHBO',
-    'OBHHHHHHOOHHHHHHBO',
-    'OBHHHHHHOOHHHHHHBO',
-    'OBBHHHO....OHHHBBO',
-    '.OOOOO......OOOOO.'
-  ], { O, B: c, H: h }];
+    '....OOOOOO....',
+    '..OBdHBBHdBO..',
+    '.OBdBHBBHBdBO.',
+    '.OBHOOOOOOHBO.',
+    '.OBHOwhwwhwOBO',
+    '.OBdOwwwhwwOHO',
+    '.OBHOwhwwhwOBO',
+    '.OBdOwwwhwhOBO',
+    '.OBHOOOOOOHBO.',
+    '..OBdHBBHdBO..',
+    '...OOOOOOOO...'
+  ], { O, B: b, H: h, d, w, wh }];
 }
 
-function heroCape(item) {
-  const c = item.color, d = darken(c, 0.35), h = lighten(c, 0.25);
+// ---- MORE SNACKS ----
+
+function lollipop() {
+  const c = 0xff5b6e, p = 0xff9ec7, w = 0xfafaf0, s = 0xc88a3a, sd = 0x8b6420;
   return [[
-    'OOOOOOOOOOOOOOOO',
-    'OBHBBBBBBBBBBBHO',
-    'OBHBBBBBBBBBBBHO',
-    'OBdBBBBBBBBBBBdO',
-    'OBdBBBBBBBBBBBdO',
-    'OBdBBBBBBBBBBBdO',
-    '.OBBBBBBBBBBBBO.',
-    '.OBdBBBBBBBBBdO.',
-    '..OBBBBBBBBBBO..',
-    '..OBdBBBBBBBdO..',
-    '...OBBBBBBBBO...',
-    '....OBBBBBBO....',
-    '.....OBBBBO.....',
-    '......OBBO......',
-    '.......OO.......'
-  ], { O, B: c, H: h, d: d }];
+    '...OOOOO...',
+    '..OcpcpcpO.',
+    '.OpcwwwcpcO',
+    '.OcwcccpwcO',
+    'OpwccwcpcwpO',
+    'OpcpccpccwcO',
+    'OcwccccpcwpO',
+    '.OcpwcccwcO.',
+    '.OpcpcwcpcO.',
+    '..OcpcpcpO..',
+    '...OOOOO...',
+    '....OsO....',
+    '....OsO....',
+    '....OsO....',
+    '....OOO....'
+  ], { O, c, p, w, s, sd }];
 }
 
-// Void Amulet — legendary deep-purple gem on a thin chain
-function voidAmulet() {
-  const purple = 0x6c2bd9;
-  const ph = lighten(purple, 0.35);
-  const star = 0xffffff;
-  const chain = 0xc8c8d8;
+function icecream() {
+  const p = 0xff9ec7, pH = 0xffd6e1, m = 0xfff3b8, ch = 0x4a2a1a, cone = 0xc88a3a, coneH = 0xffd86b;
   return [[
-    'O...........O',
-    '.O.........O.',
-    '..O.......O..',
-    '...OcOOOcO...',
-    '....OPPPO....',
-    '...OPPHPPO...',
-    '..OPPHKHPPO..',
-    '..OPHKKKHPO..',
-    '..OPPHKHPPO..',
-    '...OPPHPPO...',
-    '....OPPPO....',
+    '....OOOO....',
+    '...OmpmpmO..',
+    '..OpHpHpHpO.',
+    '.OpHpHHHpHpO',
+    '.OpHHpHpHHpO',
+    '.OmHcHHcHpHO',  // chocolate drips
+    '.OpHcccccHpO',
+    '..OpHpHpHpO.',
+    '...OOOOOO...',
+    '...OchchOO..',
+    '...OhchhO...',
+    '....OchO....',
+    '....OhO.....',
+    '.....O......'
+  ], { O, p, H: pH, m, c: ch, h: coneH }];
+}
+
+function popsicle() {
+  const b = 0x6ec6ff, h = 0xb6e0ff, d = 0x4a90c2, w = 0xfafaf0, s = 0xc88a3a, sd = 0x8b6420;
+  return [[
+    '..OOOOOOO..',
+    '.ObhbhbhbhO',
+    '.OhbhwwwhbO',
+    '.ObhwwwwhbO',
+    '.OhbhwwwhbO',
+    '.ObhbhbhbhO',
+    '.OhbhbhbhbO',
+    '.ObhbhbhbhO',
+    '.OhbhbhbhbO',
+    '.ObdbdbdbdO',
+    '..OOOOOOO..',
+    '....OsO....',
+    '....OsO....',
+    '....OsO....',
+    '....OOO....'
+  ], { O, b, h, d, w, s, sd }];
+}
+
+function chocolate() {
+  const b = 0x7a4a1a, h = 0xc77a4a, hi = 0xe1a878, d = 0x4a2a0a;
+  return [[
+    '.OOOOOOOOOOOOO.',
+    'OdhhhhdhhhhdhdO',
+    'OhBBBhBBBhBBBhO',
+    'OhBhBhBhBhBhBhO',
+    'OhBBBhBBBhBBBhO',
+    'OdhhhhdhhhhdhdO',
+    'OhBBBhBBBhBBBhO',
+    'OhBhBhBhBhBhBhO',
+    'OhBBBhBBBhBBBhO',
+    'OdhhhhdhhhhdhdO',
+    '.OOOOOOOOOOOOO.'
+  ], { O, B: b, h, d, hi }];
+}
+
+// ---- SPORTS ----
+
+function basketball() {
+  const o = 0xff8b3d, h = 0xffae8a, d = 0x121225, dk = 0x8b3d1a;
+  return [[
+    '....OOOO....',
+    '...OohhhoO..',
+    '..OhdhhhhdO.',
+    '.OhhdhhhhdhO',
+    '.OohhhdhdhoO',
+    'Ohhddhhhhhdhd',
+    'Odhhhhhdhhhho',  // line through middle
+    '.OhhdhhhhhdhO',
+    '.OohhhhhhhhoO',
+    '..OohdhhhdoO.',
+    '...OOOOOOOO.',
+    '....OOOO....'
+  ], { O, o, h, d, dk }];
+}
+
+function soccerBall() {
+  const w = 0xfafaf0, b = 0x121225, h = 0xd6d6e0;
+  return [[
+    '....OOOO....',
+    '..OwwhhhhwO.',
+    '.OwhbbbbbbhO',
+    'OwhbwwwwwwbhO',
+    'OwhwhbbbbbhwhO',
+    'OhwwbhhhhbwhwO',
+    'OwhhbhhhhbhwhO',
+    'OwhbwwbbwwwbhO',
+    '.OwhbbwwwwbbhO',
+    '..OwwhbbbbhwO',
+    '...OwwhhhwO.',
+    '....OOOOO...'
+  ], { O, w, b, h }];
+}
+
+function baseball() {
+  const w = 0xfafaf0, r = 0xd5394a, h = 0xe6e6f0;
+  return [[
+    '....OOOO....',
+    '...OwwhwwO..',
+    '..OwrrwwrrwO',
+    '.Owrhwwwwhrwo',
+    '.OwhwwhhwwhwO',
+    '.OwhwwwhwwhwO',
+    '.OwrhwwwwhrwO',
+    '..OwrrwwrrwO.',
+    '...OwwhwwwO.',
+    '....OOOOO...'
+  ], { O, w, r, h, o: r }];
+}
+
+function tennisBall() {
+  const c = 0xceee44, h = 0xeefa6e, w = 0xfafaf0, d = 0xa3bc28;
+  return [[
+    '....OOOO....',
+    '..OchchhhcO.',
+    '.OchhwwwhhcO',
+    'OchhwhhhwhcO',
+    'OcchwhhhwhccO',
+    'OchwwhhhwhhcO',
+    'Ochhwhhhwhhdc',
+    '.OchwwhwwhhcO',
+    '..OcchhhhccO.',
+    '....OOOO....'
+  ], { O, c, h, w, d }];
+}
+
+// ---- LEGENDARY ----
+
+function starWand() {
+  const y = 0xffd86b, h = 0xfff3b8, k = 0xffffff, s = 0xc88a3a, sd = 0x8b6420;
+  return [[
+    '......k......',
+    '......y......',
+    '.....kyk.....',
+    '....yhyhy....',
+    '..k yhkhy k..',
+    '.kyhyhkhyhyk.',
+    '..yhhykyhhy..',
+    '...yhykyhy...',
+    '..yhh.k.hhy..',
+    '.yhy.....yhy.',
+    '..k..s.s..k..',
+    '.....s.s.....',
+    '.....s.s.....',
+    '.....s.s.....',
+    '.....OsO.....',
+    '.....OsO.....',
     '.....OOO.....'
-  ], { O, P: purple, H: ph, K: star, c: chain }];
+  ], { O, y, h, k, s, sd }];
 }
 
-// Phoenix Cape — flaming cape with gold-tipped flame edges (legendary).
-function phoenixCape() {
-  const r = 0xff5b3d;        // red base
-  const o = 0xff8b3d;        // orange mid
-  const y = 0xffd86b;        // gold highlight
-  const dr = darken(r, 0.35);
+function trophy() {
+  const g = 0xffd86b, h = 0xfff3b8, d = 0x8b6420, b = 0xc88a3a, k = 0xffffff;
   return [[
-    'O.OOOOOOOOOOOOOO.O',
-    'OyOyrrrrrrrrrrrOyO',
-    'OrOorrrrrrrrrroOrO',
-    'OroorrrrrrrrrrooOO',
-    'OrdoorrrrrrrrrodrO',
-    'OrdoorrrrrrrrrodrO',
-    '.ORoorrrrrrrrrooRO',
-    '.OodorrrrrrrrrdoO.',
-    '..OorrrrrrrrrroO..',
-    '..OodoorrrrrrooO..',
-    '...OorrrrrrrroO...',
-    '....OoorrrroOyO...',
-    '.....OorrroOyO....',
-    '......OorrOyO.....',
-    '.......OyOyO......',
-    '........OyO.......'
-  ], { O, r, o, d: dr, y, R: dr }];
+    'OO..........OO',
+    'OgOOO...OOO gO',
+    'OghhOOOOOO hgO',
+    '.OghhhhhhhhhO.',
+    '.OghhhgghhgggO',  // 'k' star highlight inside cup
+    '.OghhghhhhhhgO',
+    '.OghkhhgghhhhO',
+    '.OghhgghhhhhgO',
+    '.OghhhhhggghgO',
+    '..OghhhhhhhgO.',
+    '...OghhhhhgO..',
+    '....OgggggO...',
+    '.....OdgdO....',
+    '.....OdgdO....',
+    '...OddddddO...',
+    '..OdbbbbbbdO..',
+    '..OOOOOOOOOO..'
+  ], { O, g, h, d, b, k }];
 }
 
+function cosmicOrb() {
+  const p = 0xc77eff, h = 0xf3d6ff, c = 0x4ecdc4, k = 0xffffff, d = 0x4a2a55, g = 0xffd86b;
+  return [[
+    '....OOOOO....',
+    '...OphhhhpO..',
+    '..OphkhhhkphO',
+    '.OphkckhhkckpO',
+    'OphkkckhckkhphO',
+    'OphhckkkkkkckhpO',  // body brightness peak
+    'Ophkkckkkkckhph',
+    'OphkkckhhhckkhpO',
+    '.OphkhhhhhhkphO',
+    '..OphkhhhhkphO.',
+    '...OphhhhhpO...',
+    '....OOOOOOO...',
+    '.....ddOdd....',
+    '....OdOOdO....',
+    '...OdgOgOdO...',
+    '..OdgOOggOdO..',
+    '..OOOOOOOOOO..'
+  ], { O, p, h, c, k, d, g }];
+}
+
+// `hat_*` drawer ids are preserved because they're what player saves reference.
 const ACC_DRAWERS = {
   acc_shades: shades,
+  acc_dad_glasses: dadGlasses,
+  hat_strawberry: strawberryHat,
+  hat_banana: bananaHat,
+  hat_avocado: avocadoHat,
+  hat_pizza: pizzaHat,
+  hat_donut: donutHat,
+  hat_onigiri: onigiriHat,
+  hat_taiyaki: taiyakiHat,
+  hat_sushi: sushiHat,
   acc_boba: bobaTea,
   acc_pocky: pockyStick,
   acc_cookie: cookie,
   acc_dango: dangoSkewer,
-  acc_jetpack: jetpack,
-  acc_antenna: antennaSprite,
-  acc_starbow: rainbowScarf,
-  acc_wings: tinyWings,
-  acc_cape: heroCape,
-  acc_phoenix_cape: phoenixCape,
-  acc_void_amulet: voidAmulet,
-  acc_dad_glasses: dadGlasses
-  // acc_starhalo handled separately (orbiting container)
+  acc_pineapple: pineapple,
+  acc_mango: mango,
+  acc_watermelon: watermelon,
+  acc_coconut: coconut,
+  acc_lollipop: lollipop,
+  acc_icecream: icecream,
+  acc_popsicle: popsicle,
+  acc_chocolate: chocolate,
+  acc_basketball: basketball,
+  acc_soccer: soccerBall,
+  acc_baseball: baseball,
+  acc_tennis: tennisBall,
+  acc_star_wand: starWand,
+  acc_trophy: trophy,
+  acc_cosmic_orb: cosmicOrb
 };
 
-// Each accessory id maps to the pet anchor it sits on. Keeps placement logic
-// data-driven instead of a long if/else cascade.
-const ACC_ANCHORS = {
-  acc_shades:   { name: 'head_eye' },
-  acc_boba:     { name: 'neck' },
-  acc_pocky:    { name: 'neck' },
-  acc_cookie:   { name: 'neck' },
-  acc_dango:    { name: 'neck' },
-  acc_antenna:  { name: 'head_top', mode: 'onTop' },
-  acc_jetpack:  { name: 'back', mode: 'below' },
-  acc_wings:    { name: 'back' },
-  acc_cape:     { name: 'back', mode: 'below' },
-  acc_starbow:  { name: 'neck' },
-  acc_phoenix_cape: { name: 'back', mode: 'below' },
-  acc_void_amulet: { name: 'neck' },
-  acc_dad_glasses: { name: 'head_eye' }
+const FACE_ACCESSORIES = {
+  acc_shades:      'head_eye',
+  acc_dad_glasses: 'head_eye'
 };
 
 // ============================================================================
@@ -954,25 +993,6 @@ function drawPixelArt(g, grid, palette, px) {
   }
 }
 
-// Star halo — orbits at constant radius around the pet's head.
-function starHalo(item, ctx) {
-  const halo = ctx.scene.add.container(0, 0);
-  const cx = 0;
-  const cy = -ctx.layout.height * 0.20;
-  const radius = ctx.layout.width * 0.55;
-  for (let i = 0; i < 5; i++) {
-    const a = (i / 5) * Math.PI * 2;
-    const star = ctx.scene.add.graphics();
-    const grid = ['..A..', '.AAA.', 'AAAAA', '.A.A.', 'A...A'];
-    drawPixelArt(star, grid, { A: item.color }, 2);
-    star.x = cx + Math.cos(a) * radius;
-    star.y = cy + Math.sin(a) * radius * 0.45;
-    halo.add(star);
-  }
-  ctx.parent.add(halo);
-  ctx.parent.starHalo = halo;
-}
-
 // ============================================================================
 // Public dispatcher
 // ============================================================================
@@ -980,7 +1000,10 @@ function starHalo(item, ctx) {
 export function renderPetCosmetic(ctx) {
   const id = ctx.item.id;
   const layout = ctx.layout;
-  const px = layout.pixelSize * 0.7;
+  // REF_ROWS is adult body height; smaller stages shrink cosmetics proportionally.
+  const REF_ROWS = 18;
+  const sizeRatio = Math.min(1, layout.rows / REF_ROWS);
+  const px = layout.pixelSize * 0.95 * sizeRatio;
 
   if (id === 'aura_none') return;
 
@@ -989,59 +1012,21 @@ export function renderPetCosmetic(ctx) {
     return;
   }
 
-  if (id === 'acc_starhalo') {
-    starHalo(ctx.item, ctx);
-    return;
-  }
-
-  // HATS — drawn at head_top (bottom edge of grid lands at head_top)
-  if (HAT_DRAWERS[id]) {
-    const data = HAT_DRAWERS[id](ctx.item);
-    if (!data) return;
-    const [grid, palette] = data;
-    const a = ctx.anchor('head_top');
-    const pos = anchorOnTop(a, grid.length, px);
-    const sprite = drawSprite(ctx.scene, ctx.parent, grid, palette, pos.x, pos.y, px);
-    if (id === 'hat_propeller') {
-      ctx.scene.tweens.add({
-        targets: sprite, scaleX: { from: 1, to: -1 },
-        duration: 4000, repeat: -1, ease: 'Linear'
-      });
-      ctx.parent.propeller = sprite;
-    }
-    return;
-  }
-
   if (ACC_DRAWERS[id]) {
     const data = ACC_DRAWERS[id](ctx.item);
     if (!data) return;
     const [grid, palette] = data;
-    const cfg = ACC_ANCHORS[id] || { name: 'neck' };
-    const a = ctx.anchor(cfg.name);
+    const faceAnchor = FACE_ACCESSORIES[id];
     let pos;
-    if (cfg.mode === 'onTop') pos = anchorOnTop(a, grid.length, px);
-    else if (cfg.mode === 'below') pos = { x: a.x, y: a.y + (grid.length / 2) * px };
-    else pos = { x: a.x, y: a.y };
-    const sprite = drawSprite(ctx.scene, ctx.parent, grid, palette, pos.x, pos.y, px);
-
-    if (id === 'acc_jetpack') {
-      const flame = ctx.scene.add.graphics();
-      flame.fillStyle(0xff8b3d, 1);
-      const fy = pos.y + (grid.length / 2) * px;
-      flame.fillRect(pos.x - px * 5, fy, px * 2, px * 3);
-      flame.fillRect(pos.x + px * 3, fy, px * 2, px * 3);
-      flame.fillStyle(0xffd86b, 1);
-      flame.fillRect(pos.x - px * 4.5, fy + px * 0.5, px, px * 2);
-      flame.fillRect(pos.x + px * 3.5, fy + px * 0.5, px, px * 2);
-      flame.setAlpha(0);
-      ctx.parent.add(flame);
-      ctx.parent.jetpackFlame = flame;
+    if (faceAnchor) {
+      const a = ctx.anchor(faceAnchor);
+      pos = { x: a.x, y: a.y };
+    } else {
+      const a = ctx.anchor('neck');
+      const gridCols = grid[0].length;
+      pos = { x: ctx.layout.width / 2 + (gridCols / 2) * px - px, y: a.y };
     }
-    if (id === 'acc_antenna') {
-      const tipX = pos.x;
-      const tipY = pos.y - (grid.length / 2) * px;
-      ctx.parent.antennaTip = { x: tipX, y: tipY };
-    }
+    drawSprite(ctx.scene, ctx.parent, grid, palette, pos.x, pos.y, px);
     return;
   }
 }

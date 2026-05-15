@@ -109,30 +109,6 @@ const HULL_BULKY = [
   '.....FfffF......'
 ];
 
-// Vortex — legendary spear-tipped hull with twin nose prongs and flared tail
-const HULL_VORTEX = [
-  '......XXXX......',
-  '.....XHHHHX.....',
-  '....XHBBBBHX....',
-  '...XHBBPPBBHX...',
-  '...XBBPPPPBBX...',
-  '..XHBBPPPPBBHX..',
-  '..XBBBPPPPBBBX..',
-  '.XHBBBPPPPBBBHX.',
-  '.XBBBBBBBBBBBBX.',
-  'XHBBBBBBBBBBBBHX',
-  'XBBBBBBDBBBBBBBX',
-  'XHBBBBBBBBBBBBHX',
-  '.XBLBBBBBBBBLBX.',
-  '.XLLBBBBBBBBLLX.',
-  '..XLLBBBBBBLLX..',
-  '...XLLBBBBLLX...',
-  'X..XLLLLLLLLX..X',
-  'XX..XLLLLLLX..XX',
-  '.X...X....X...X.',
-  '......FfffF.....'
-];
-
 // Wraith — legendary asymmetric scout with offset cockpit, sleek profile
 const HULL_WRAITH = [
   '........XX......',
@@ -343,7 +319,7 @@ export function drawShip(scene, x, y, opts = {}) {
     hull: 'hull_default',
     wings: 'wings_default',
     paint: 'paint_default',
-    decal: null,
+    addon: null,
     pattern: 'pattern_none',
     trail: 'trail_default_flame'
   };
@@ -353,14 +329,14 @@ export function drawShip(scene, x, y, opts = {}) {
   const paint = partById(parts.paint);
   const hull = partById(parts.hull);
   const wings = partById(parts.wings);
-  const decal = partById(parts.decal);
+  const addon = partById(parts.addon);
   // Pattern is now embedded in paint (paint.pattern + paint.color2/color3).
   // Legacy pattern slot is ignored — see ShipManager paints definition.
   const trail = partById(parts.trail) || partById('trail_default_flame');
 
   const paintColor = paint?.color ?? 0xb6c2cf;
   const wingColor = wings?.color ?? 0x8b9bb4;
-  const decalColor = decal?.color ?? 0xf7dc6f;
+  const addonColor = addon?.color ?? 0xf7dc6f;
 
   const pixelSize = 5 * scale;
 
@@ -368,7 +344,6 @@ export function drawShip(scene, x, y, opts = {}) {
   const hullGrid = parts.hull === 'hull_round' ? HULL_ROUND
                  : parts.hull === 'hull_sleek' ? HULL_SLEEK
                  : parts.hull === 'hull_bulky' ? HULL_BULKY
-                 : parts.hull === 'hull_vortex' ? HULL_VORTEX
                  : parts.hull === 'hull_wraith' ? HULL_WRAITH
                  : parts.hull === 'hull_arrow' ? HULL_ARROW
                  : parts.hull === 'hull_finned' ? HULL_FINNED
@@ -415,10 +390,7 @@ export function drawShip(scene, x, y, opts = {}) {
   });
   container.add(wingsG);
 
-  // Hull (body) — `P` cells mark the porthole cutout (we render canopy color
-  // here for the area; the pet renders on top of that, masked to the hole).
-  // `D` cells are the decal ANCHOR — we paint over them in the body color and
-  // overlay a proper multi-pixel decal sprite below (see drawDecalOverlay).
+  // 'P' = porthole cutout (pet renders on top, masked to the hole).
   const hullOx = -hullW / 2;
   const hullOy = -hullH / 2;
   const hullG = pixelGrid(scene, hullGrid, hullOx, hullOy, pixelSize, ch => {
@@ -427,26 +399,12 @@ export function drawShip(scene, x, y, opts = {}) {
     if (ch === 'H') return lighten(paintColor, 0.32);
     if (ch === 'L') return darken(paintColor, 0.28);
     if (ch === 'P') return 0x0a0a1a;     // porthole interior (pet sits on top)
-    if (ch === 'D') return paintColor;   // anchor cell — covered by overlay
+    if (ch === 'D') return paintColor;   // legacy decal anchor — body color
     if (ch === 'F') return 0xff8b3d;
     if (ch === 'f') return 0xffd86b;
     return null;
   });
   container.add(hullG);
-
-  // Decal overlay — find the 'D' cell, draw a real sprite there.
-  if (decal) {
-    let dcol = -1, drow = -1;
-    for (let r = 0; r < hullGrid.length; r++) {
-      const ci = hullGrid[r].indexOf('D');
-      if (ci >= 0) { dcol = ci; drow = r; break; }
-    }
-    if (dcol >= 0) {
-      const dcx = hullOx + (dcol + 0.5) * pixelSize;
-      const dcy = hullOy + (drow + 0.5) * pixelSize;
-      drawDecalOverlay(scene, container, decal.id, decalColor, dcx, dcy, pixelSize);
-    }
-  }
 
   // Compute porthole geometry from the 'P' cells.
   let pMinX = Infinity, pMaxX = -Infinity, pMinY = Infinity, pMaxY = -Infinity;
@@ -493,6 +451,18 @@ export function drawShip(scene, x, y, opts = {}) {
       color2: paint.color3
     };
     drawPatternOverlay(scene, container, patternData, hullW, hullH, pixelSize);
+  }
+
+  // Addon module — most mount on TOP of the hull. Tail spoiler is a special
+  // case: it perches on the BACK of the hull, just above the engine flame.
+  if (addon) {
+    if (addon.id === 'addon_spoiler') {
+      const mountY = hullH / 2 - 4 * scale;
+      drawAddonOverlay(scene, container, addon.id, addonColor, 0, mountY, pixelSize);
+    } else {
+      const mountY = -hullH / 2;
+      drawAddonOverlay(scene, container, addon.id, addonColor, 0, mountY + 2, pixelSize);
+    }
   }
 
   return container;
@@ -971,113 +941,163 @@ function drawPatternOverlay(scene, container, pattern, hullW, hullH, pixelSize) 
   container.add(g);
 }
 
-// Decal sprites — small pixel-art icons drawn over the hull at the 'D' cell.
-const DECAL_SPRITES = {
-  decal_star: [
+// Addon sprites — prominent modules mounted on top of the hull. Replaces the
+// old decal system (which sat on the paint and clashed with patterns).
+// Cells:  X = outline    A = main color    H = highlight (auto-lightened)
+//         L = shadow     K = white sparkle  B = darker accent (auto-darkened)
+//         C = cyan tech-glow    P = purple/magenta tech-glow
+const ADDON_SPRITES = {
+  addon_antenna: [
+    '..K..',
     '..A..',
-    '.AAA.',
-    'AAAAA',
-    '.A.A.',
-    'A...A'
-  ],
-  decal_heart: [
-    '.A.A.',
-    'AABAA',
-    'AABBA',
-    '.AAA.',
-    '..A..'
-  ],
-  decal_crown: [
-    'A.A.A',
-    'AAAAA',
-    'AKAKA',
-    'AAAAA'
-  ],
-  decal_bolt: [
-    '.AA..',
-    '.AA..',
-    'AAAAA',
-    '..AA.',
-    '..AA.'
-  ],
-  decal_skull: [
-    '.AAA.',
-    'AABAA',
-    'ABABA',
-    'AAAAA',
-    '.A.A.'
-  ],
-  decal_comet: [
-    '...A.',
-    '..AAA',
-    '.AAA.',
-    'AAA..',
-    'A....'
-  ],
-  decal_phoenix: [
-    'A...A',
-    'AKBKA',
-    'AABAA',
-    '.AAA.',
-    '..A..'
-  ],
-  decal_galaxy_swirl: [
-    '.AAA.',
-    'AKBBA',
-    'ABKBA',
-    'ABBKA',
-    '.AAA.'
-  ],
-  decal_compass: [
+    '.KAK.',
     '..A..',
-    '.AKA.',
-    'AKBKA',
-    '.AKA.',
-    '..A..'
+    '..A..',
+    '..A..',
+    '..A..',
+    '..A..',
+    'XBABX',
+    'XBBBX',
+    'XXXXX'
   ],
-  decal_dragon: [
-    'AA...',
-    'AAB.A',
-    '.ABBA',
-    'ABBAA',
-    'AA.A.'
+  addon_spoiler: [
+    'XX.........XX',
+    'XAXXXXXXXXXAX',
+    'XAHHHHHHHHHAX',
+    'XABBBBBBBBBAX',
+    'XXAAAAAAAAAXX',
+    '.XXXXXXXXXXX.'
   ],
-  // Glitch decal — corrupted-block pattern with bright center pixel.
-  decal_glitch: [
-    'A.BAB',
-    'BAABA',
-    'ABKBA',
-    'ABABB',
-    'BABA.'
+  addon_periscope: [
+    '.XXXXX.',
+    'XAHHHAX',
+    'XAKKHAX',
+    'XAHHHAX',
+    '.XXXXX.',
+    '...A...',
+    '...A...',
+    '...A...',
+    '...A...',
+    '..XAX..',
+    '..XAX..'
+  ],
+  addon_cannons: [
+    'XXX...XXX',
+    'XKX...XKX',
+    'XAX...XAX',
+    'XAX...XAX',
+    'XAXXXXXAX',
+    'XAAAAAAAAX',
+    'XBBBBBBBBX',
+    'XXXXXXXXXX'
+  ],
+  addon_satellite: [
+    'X..K..X..K..X',
+    'XAKKKKAKKKKAX',
+    'XAHHHHHHHHHAX',
+    'XABBBBBBBBBAX',
+    'XXXBBBBBBBXXX',
+    '...XXAXAXX...',
+    '....XAXAX....',
+    '....XAAAX....',
+    '.....XXX.....'
+  ],
+  addon_phoenix_crest: [
+    '...K...',
+    '..KAK..',
+    '.KAAAK.',
+    'KAABAAK',
+    'KABBBAK',
+    'KAABAAK',
+    '.KAAAK.',
+    '..XAX..',
+    '..XBX..',
+    '..XXX..'
+  ],
+  addon_galaxy_orb: [
+    '...XXX...',
+    '..XAHAX..',
+    '.XAHKHAX.',
+    'XAHKKKHAX',
+    'XAHKKKHAX',
+    '.XAHKHAX.',
+    '..XAHAX..',
+    '...XXX...',
+    '....X....',
+    '...XAX...',
+    '..XXXXX..'
+  ],
+  addon_dragon_horns: [
+    'XX.....XX',
+    'XAX...XAX',
+    'XAX...XAX',
+    'XAAX.XAAX',
+    'XABAXAABX',
+    'XABBAABBX',
+    '.XBBBBBX.',
+    '..XBBBX..',
+    '...XXX...'
+  ],
+  addon_glitch_module: [
+    'XAXAXAX',
+    'AXAKAXA',
+    'XAKAKAX',
+    'AXKAKXA',
+    'XAKAKAX',
+    'AXAKAXA',
+    'XAXAXAX',
+    'XXXXXXX'
   ]
 };
 
-function drawDecalOverlay(scene, container, decalId, decalColor, cx, cy, pixelSize) {
-  const grid = DECAL_SPRITES[decalId];
+function drawAddonOverlay(scene, container, addonId, color, cx, cy, pixelSize) {
+  const grid = ADDON_SPRITES[addonId];
   if (!grid) return;
   const cols = grid[0].length;
   const rows = grid.length;
-  // Decal pixels are slightly smaller than hull pixels so the icon fits cleanly.
+  // Addons render at slightly smaller pitch so the mount sits crisply on the hull
+  // without dwarfing it.
   const px = pixelSize * 0.85;
   const ox = cx - (cols / 2) * px;
-  const oy = cy - (rows / 2) * px;
+  // Anchor cy is the BOTTOM of the addon — module sits ON TOP of the hull, not
+  // floating above it.
+  const oy = cy - rows * px;
   const g = scene.add.graphics();
+  const hi = lighten(color, 0.30);
+  const lo = darken(color, 0.30);
+  const dim = darken(color, 0.50);
   for (let r = 0; r < rows; r++) {
     for (let c = 0; c < cols; c++) {
       const ch = grid[r][c];
       if (!ch || ch === '.') continue;
-      // 'A' = main decal color, 'B' = darkened accent, 'K' = white
-      const color = ch === 'A' ? decalColor
-                  : ch === 'B' ? darken(decalColor, 0.40)
-                  : ch === 'K' ? 0xffffff
-                  : decalColor;
-      g.fillStyle(color, 1);
+      let fill;
+      switch (ch) {
+        case 'X': fill = 0x07071a; break;
+        case 'A': fill = color; break;
+        case 'H': fill = hi; break;
+        case 'L': fill = lo; break;
+        case 'B': fill = dim; break;
+        case 'K': fill = 0xffffff; break;
+        case 'C': fill = 0x4ecdc4; break;
+        case 'P': fill = 0xc77eff; break;
+        default:  fill = color;
+      }
+      g.fillStyle(fill, 1);
       g.fillRect(ox + c * px, oy + r * px, px + 0.5, px + 0.5);
     }
   }
-  // Outline to keep the decal readable on any paint.
-  // Fast outline: draw transparent pixels around, then re-draw the decal on top.
   container.add(g);
+
+  if (addonId === 'addon_galaxy_orb') {
+    scene.tweens.add({
+      targets: g,
+      scale: { from: 1, to: 1.08 },
+      duration: 1600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+  }
 }
 
 function drawStarShape(g, cx, cy, points, outerR, innerR) {

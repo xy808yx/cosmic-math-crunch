@@ -36,18 +36,6 @@ function jaggedRidge(g, baseY, color, { peakCount = 9, peakMin = 60, peakMax = 1
   g.fillPath();
 }
 
-function rollingHills(g, baseY, color) {
-  // Soft overlapping ellipses give a cloud / hill silhouette.
-  g.fillStyle(color, 1);
-  g.fillRect(0, baseY + 40, W, 200);
-  for (let i = 0; i < 6; i++) {
-    const cx = i * (W / 5) + Phaser.Math.Between(-30, 30);
-    const rx = Phaser.Math.Between(220, 320);
-    const ry = Phaser.Math.Between(70, 120);
-    g.fillEllipse(cx, baseY + 30, rx, ry);
-  }
-}
-
 // World 1 — Moon Base: lunar arc, soft silver curve
 function moonBaseHorizon(scene, opts) {
   const g = scene.add.graphics().setDepth(2);
@@ -296,8 +284,24 @@ export const WORLD_BACKGROUNDS = {
   8:  { bgTop: 0x180408, bgBottom: 0x701828, drawHorizon: supernovaHorizon },
   9:  { bgTop: 0x180a04, bgBottom: 0x603018, drawHorizon: galacticCoreHorizon },
   10: { bgTop: 0x0a1820, bgBottom: 0x205058, drawHorizon: parallelDimHorizon },
-  11: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: universesEndHorizon }
+  11: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: universesEndHorizon },
+  15: { bgTop: 0x0a0010, bgBottom: 0x200030, drawHorizon: glitchWorldHorizon }
 };
+
+function glitchWorldHorizon(scene, { width, y }) {
+  const g = scene.add.graphics().setDepth(0);
+  g.fillStyle(0x000005, 1);
+  g.fillRect(0, y, width, 1920 - y);
+  for (let i = 0; i < 14; i++) {
+    const ty = y - 220 + Math.random() * 360;
+    const th = 2 + Math.floor(Math.random() * 5);
+    const col = (i % 2 === 0) ? 0xff00ff : 0x39ff14;
+    g.fillStyle(col, 0.20 + Math.random() * 0.18);
+    g.fillRect(0, ty, width, th);
+  }
+  g.lineStyle(2, 0xff00ff, 0.55);
+  g.lineBetween(0, y, width, y);
+}
 
 export function getWorldBackground(worldId) {
   return WORLD_BACKGROUNDS[worldId] || WORLD_BACKGROUNDS[1];

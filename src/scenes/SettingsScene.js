@@ -9,7 +9,7 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { drawArrowLeftIcon, drawSoundIcon } from '../StatIcons.js';
+import { drawArrowLeftIcon } from '../StatIcons.js';
 import { COLORS } from '../colorPalette.js';
 
 const W = 1080;

@@ -14,7 +14,7 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { companion, drawCompanion } from '../CompanionManager.js';
+import { companion, drawCompanion, CAROUSEL_STAGE_ORDER } from '../CompanionManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
@@ -31,6 +31,8 @@ import { createModal } from '../modalHelper.js';
 
 const W = 1080;
 const H = 1920;
+
+const PORTRAIT_SCALE_BY_STAGE = { egg: 2.4, baby: 2.4, teen: 2.0, adult: 2.0, cosmic: 2.6 };
 
 export class WorldMapScene extends Phaser.Scene {
   constructor() {
@@ -182,14 +184,10 @@ export class WorldMapScene extends Phaser.Scene {
     }).setDepth(15);
 
     // Top-right cluster: Pet | Shop
-    const sp = companion.getSpecies();
-    const petAccent = sp ? sp.accent : COLORS.accentPurple;
-    createPetPortraitButton(this, {
-      x: W - 186, y: 88, radius: 38,
-      accentColor: petAccent,
-      drawPet: (scene, x, y, opts) => drawCompanion(scene, x, y, opts),
-      onClick: () => this.showLoreCard()
-    }).setDepth(15);
+    this._petBadgeX = W - 186;
+    this._petBadgeY = 88;
+    this._petBadgeRadius = 38;
+    this.buildPetBadge();
 
     createIconButton(this, {
       x: W - 90, y: 88, radius: 38,
@@ -699,14 +697,20 @@ export class WorldMapScene extends Phaser.Scene {
         strokeThickness: 3
       })).setOrigin(0.5).setDepth(6);
 
-      // Tap → enter hidden world
       const hit = this.add.circle(pos.x, pos.y, NODE_R + 8, 0, 0)
         .setInteractive({ useHandCursor: true }).setDepth(7);
       hit.on('pointerdown', () => {
         audio.playClick();
         this.registry.set('selectedWorld', h.id);
         this.registry.set('hiddenWorldId', h.id);
-        new TransitionManager(this).fadeToScene('HiddenWorldScene');
+        if (h.id === 15) {
+          this.registry.set('currentWorldId', 15);
+          this.registry.set('currentLevel', 1);
+          this.registry.set('levelMode', 'boss');
+          new TransitionManager(this).fadeToScene('GameScene');
+        } else {
+          new TransitionManager(this).fadeToScene('HiddenWorldScene');
+        }
       });
     }
   }
@@ -847,10 +851,264 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // PET LORE CARD
+  // PET BADGE (top-right pet button)
   // ============================================================
+  buildPetBadge() {
+    const sp = companion.getSpecies();
+    const petAccent = sp ? sp.accent : COLORS.accentPurple;
+    this.petBadge = createPetPortraitButton(this, {
+      x: this._petBadgeX, y: this._petBadgeY, radius: this._petBadgeRadius,
+      accentColor: petAccent,
+      drawPet: (scene, x, y, opts) => drawCompanion(scene, x, y, opts),
+      onClick: () => this.showLoreCard()
+    }).setDepth(15);
+  }
+
+  refreshPetBadge() {
+    if (this.petBadge) this.petBadge.destroy();
+    this.buildPetBadge();
+  }
+
+  // ============================================================
+  // TOAST (fading status text bottom-of-screen)
+  // ============================================================
+  showToast(message) {
+    const toast = this.add.container(W / 2, H - 240).setDepth(120);
+    const bg = this.add.graphics();
+    bg.fillStyle(0x0a0a1a, 0.94);
+    bg.fillRoundedRect(-280, -36, 560, 72, 20);
+    bg.lineStyle(2, 0xfbbf24, 0.95);
+    bg.strokeRoundedRect(-280, -36, 560, 72, 20);
+    toast.add(bg);
+    toast.add(this.add.text(0, 0, message, style('subhead', {
+      fontSize: '28px',
+      fill: '#ffeaa7',
+      fontStyle: '900'
+    })).setOrigin(0.5));
+    toast.alpha = 0;
+    this.tweens.add({
+      targets: toast, alpha: 1, y: H - 290,
+      duration: 240, ease: 'Quad.easeOut'
+    });
+    this.time.delayedCall(1800, () => {
+      this.tweens.add({
+        targets: toast, alpha: 0, y: H - 240,
+        duration: 360,
+        onComplete: () => toast.destroy()
+      });
+    });
+  }
+
   showLoreCard() {
     audio.playClick();
+    if (progress.companion?.cosmicForm) {
+      this.showStageCarousel();
+    } else {
+      this.showEvolutionLoreCard();
+    }
+  }
+
+  showStageCarousel() {
+    const sp = companion.getSpecies();
+    if (!sp) return;
+
+    const cw = 920;
+    const ch = 1440;
+    const { card } = createModal(this, {
+      width: cw, height: ch,
+      accentColor: sp.accent,
+      radius: 28, strokeWidth: 4,
+      overlayAlpha: 0.85,
+    });
+
+    const stages = CAROUSEL_STAGE_ORDER;
+    let viewIdx = Math.max(0, stages.indexOf(progress.companion.displayStage || companion.getActiveStage()));
+
+    const body = this.add.container(0, 0);
+    card.add(body);
+
+    const render = () => {
+      body.removeAll(true);
+      const stage = stages[viewIdx];
+      const isLocked = !companion.isStageUnlocked(stage);
+      const stageLore = sp.stages[stage] || {};
+      const isActive = stage === companion.getActiveStage();
+
+      const topY = -ch / 2 + 100;
+      const arrowLeft = this.add.text(-cw / 2 + 80, topY, '◀', style('display', {
+        fontSize: '54px', fill: '#ffffff',
+        stroke: '#0a0a1a', strokeThickness: 4
+      })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      arrowLeft.on('pointerdown', () => {
+        audio.playClick?.();
+        viewIdx = (viewIdx - 1 + stages.length) % stages.length;
+        render();
+      });
+      body.add(arrowLeft);
+
+      const arrowRight = this.add.text(cw / 2 - 80, topY, '▶', style('display', {
+        fontSize: '54px', fill: '#ffffff',
+        stroke: '#0a0a1a', strokeThickness: 4
+      })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+      arrowRight.on('pointerdown', () => {
+        audio.playClick?.();
+        viewIdx = (viewIdx + 1) % stages.length;
+        render();
+      });
+      body.add(arrowRight);
+
+      const dotSpacing = 58;
+      const dotsStartX = -(stages.length - 1) * dotSpacing / 2;
+      stages.forEach((s, i) => {
+        const x = dotsStartX + i * dotSpacing;
+        const dotG = this.add.graphics();
+        const unlocked = companion.isStageUnlocked(s);
+        const isSel = (i === viewIdx);
+        if (unlocked) {
+          const dotColor = isSel ? sp.accent : 0xcfcfe0;
+          dotG.fillStyle(dotColor, 1);
+          dotG.fillCircle(x, topY, isSel ? 14 : 10);
+        } else {
+          dotG.lineStyle(3, 0xcfcfe0, 0.7);
+          dotG.strokeCircle(x, topY, 10);
+        }
+        body.add(dotG);
+      });
+
+      const portraitY = -ch / 2 + 480;
+      if (isLocked) {
+        const q = this.add.text(0, portraitY, '?', style('display', {
+          fontSize: '320px',
+          fill: '#' + sp.accent.toString(16).padStart(6, '0'),
+          stroke: '#0a0a1a',
+          strokeThickness: 6
+        })).setOrigin(0.5);
+        q.setAlpha(0.35);
+        body.add(q);
+      } else {
+        const portraitScale = PORTRAIT_SCALE_BY_STAGE[stage] ?? 2.0;
+        const portrait = drawCompanion(this, 0, portraitY, { scale: portraitScale, stage });
+        body.add(portrait);
+      }
+
+      const nameY = -ch / 2 + 820;
+      const displayName = isLocked ? '???' : (stageLore.name || '').toUpperCase();
+      body.add(this.add.text(0, nameY, displayName, style('display', {
+        fontSize: '64px',
+        fill: '#ffffff'
+      })).setOrigin(0.5));
+
+      const tierTxt = `— ${stage.toUpperCase()} —`;
+      body.add(this.add.text(0, nameY + 60, tierTxt, style('caption', {
+        fontSize: '30px',
+        fill: '#' + sp.accent.toString(16).padStart(6, '0')
+      })).setOrigin(0.5));
+
+      const loreY = nameY + 150;
+      const loreText = isLocked
+        ? 'Keep playing to unlock this form.'
+        : (stageLore.lore || '');
+      body.add(this.add.text(0, loreY, loreText, style('body', {
+        fontSize: '32px',
+        fill: isLocked ? '#9a9aae' : '#cfcfe0',
+        align: 'center',
+        wordWrap: { width: cw - 100 },
+        lineSpacing: 8
+      })).setOrigin(0.5));
+
+      const btnY = ch / 2 - 260;
+      if (!isLocked && !isActive) {
+        const btn = createButton(this, {
+          x: 0, y: btnY,
+          width: 520, height: 96,
+          label: 'USE THIS STAGE',
+          color: sp.accent,
+          textStyle: 'subhead',
+          textOverrides: { fontSize: '30px', fill: '#0a0a1a', fontStyle: '900' },
+          onClick: () => {
+            companion.setDisplayStage(stage);
+            this.refreshPetBadge();
+            this.showToast(`Now showing: ${stageLore.name}`);
+            render();
+          }
+        });
+        body.add(btn);
+      } else if (!isLocked && isActive) {
+        const chip = this.add.container(0, btnY);
+        const cbg = this.add.graphics();
+        cbg.fillStyle(0x58d68d, 0.95);
+        cbg.fillRoundedRect(-130, -28, 260, 56, 28);
+        chip.add(cbg);
+        chip.add(this.add.text(0, 0, '✓ ACTIVE', style('subhead', {
+          fontSize: '26px', fill: '#0a0a1a', fontStyle: '900'
+        })).setOrigin(0.5));
+        body.add(chip);
+      }
+
+      if (companion.isFullyEvolved()) {
+        const raiseY = ch / 2 - 140;
+        const raiseBtn = createButton(this, {
+          x: 0, y: raiseY,
+          width: 580, height: 84,
+          label: 'RAISE ANOTHER COMPANION',
+          color: COLORS.accentWarm,
+          textStyle: 'subhead',
+          textOverrides: { fontSize: '24px', fill: '#0a0a1a', fontStyle: '900' },
+          onClick: () => this.confirmRaiseAnother()
+        });
+        body.add(raiseBtn);
+      }
+    };
+
+    render();
+  }
+
+  confirmRaiseAnother() {
+    const sp = companion.getSpecies();
+    const { card, close } = createModal(this, {
+      width: 820, height: 700,
+      accentColor: COLORS.accentWarm,
+      radius: 24, strokeWidth: 4,
+      overlayAlpha: 0.92,
+      closeOnCardTap: false,
+      showCloseHint: false
+    });
+    card.add(this.add.text(0, -240, 'RAISE A NEW COMPANION?', style('display', {
+      fontSize: '44px',
+      fill: '#ffd86b',
+      stroke: '#0a0a1a',
+      strokeThickness: 5,
+      align: 'center'
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -100, `${sp?.stages?.adult?.name || 'Your pet'} will retire to your trophy shelf.\nYou'll pick a brand-new starter and raise it from an egg.\n\nYour cosmetics and ship stay with you.`, style('body', {
+      fontSize: '26px',
+      fill: '#cfcfe0',
+      align: 'center',
+      wordWrap: { width: 700 },
+      lineSpacing: 8
+    })).setOrigin(0.5));
+
+    card.add(createButton(this, {
+      x: -180, y: 220, width: 280, height: 92,
+      label: 'CANCEL',
+      color: 0x6a6a8e,
+      textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
+      onClick: () => close()
+    }));
+    card.add(createButton(this, {
+      x: 180, y: 220, width: 320, height: 92,
+      label: "LET'S DO IT",
+      color: COLORS.accentWarm,
+      textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
+      onClick: () => {
+        companion.retireAndStartNew();
+        close();
+        this.scene.start('StarterPickerScene');
+      }
+    }));
+  }
+
+  showEvolutionLoreCard() {
     const sp = companion.getSpecies();
     const lore = companion.getCurrentLore();
     if (!sp || !lore) return;
