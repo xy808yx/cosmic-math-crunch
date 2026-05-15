@@ -2379,6 +2379,23 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.onAsteroidImpact(asteroid)
     });
     this.activeAsteroids.push(asteroid);
+
+    // Multi-slot hosts (e.g. W9 mixed → Dad's Garage) need a pointer hit so the
+    // kid can switch target onto the warp asteroid. Sized for the 1.5x body.
+    if (this.asteroidSlots > 1) {
+      const hit = this.add.rectangle(0, 0, 400, 400, 0x000000, 0).setInteractive({ useHandCursor: true });
+      container.add(hit);
+      hit.on('pointerdown', () => this.targetAsteroid(asteroid));
+    }
+
+    // Without this, the MC buttons keep showing the previous asteroid's
+    // choices — so the correct answer for the warp problem isn't on screen
+    // and taps go nowhere. Single-slot hosts (W5 div) always hit this branch
+    // because the previous target was cleared on removeAsteroid.
+    if (!this.targetedAsteroid) {
+      this.targetAsteroid(asteroid);
+    }
+
     this.playPetFreakout();
   }
 
