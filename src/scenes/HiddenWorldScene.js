@@ -373,12 +373,13 @@ export class HiddenWorldScene extends Phaser.Scene {
     hit.on('pointerdown', () => {
       audio.playClick?.();
       if (badge) {
-        this.tweens.add({
-          targets: badge,
-          alpha: 0, scale: 0.6, duration: 350,
-          onComplete: () => badge.destroy()
-        });
+        const fading = badge;
         badge = null;
+        this.tweens.add({
+          targets: fading,
+          alpha: 0, scale: 0.6, duration: 350,
+          onComplete: () => fading.destroy()
+        });
       }
       this.showDailyNotePopup(message);
     });

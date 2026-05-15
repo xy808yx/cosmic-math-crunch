@@ -3,7 +3,6 @@
 // and tap-to-close handler. The caller adds children to the returned `card`
 // container (coordinates are relative to the card center).
 
-import Phaser from 'phaser';
 import { audio } from './AudioManager.js';
 import { style } from './textStyles.js';
 import { COLORS } from './colorPalette.js';
@@ -42,6 +41,15 @@ export function createModal(scene, opts = {}) {
   bg.strokeRoundedRect(-width / 2, -height / 2, width, height, radius);
   card.add(bg);
 
+  // Transparent hit-rect inside the card for closeOnCardTap. Buttons added by
+  // callers later sit above this in the container and stay clickable; clicks
+  // that miss them fall to this rect and close. Using a Rectangle (not the
+  // Graphics bg) avoids fragile hit-testing on Graphics-in-Container.
+  let cardHit = null;
+  if (closeOnCardTap) {
+    cardHit = scene.add.rectangle(0, 0, width, height, 0x000000, 0).setInteractive();
+    card.add(cardHit);
+  }
 
   let closeHint = null;
   if (showCloseHint) {
@@ -51,8 +59,13 @@ export function createModal(scene, opts = {}) {
     })).setOrigin(0.5).setDepth(depth + 1);
   }
 
+  let closed = false;
+  let sceneCloseHandler = null;
   const close = () => {
-    audio.playClick();
+    if (closed) return;
+    closed = true;
+    if (sceneCloseHandler) scene.input.off('pointerdown', sceneCloseHandler);
+    try { audio.playClick?.(); } catch (e) { /* audio may be unavailable */ }
     overlay.destroy();
     card.destroy();
     closeHint?.destroy();
@@ -60,13 +73,21 @@ export function createModal(scene, opts = {}) {
   };
 
   overlay.on('pointerdown', close);
+  cardHit?.on('pointerdown', close);
 
+  // Scene-level pointerdown backup for closeOnCardTap. The camera renderList
+  // sortGameObjects uses can be stale on the first frame after the modal
+  // opens — overlay isn't in it yet, so a tap routes to whichever interactive
+  // object underneath the modal sorts highest. Phaser emits this scene-level
+  // event AFTER per-object dispatch in the same input cycle, so we defer
+  // registration past the current event to avoid catching the tap that
+  // opened the modal.
   if (closeOnCardTap) {
-    bg.setInteractive(
-      new Phaser.Geom.Rectangle(-width / 2, -height / 2, width, height),
-      Phaser.Geom.Rectangle.Contains
-    );
-    bg.on('pointerdown', close);
+    setTimeout(() => {
+      if (closed) return;
+      sceneCloseHandler = () => close();
+      scene.input.on('pointerdown', sceneCloseHandler);
+    }, 0);
   }
 
   return { overlay, card, close, closeHint, width, height };
