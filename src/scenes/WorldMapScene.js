@@ -18,7 +18,11 @@ import { companion, drawCompanion, CAROUSEL_STAGE_ORDER } from '../CompanionMana
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
-import { buildMapPath, getNodePositions, drawPath, tForNodeIndex, HIDDEN_NODE_POSITIONS, HIDDEN_HOST_INDEX } from '../MapPath.js';
+import {
+  buildMapPath, getNodePositions, drawPath, tForNodeIndex,
+  HIDDEN_NODE_POSITIONS, HIDDEN_HOST_INDEX,
+  hiddenBranchControlPoint, sampleHiddenBranch
+} from '../MapPath.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
 import { drawGlitchPlanetNode, drawGarageNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
@@ -61,8 +65,15 @@ export class WorldMapScene extends Phaser.Scene {
     this.createShipOnActiveWorld();
     this.createBottomChrome();
 
-    // If the player just cleared a world, auto-advance the ship one node.
-    this.tryAutoAdvance();
+    // Warp arrival (from the warp asteroid) takes precedence over the
+    // normal auto-advance flow. If a warp arrival is in flight, still
+    // consume any stale clear-world flag so it doesn't replay later.
+    const warpArrived = this.tryWarpArrival();
+    if (warpArrived) {
+      progress.consumeJustClearedWorld();
+    } else {
+      this.tryAutoAdvance();
+    }
 
     this.events.on('wake', this.onSceneWake, this);
     this.events.on('resume', this.onSceneWake, this);
@@ -717,27 +728,14 @@ export class WorldMapScene extends Phaser.Scene {
 
   drawHiddenBranch(host, dest, accent) {
     // Sampled dashed line with a midpoint pull so the branch arcs slightly.
-    const mx = (host.x + dest.x) / 2;
-    const my = (host.y + dest.y) / 2;
-    // Pull the midpoint perpendicular to the host→dest line for an arc.
-    const dx = dest.x - host.x;
-    const dy = dest.y - host.y;
-    const len = Math.hypot(dx, dy) || 1;
-    const perpX = -dy / len;
-    const perpY = dx / len;
-    const arc = 40;
-    const cx = mx + perpX * arc;
-    const cy = my + perpY * arc;
-
+    // Shares the control-point math with the ship-travel tween so the ship
+    // visibly follows this same curve.
+    const control = hiddenBranchControlPoint(host, dest);
     const g = this.add.graphics().setDepth(2);
     const samples = 60;
     const pts = [];
     for (let i = 0; i <= samples; i++) {
-      const t = i / samples;
-      // Quadratic Bezier through (host, control=cx/cy, dest)
-      const x = (1 - t) * (1 - t) * host.x + 2 * (1 - t) * t * cx + t * t * dest.x;
-      const y = (1 - t) * (1 - t) * host.y + 2 * (1 - t) * t * cy + t * t * dest.y;
-      pts.push({ x, y });
+      pts.push(sampleHiddenBranch(host, dest, i / samples, control));
     }
     // Dark underlay
     g.lineStyle(6, 0x121225, 0.85);
@@ -753,6 +751,141 @@ export class WorldMapScene extends Phaser.Scene {
     g.fillStyle(0xffffff, 0.55);
     for (let i = 4; i < pts.length; i += 10) {
       g.fillCircle(pts[i].x, pts[i].y, 2);
+    }
+  }
+
+  // ============================================================
+  // WARP ARRIVAL (after the warp asteroid is solved)
+  //
+  // GameScene.triggerWarp hands off here via registry flags so the player
+  // sees the ship physically traveling from the host world to the freshly
+  // discovered hidden world before the destination scene loads.
+  // ============================================================
+  tryWarpArrival() {
+    const hiddenId = this.registry.get('warpArrivalHiddenId');
+    if (!hiddenId) return false;
+    this.registry.set('warpArrivalHiddenId', null);
+    this.registry.set('warpArrivalFromWorldId', null);
+
+    const hostIdx = HIDDEN_HOST_INDEX[hiddenId];
+    const hiddenPos = HIDDEN_NODE_POSITIONS[hiddenId];
+    if (hostIdx == null || !hiddenPos) return false;
+
+    const hostPos = this.nodePositions[hostIdx];
+    if (!hostPos) return false;
+
+    // Snap the ship to the host world so the journey starts where the
+    // player was actually playing. Stop the idle bob so it doesn't fight
+    // the travel tween.
+    this.currentWorldIndex = hostIdx;
+    if (this._bobTween) {
+      this._bobTween.stop();
+      this._bobTween = null;
+    }
+    this.shipPet.x = hostPos.x;
+    this.shipPet.y = hostPos.y - 30;
+    this.shipPet.rotation = 0;
+    this.input.enabled = false;
+
+    // Glitch path: GameScene swaps to bossTheme on arrival. Pause the home
+    // theme here so the brief travel beat isn't backed by the wrong music.
+    if (hiddenId === 15) {
+      music.pause();
+    }
+
+    let skipped = false;
+    let travelTween = null;
+    const skipHit = this.add.rectangle(W / 2, H / 2, W, H, 0, 0)
+      .setInteractive().setDepth(900);
+
+    const finishArrival = () => {
+      skipHit.destroy();
+      this._showArrivalTooltip(this._arrivalTooltipConfig(hiddenId, hiddenPos));
+      const dwell = skipped ? 900 : 1600;
+      this.time.delayedCall(dwell, () => this._enterHiddenDestination(hiddenId));
+    };
+
+    skipHit.on('pointerdown', () => {
+      if (skipped) return;
+      skipped = true;
+      if (travelTween) travelTween.stop();
+      this.tweens.killTweensOf(this.shipPet);
+      this.shipPet.x = hiddenPos.x;
+      this.shipPet.y = hiddenPos.y - 30;
+      this.shipPet.rotation = 0;
+      finishArrival();
+    });
+
+    // Brief settle so the warp cinematic's fade has fully cleared before
+    // the ship animates off.
+    this.time.delayedCall(450, () => {
+      if (skipped) return;
+      travelTween = this._travelAlongBranch(hostPos, hiddenPos, () => {
+        if (skipped) return;
+        finishArrival();
+      });
+    });
+
+    return true;
+  }
+
+  _arrivalTooltipConfig(hiddenId, pos) {
+    if (hiddenId === 16) {
+      // Dad's Garage — warm single-line, "you found it" framing.
+      return {
+        x: pos.x,
+        y: pos.y,
+        label: "YOU FOUND DAD'S GARAGE",
+        accent: 0xffd86b,
+        sound: 'playStardustChime'
+      };
+    }
+    // Glitch — celebratory two-line: gold "SECRET WORLD DISCOVERED" +
+    // magenta "GLITCH WORLD" subtitle.
+    return {
+      x: pos.x,
+      y: pos.y,
+      label: 'SECRET WORLD DISCOVERED',
+      subtitle: 'GLITCH WORLD',
+      accent: 0xfbbf24,
+      subtitleColor: '#ff5cf2',
+      sound: 'playStar'
+    };
+  }
+
+  _travelAlongBranch(host, dest, onArrive) {
+    const control = hiddenBranchControlPoint(host, dest);
+    audio.playLaser?.();
+    const tween = { t: 0 };
+    return this.tweens.add({
+      targets: tween,
+      t: 1,
+      duration: 1500,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const pt = sampleHiddenBranch(host, dest, tween.t, control);
+        this.shipPet.x = pt.x;
+        this.shipPet.y = pt.y - 30;
+        const ahead = sampleHiddenBranch(host, dest, Math.min(1, tween.t + 0.02), control);
+        const angle = Math.atan2(ahead.y - pt.y, ahead.x - pt.x) - Math.PI / 2;
+        this.shipPet.rotation = angle * 0.3;
+      },
+      onComplete: () => {
+        this.shipPet.rotation = 0;
+        this.cameras.main.shake(180, 0.004);
+        onArrive?.();
+      }
+    });
+  }
+
+  _enterHiddenDestination(hiddenId) {
+    if (hiddenId === 15) {
+      this.registry.set('currentWorldId', 15);
+      this.registry.set('currentLevel', 1);
+      this.registry.set('levelMode', 'boss');
+      this.scene.start('GameScene');
+    } else {
+      this.scene.start('HiddenWorldScene', { worldId: hiddenId });
     }
   }
 
@@ -820,26 +953,67 @@ export class WorldMapScene extends Phaser.Scene {
   showNewWorldTooltip(nextIdx) {
     const pos = this.nodePositions[nextIdx];
     if (!pos) return;
-    const tip = this.add.container(pos.x, pos.y - 150).setDepth(18);
+    this._showArrivalTooltip({ x: pos.x, y: pos.y });
+  }
+
+  _showArrivalTooltip({
+    x, y,
+    label = 'NEW WORLD UNLOCKED',
+    subtitle = null,
+    accent = 0xfbbf24,
+    subtitleColor = '#ffffff',
+    sound = null
+  }) {
+    const accentHex = '#' + accent.toString(16).padStart(6, '0');
+
+    // Build the text(s) first so we can size the pill to fit any label.
+    const labelText = this.add.text(0, subtitle ? -14 : 0, label, style('caption', {
+      fontSize: '20px',
+      fill: accentHex,
+      fontStyle: '900'
+    })).setOrigin(0.5);
+    let subtitleText = null;
+    if (subtitle) {
+      subtitleText = this.add.text(0, 16, subtitle, style('caption', {
+        fontSize: '16px',
+        fill: subtitleColor,
+        fontStyle: '900'
+      })).setOrigin(0.5);
+    }
+
+    const padX = 28;
+    const widestText = subtitleText
+      ? Math.max(labelText.width, subtitleText.width)
+      : labelText.width;
+    const halfW = Math.max(140, Math.ceil(widestText / 2) + padX);
+    const halfH = subtitle ? 38 : 22;
+
+    // Keep the pill on-screen even when the target node sits near the canvas
+    // edge (Glitch lives at x=970, only ~110px from the right edge).
+    const margin = 12;
+    const clampedX = Math.max(halfW + margin, Math.min(W - halfW - margin, x));
+
+    const tip = this.add.container(clampedX, y - 150).setDepth(18);
     const bg = this.add.graphics();
     bg.fillStyle(0x0a0a1a, 0.92);
-    bg.fillRoundedRect(-140, -22, 280, 44, 12);
-    bg.lineStyle(2, 0xfbbf24, 0.95);
-    bg.strokeRoundedRect(-140, -22, 280, 44, 12);
+    bg.fillRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, 12);
+    bg.lineStyle(2, accent, 0.95);
+    bg.strokeRoundedRect(-halfW, -halfH, halfW * 2, halfH * 2, 12);
     tip.add(bg);
-    tip.add(this.add.text(0, 0, 'NEW WORLD UNLOCKED', style('caption', {
-      fontSize: '20px',
-      fill: '#fbbf24',
-      fontStyle: '900'
-    })).setOrigin(0.5));
+    tip.add(labelText);
+    if (subtitleText) tip.add(subtitleText);
+
     tip.alpha = 0;
     this.tweens.add({
       targets: tip,
       alpha: 1,
-      y: pos.y - 160,
+      y: tip.y - 10,
       duration: 300,
       ease: 'Quad.easeOut'
     });
+    if (sound && typeof audio[sound] === 'function') {
+      audio[sound]();
+    }
     this.time.delayedCall(2200, () => {
       this.tweens.add({
         targets: tip,

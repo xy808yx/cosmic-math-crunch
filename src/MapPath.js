@@ -94,3 +94,24 @@ export const HIDDEN_HOST_INDEX = {
   15: 4,  // W5 (index 4)
   16: 8   // W9 (index 8)
 };
+
+// Control point for the quadratic-Bezier arc that connects a host world to a
+// hidden world. Used by both the visible dashed branch and the ship-travel
+// tween so they trace the exact same curve.
+export function hiddenBranchControlPoint(host, dest, arc = 40) {
+  const mx = (host.x + dest.x) / 2;
+  const my = (host.y + dest.y) / 2;
+  const dx = dest.x - host.x;
+  const dy = dest.y - host.y;
+  const len = Math.hypot(dx, dy) || 1;
+  return { x: mx + (-dy / len) * arc, y: my + (dx / len) * arc };
+}
+
+export function sampleHiddenBranch(host, dest, t, control) {
+  const c = control || hiddenBranchControlPoint(host, dest);
+  const u = 1 - t;
+  return {
+    x: u * u * host.x + 2 * u * t * c.x + t * t * dest.x,
+    y: u * u * host.y + 2 * u * t * c.y + t * t * dest.y
+  };
+}
