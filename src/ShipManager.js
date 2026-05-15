@@ -1,4 +1,4 @@
-// Ship cosmetic chassis. Six slots — hull / wings / paint / decal / pattern / trail.
+// Ship cosmetic chassis. Slots: hull / wings / paint / addon / pattern / trail.
 // Defaults are owned for free; alternates are bought in the shop.
 
 import { progress } from './GameData.js';
@@ -11,7 +11,6 @@ export const SHIP_PARTS = [
   { id: 'hull_bulky',   slot: 'hull',  name: 'Bulky Hull',     price: 250, color: 0xff9ec7, rarity: 'rare' },
   { id: 'hull_arrow',   slot: 'hull',  name: 'Arrow Hull',     price: 350, color: 0x4ecdc4, rarity: 'rare' },
   { id: 'hull_finned',  slot: 'hull',  name: 'Finned Hull',    price: 350, color: 0xffae3a, rarity: 'rare' },
-  { id: 'hull_vortex',  slot: 'hull',  name: 'Vortex Hull',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'hull_wraith',  slot: 'hull',  name: 'Wraith Hull',    price: 1500, color: 0xa6f0e8, rarity: 'legendary' },
   { id: 'hull_eclipse', slot: 'hull',  name: 'Eclipse Hull',   price: 1500, color: 0xfff3b8, rarity: 'legendary' },
 
@@ -49,17 +48,17 @@ export const SHIP_PARTS = [
   { id: 'paint_holo',    slot: 'paint', name: 'Holo',     price: 1200, color: 0xfce7ff, rarity: 'legendary' },
   { id: 'paint_cosmic',  slot: 'paint', name: 'Cosmic',   price: 1500, color: 0x12122a, color2: 0xfff3b8, color3: 0xc77eff, pattern: 'pattern_cosmic', rarity: 'legendary' },
 
-  // decal (small icon stuck on the hull)
-  { id: 'decal_star',  slot: 'decal', name: 'Star Decal',  price: 50,  color: 0xf7dc6f, rarity: 'common' },
-  { id: 'decal_heart', slot: 'decal', name: 'Heart Decal', price: 75,  color: 0xff9ec7, rarity: 'common' },
-  { id: 'decal_crown', slot: 'decal', name: 'Crown Decal', price: 100, color: 0xffe07a, rarity: 'common' },
-  { id: 'decal_comet',   slot: 'decal', name: 'Comet Decal',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
-  { id: 'decal_compass', slot: 'decal', name: 'Compass Decal', price: 300, color: 0xffd86b, rarity: 'rare' },
-  { id: 'decal_phoenix',      slot: 'decal', name: 'Phoenix Decal', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
-  { id: 'decal_galaxy_swirl', slot: 'decal', name: 'Galaxy Decal',  price: 1500, color: 0xc77eff, rarity: 'legendary' },
-  { id: 'decal_dragon',       slot: 'decal', name: 'Dragon Decal',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
+  // addon (prominent module mounted on top of the ship — replaces decals)
+  { id: 'addon_antenna',     slot: 'addon', name: 'Antenna',        price: 50,  color: 0xf7dc6f, rarity: 'common' },
+  { id: 'addon_spoiler',     slot: 'addon', name: 'Tail Spoiler',   price: 75,  color: 0xff9ec7, rarity: 'common' },
+  { id: 'addon_periscope',   slot: 'addon', name: 'Periscope',      price: 100, color: 0xffe07a, rarity: 'common' },
+  { id: 'addon_cannons',     slot: 'addon', name: 'Twin Cannons',   price: 350, color: 0xb6e0ff, rarity: 'rare' },
+  { id: 'addon_satellite',   slot: 'addon', name: 'Satellite Dish', price: 300, color: 0xffd86b, rarity: 'rare' },
+  { id: 'addon_phoenix_crest', slot: 'addon', name: 'Phoenix Crest', price: 1500, color: 0xff8b3d, rarity: 'legendary' },
+  { id: 'addon_galaxy_orb',    slot: 'addon', name: 'Galaxy Orb',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
+  { id: 'addon_dragon_horns',  slot: 'addon', name: 'Dragon Horns',  price: 1500, color: 0xff5b3d, rarity: 'legendary' },
   // Reward-only: awarded by clearing the Glitch World boss fight.
-  { id: 'decal_glitch',       slot: 'decal', name: 'Glitch Decal',  price: 0, unlock_only: true, color: 0x39ff14, rarity: 'legendary', desc: 'Spoils of war from Datamosh.' },
+  { id: 'addon_glitch_module', slot: 'addon', name: 'Glitch Module', price: 0, unlock_only: true, color: 0x39ff14, rarity: 'legendary', desc: 'Spoils of war from Datamosh.' },
 
   // patterns are now folded into paints (see paint_racing, paint_blaze, etc.).
   // Keep pattern_none as the default record so legacy progress.ship.parts.pattern
@@ -104,7 +103,7 @@ class ShipManager {
     return true;
   }
 
-  // Reset a slot back to its default. For nullable slots (decal), set to null.
+  // Reset a slot back to its default. For nullable slots (addon), set to null.
   unequipSlot(slot) {
     const def = SHIP_PARTS.find(p => p.slot === slot && p.isDefault);
     progress.ship.parts[slot] = def ? def.id : null;

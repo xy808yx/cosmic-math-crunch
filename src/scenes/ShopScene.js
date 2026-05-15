@@ -27,7 +27,7 @@ const W = 1080;
 const H = 1920;
 
 const TABS = [
-  { id: 'style',   label: 'STYLE',  accent: 0xffd86b, kind: 'pet' },
+  { id: 'style',   label: 'TOYS',   accent: 0xffd86b, kind: 'pet' },
   { id: 'aura',    label: 'AURAS',  accent: 0xb6e0ff, kind: 'pet' },
   { id: 'trail',   label: 'TRAILS', accent: 0xff8b3d, kind: 'ship' },
   { id: 'paint',   label: 'PAINT',  accent: 0xff5b6e, kind: 'ship' },
@@ -117,7 +117,6 @@ export class ShopScene extends Phaser.Scene {
     const cy = 130;
     const petCx = W - 230;
     const shipCx = W - 90;
-    this.avatarRadius = radius;
 
     this.petBadge = this.makeAvatarBadge(petCx, cy, radius, COLORS.accentWarm, 'PET');
     this.shipBadge = this.makeAvatarBadge(shipCx, cy, radius, COLORS.accentPurple, 'SHIP');
@@ -232,48 +231,7 @@ export class ShopScene extends Phaser.Scene {
       this.tabContainers[tab.id] = c;
     });
 
-    this.createRarityLegend();
     this.refreshTabBar();
-  }
-
-  createRarityLegend() {
-    // Tiny chip strip showing common / rare / legendary colors, mounted just
-    // below the tab bar so card colors are decodable at a glance.
-    const legend = this.add.container(W / 2, 340).setDepth(29);
-    const items = [
-      { label: 'common',    color: RARITY_COLOR.common },
-      { label: 'rare',      color: RARITY_COLOR.rare },
-      { label: 'legendary', color: RARITY_COLOR.legendary }
-    ];
-    const chipH = 18;
-    const padX = 8;
-    let cursor = 0;
-    // First pass: measure each chip width so the row centers properly.
-    const measured = items.map(it => {
-      const dotW = 12;
-      const txt = this.add.text(0, 0, it.label, style('caption', {
-        fontSize: '13px', fill: '#cfcfe0'
-      })).setOrigin(0, 0.5);
-      const totalW = dotW + 6 + txt.width + padX * 2;
-      return { ...it, txt, totalW };
-    });
-    const gap = 12;
-    const fullW = measured.reduce((s, m) => s + m.totalW, 0) + gap * (measured.length - 1);
-    cursor = -fullW / 2;
-    for (const m of measured) {
-      const chip = this.add.graphics();
-      chip.fillStyle(0x14142a, 0.85);
-      chip.fillRoundedRect(cursor, -chipH / 2, m.totalW, chipH, chipH / 2);
-      legend.add(chip);
-      const dot = this.add.graphics();
-      dot.fillStyle(m.color, 1);
-      dot.fillCircle(cursor + padX + 6, 0, 5);
-      legend.add(dot);
-      m.txt.x = cursor + padX + 14;
-      m.txt.y = 0;
-      legend.add(m.txt);
-      cursor += m.totalW + gap;
-    }
   }
 
   refreshTabBar() {
@@ -392,7 +350,7 @@ export class ShopScene extends Phaser.Scene {
         case 'trail': return SHIP_PARTS.filter(p => p.slot === 'trail');
         case 'paint': return SHIP_PARTS.filter(p => p.slot === 'paint');
         case 'parts': return SHIP_PARTS.filter(p =>
-          (p.slot === 'hull' || p.slot === 'wings' || p.slot === 'decal') && !p.isDefault);
+          (p.slot === 'hull' || p.slot === 'wings' || p.slot === 'addon') && !p.isDefault);
         case 'aura':  return PET_COSMETICS.filter(p => p.slot === 'aura');
         case 'style': return PET_COSMETICS.filter(p => p.slot === 'hat' || p.slot === 'accessory');
         default:      return [];
@@ -403,7 +361,9 @@ export class ShopScene extends Phaser.Scene {
     const isPetTab = TAB_BY_ID[tabId]?.kind === 'pet';
     const equippedMap = isPetTab ? cosmetics.getEquipped() : ship.getCurrentParts();
     const ownsFn = isPetTab ? id => cosmetics.ownsItem(id) : id => ship.ownsPart(id);
-    const ranked = items.map(item => {
+    // Unlock-only items stay hidden from the shop until earned in-game.
+    const visibleItems = items.filter(it => !it.unlock_only || ownsFn(it.id));
+    const ranked = visibleItems.map(item => {
       let rank = 3;
       if (equippedMap[item.slot] === item.id) rank = 0;
       else if (ownsFn(item.id)) rank = 1;

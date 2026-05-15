@@ -5,13 +5,11 @@
 
 import { audio } from './AudioManager.js';
 import { drawCompanion } from './PetRenderer.js';
-import { companion } from './CompanionManager.js';
+import { companion, STAGE_ORDER } from './CompanionManager.js';
 import { style } from './textStyles.js';
 
 const W = 1080;
 const H = 1920;
-
-const STAGE_ORDER = ['egg', 'baby', 'teen', 'adult'];
 
 function previousStage(newStage) {
   const idx = STAGE_ORDER.indexOf(newStage);

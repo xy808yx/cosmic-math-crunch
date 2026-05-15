@@ -19,6 +19,78 @@ export function drawBossBody(g, worldId, accentColor, radius) {
   fn(g, accentColor, radius);
 }
 
+// Chunk layout is deterministic per seed so per-hit redraws don't reshuffle
+// the silhouette. Caller layers idle glitch jitter on top via seed bumps.
+export function drawDatamoshBlob(g, hpRatio, radius, seed = 0) {
+  const r = radius;
+  const clamped = Math.max(0, Math.min(1, hpRatio));
+
+  const chunkCount = Math.round(10 + clamped * 34);
+  const chunkSize = Math.round(r * (0.10 + (1 - clamped) * 0.10));
+  const drain = 1 - clamped;
+  const baseColors = [0x39ff14, 0xff00ff, 0x00ffff, 0xaa00ff];
+  const colors = baseColors.map(c => lerpToGray(c, drain * 0.85));
+
+  // Soft shadow under the blob so it reads against any backdrop.
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(8, r + 12, r * 1.4, r * 0.24);
+
+  // Subtle outer halo — sits behind the chunks, doesn't dominate.
+  g.fillStyle(colors[0], 0.05 + clamped * 0.06);
+  g.fillCircle(0, 0, r * 0.85);
+
+  // Layout chunks in a deterministic Phi-spiral within the radius.
+  const phi = 2.39996;
+  for (let i = 0; i < chunkCount; i++) {
+    const t = (i + 1) / chunkCount;
+    const dist = r * (0.18 + 0.72 * Math.sqrt(t));
+    const a = i * phi + seed * 0.7;
+    const cx = Math.cos(a) * dist;
+    const cy = Math.sin(a) * dist;
+    const color = colors[i % colors.length];
+
+    // Chunky pixel rect — drawn at integer multiples for that "chunky"
+    // chromatic feel. Slight per-chunk size variation keeps it from reading
+    // as a uniform grid.
+    const size = chunkSize + (i % 3) * 2;
+    g.fillStyle(color, 0.95);
+    g.fillRect(Math.round(cx) - size / 2, Math.round(cy) - size / 2, size, size);
+
+    // Tiny chromatic ghost — red/blue offset on a fraction of chunks for
+    // CRT-glitch flavor.
+    if (i % 4 === 0) {
+      g.fillStyle(0xff3030, 0.45 * clamped);
+      g.fillRect(Math.round(cx) - size / 2 + 3, Math.round(cy) - size / 2, size, size);
+      g.fillStyle(0x3030ff, 0.45 * clamped);
+      g.fillRect(Math.round(cx) - size / 2 - 3, Math.round(cy) - size / 2, size, size);
+    }
+  }
+
+  // Scanline tear — one horizontal slice across the blob.
+  const tearY = ((seed * 73) % 100) / 100 * r - r / 2;
+  g.fillStyle(0xff00ff, 0.6 * clamped);
+  g.fillRect(-r, tearY, r * 2, 3);
+  g.fillStyle(0x39ff14, 0.5 * clamped);
+  g.fillRect(-r, tearY + 4, r * 2, 2);
+
+  // Death stage: at 0 HP, scatter a few black holes where chunks used to be.
+  if (clamped <= 0.0001) {
+    g.fillStyle(0x000000, 0.8);
+    g.fillCircle(0, 0, r * 0.35);
+  }
+}
+
+function lerpToGray(color, t) {
+  const r = (color >> 16) & 0xff;
+  const g = (color >> 8) & 0xff;
+  const b = color & 0xff;
+  const gray = r * 0.299 + g * 0.587 + b * 0.114;
+  const lr = (r + (gray - r) * t) | 0;
+  const lg = (g + (gray - g) * t) | 0;
+  const lb = (b + (gray - b) * t) | 0;
+  return (lr << 16) | (lg << 8) | lb;
+}
+
 // =========================================================================
 // NORMAL QUESTION OBJECTS
 // =========================================================================

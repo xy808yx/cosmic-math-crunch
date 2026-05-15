@@ -34,6 +34,12 @@ export const SPECIES = {
         name: 'Solfire',
         type: 'Solar / Drake',
         lore: 'A pixel star-dragon with curled horns, broad wings, and a long tail. Said to lead lost pilots back through the dark.'
+      },
+      cosmic: {
+        name: 'Cosmic Solfire',
+        type: 'Solar / Cosmic',
+        tier: 'cosmic',
+        lore: "What's left when a star burns down to its core: pure, condensed light."
       }
     }
   },
@@ -64,6 +70,12 @@ export const SPECIES = {
         name: 'Tidalord',
         type: 'Aqua / Whale',
         lore: 'A long cosmic whale with a tall dorsal fin and tail flukes. Older than the Asteroid Belt, calmer than the void.'
+      },
+      cosmic: {
+        name: 'Cosmic Tidalord',
+        type: 'Aqua / Cosmic',
+        tier: 'cosmic',
+        lore: "Drifting between currents we'll never see — translucent, listening."
       }
     }
   },
@@ -94,12 +106,21 @@ export const SPECIES = {
         name: 'Cosmoss',
         type: 'Verdant / Treant',
         lore: 'A walking treant with bark legs, branching arms, and a flower crown. Where it stands, ferns grow.'
+      },
+      cosmic: {
+        name: 'Cosmic Cosmoss',
+        type: 'Verdant / Cosmic',
+        tier: 'cosmic',
+        lore: 'A tiny world that grew its own sky. Walk softly here.'
       }
     }
   }
 };
 
-const STAGE_ORDER = ['egg', 'baby', 'teen', 'adult'];
+export const CAROUSEL_STAGE_ORDER = ['egg', 'baby', 'teen', 'adult', 'cosmic'];
+
+// cosmic is not part of the evolution gate chain — unlocked by final-boss clear.
+export const STAGE_ORDER = ['egg', 'baby', 'teen', 'adult'];
 
 // Evolution gates — tuned for ~3 month adult timeline at ~14 sessions/month.
 // Each stage requires (worlds cleared, lifetime correct, lifetime accuracy).
@@ -202,6 +223,32 @@ class CompanionManager {
 
   getStage() {
     return progress.companion.stage;
+  }
+
+  getActiveStage() {
+    const cmp = progress.companion;
+    if (!cmp) return 'egg';
+    if (cmp.displayStage && this.isStageUnlocked(cmp.displayStage)) {
+      return cmp.displayStage;
+    }
+    if (cmp.cosmicForm && cmp.stage === 'adult') return 'cosmic';
+    return cmp.stage || 'egg';
+  }
+
+  isStageUnlocked(stage) {
+    const cmp = progress.companion;
+    if (stage === 'cosmic') return !!cmp?.cosmicForm;
+    const idx = STAGE_ORDER.indexOf(stage);
+    if (idx < 0) return false;
+    const currentIdx = STAGE_ORDER.indexOf(cmp?.stage || 'egg');
+    return currentIdx >= idx;
+  }
+
+  setDisplayStage(stage) {
+    if (!progress.companion) return;
+    if (stage && !this.isStageUnlocked(stage)) return;
+    progress.companion.displayStage = stage || null;
+    progress.save();
   }
 
   // Lifetime correct answers — derived from factMastery so old per-pellet

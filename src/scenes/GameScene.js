@@ -5,6 +5,7 @@ import {
   MODES,
   BOSS_CONFIG,
   getProblemForWorld,
+  getGlitchProblem,
   getDistractors,
   getProblemSecondsForWorldAndMode,
   getAsteroidCountForWorld,
@@ -26,7 +27,8 @@ import { economy, claimDailyBonusIfDue } from '../EconomyManager.js';
 import { records } from '../RecordsManager.js';
 import { drawStarIcon, drawHeartIcon, drawSparkleIcon } from '../StatIcons.js';
 import { cosmetics } from '../CosmeticManager.js';
-import { drawQuestionBody, drawBossBody as drawWorldBoss } from '../QuestionObjectArt.js';
+import { drawQuestionBody, drawBossBody as drawWorldBoss, drawDatamoshBlob } from '../QuestionObjectArt.js';
+import { ship } from '../ShipManager.js';
 import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
 import { darken, lighten } from '../colorUtils.js';
 import { COLORS } from '../colorPalette.js';
@@ -59,6 +61,7 @@ export class GameScene extends Phaser.Scene {
     this.mode = this.registry.get('levelMode') || 'mult';
     this.world = findWorld(this.worldId);
     this.isBoss = this.mode === 'boss';
+    this.isGlitchBoss = this.isBoss && this.worldId === 15;
     this.freePlay = !!this.registry.get('freePlay');
 
     // Hidden-world warp asteroid: when the kid plays a host level (e.g. W5
@@ -77,7 +80,7 @@ export class GameScene extends Phaser.Scene {
     this.bossMaxHp = getBossHpForWorld(this.worldId);
 
     this.modeConfig = this.isBoss
-      ? { label: this.world.villain || 'Boss', symbol: 'skull', duration: 90, scoreThreshold: this.bossMaxHp }
+      ? { label: this.world.villain || 'Boss', symbol: this.isGlitchBoss ? 'glitch' : 'skull', duration: 90, scoreThreshold: this.bossMaxHp }
       : MODES[this.mode];
 
     this.duration = this.modeConfig.duration;
@@ -91,7 +94,6 @@ export class GameScene extends Phaser.Scene {
     this.bestStreak = 0;
     this.stardustEarned = 0;
     this.history = [];
-    this.problemStartedAtMs = 0;
 
     this.shipHp = SHIP_HP_MAX;
     this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
@@ -108,6 +110,7 @@ export class GameScene extends Phaser.Scene {
   create() {
     audio.init();
     music.ensurePlaying(this, this.isBoss ? 'bossTheme' : 'levelTheme');
+    if (this.isGlitchBoss) this.startGlitchAmbientLoop();
     const wb = getWorldBackground(this.worldId);
     createStarfield(this, {
       width: W, height: H,
@@ -285,7 +288,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const problem = getProblemForWorld(this.worldId, this.mode);
+    const problem = this.isGlitchBoss
+      ? getGlitchProblem()
+      : getProblemForWorld(this.worldId, this.mode);
 
     let xLane;
     let slotIdx = null;
@@ -309,11 +314,12 @@ export class GameScene extends Phaser.Scene {
       this.drawAsteroidBody(container);
     }
 
+    const fontSize = this.isGlitchBoss ? '80px' : this.isBoss ? '92px' : '70px';
     const text = this.add.text(0, 0, problem.display, style('display', {
-      fontSize: this.isBoss ? '92px' : '70px',
+      fontSize,
       fill: '#ffffff',
-      stroke: '#000000',
-      strokeThickness: 7
+      stroke: this.isGlitchBoss ? '#ff00ff' : '#000000',
+      strokeThickness: this.isGlitchBoss ? 8 : 7
     })).setOrigin(0.5);
     container.add(text);
 
@@ -367,10 +373,38 @@ export class GameScene extends Phaser.Scene {
   }
 
   drawBossBody(container) {
-    const g = this.add.graphics();
     const radius = ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale;
+    if (this.isGlitchBoss) {
+      const g = this.add.graphics();
+      container.add(g);
+      this.datamoshG = g;
+      this.datamoshRadius = radius;
+      this.datamoshSeed = 0;
+      this.redrawDatamoshBlob(this.bossHp / this.bossMaxHp);
+      this.datamoshJitter = this.time.addEvent({
+        delay: 220, loop: true,
+        callback: () => {
+          if (!this.datamoshG?.active || this.bossDefeated) {
+            this.datamoshJitter?.remove();
+            this.datamoshJitter = null;
+            return;
+          }
+          this.datamoshSeed = (this.datamoshSeed + 1) % 16;
+          this.redrawDatamoshBlob(this.bossHp / this.bossMaxHp);
+        }
+      });
+      this.events.once('shutdown', () => this.datamoshJitter?.remove());
+      return;
+    }
+    const g = this.add.graphics();
     drawWorldBoss(g, this.world.id, this.world.accentColor, radius);
     container.add(g);
+  }
+
+  redrawDatamoshBlob(hpRatio) {
+    if (!this.datamoshG?.active) return;
+    this.datamoshG.clear();
+    drawDatamoshBlob(this.datamoshG, hpRatio, this.datamoshRadius, this.datamoshSeed);
   }
 
   attachBossHpBar(bossContainer) {
@@ -457,7 +491,6 @@ export class GameScene extends Phaser.Scene {
   targetAsteroid(asteroid) {
     if (!asteroid || !this.activeAsteroids.includes(asteroid)) return;
     this.targetedAsteroid = asteroid;
-    this.problemStartedAtMs = asteroid.startedAtMs;
     this.refreshMcButtons(asteroid.problem);
 
     if (this.targetReticle) this.targetReticle.destroy();
@@ -554,16 +587,25 @@ export class GameScene extends Phaser.Scene {
 
   refreshMcButtons(problem) {
     const want = this.mcButtons.length;
-    const distractors = getDistractors(problem, want - 1);
-    const choices = [problem.answer, ...distractors].slice(0, want);
-    while (choices.length < want) choices.push(problem.answer + choices.length);
-    choices.sort((a, b) => a - b);
+    let choices;
+    if (problem.glitchChoices) {
+      // Glitch boss with a pre-built choice pool (hidden-digit / hidden-operand).
+      choices = [...problem.glitchChoices];
+      while (choices.length < want) choices.push((choices[choices.length - 1] ?? 0) + 1);
+      choices = choices.slice(0, want);
+    } else {
+      const distractors = getDistractors(problem, want - 1);
+      choices = [problem.answer, ...distractors].slice(0, want);
+      while (choices.length < want) choices.push(problem.answer + choices.length);
+      choices.sort((a, b) => a - b);
+    }
 
+    const faceColor = this.isGlitchBoss ? 0x1a3a14 : this.isBoss ? 0x3a1a2a : 0x2a2a44;
     this.mcButtons.forEach((btn, i) => {
       btn.value = choices[i];
       btn.label.setText(choices[i].toString());
       btn.label.setColor('#ffffff');
-      this.drawMcFace(btn, this.isBoss ? 0x3a1a2a : 0x2a2a44);
+      this.drawMcFace(btn, faceColor);
       btn.setAlpha(1);
     });
   }
@@ -640,11 +682,6 @@ export class GameScene extends Phaser.Scene {
     companion.feed();
     if (this.streak === 3 || this.streak === 7 || this.streak % 10 === 0) {
       audio.playPetChirp?.();
-      // Streak-triggered cosmetic animations
-      for (const item of cosmetics.itemsWithTrigger('streak')) {
-        const fn = this.cockpitPet?.[item.animation];
-        if (typeof fn === 'function') fn();
-      }
     }
 
     audio.playLaser?.();
@@ -661,6 +698,9 @@ export class GameScene extends Phaser.Scene {
       this.drawBossHp();
       audio.playBossImpact?.();
       this.recoilBoss(asteroid);
+      if (this.isGlitchBoss) {
+        this.redrawDatamoshBlob(this.bossHp / this.bossMaxHp);
+      }
       bossTwistOn(this, 'onCorrect', asteroid);
 
       this.time.delayedCall(360, () => {
@@ -839,8 +879,7 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // Wrong-answer reaction: boss does a bouncy "ha-ha" laugh in place while a
-  // red vignette pulses. Halts the fall so cycleBossProblem can reset cleanly.
+  // Halts the fall so cycleBossProblem can reset cleanly.
   bossMockLaugh(asteroid) {
     if (!asteroid?.container?.active) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
@@ -855,6 +894,10 @@ export class GameScene extends Phaser.Scene {
       ease: 'Quad.easeOut',
       onComplete: () => vignette.destroy()
     });
+
+    if (this.isGlitchBoss) {
+      this.glitchScreenCorrupt();
+    }
 
     const c = asteroid.container;
     const baseScaleX = c.scaleX;
@@ -887,11 +930,63 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
+  startGlitchAmbientLoop() {
+    const scheduleNext = () => {
+      if (!this.scene.isActive()) return;
+      const delay = 4000 + Math.random() * 2000;
+      this._glitchAmbientTimer = this.time.delayedCall(delay, () => {
+        if (this.state === 'failed' || this.state === 'ended') return;
+        audio.playGlitchStatic?.({ duration: 0.16 + Math.random() * 0.10, peakGain: 0.08 });
+        scheduleNext();
+      });
+    };
+    scheduleNext();
+    this.events.once('shutdown', () => {
+      this._glitchAmbientTimer?.remove?.();
+    });
+  }
+
+  glitchScreenCorrupt() {
+    const aberration = this.add.graphics().setDepth(55);
+    aberration.fillStyle(0xff00ff, 0.18);
+    aberration.fillRect(-12, 0, W + 24, H);
+    aberration.fillStyle(0x39ff14, 0.18);
+    aberration.fillRect(12, 0, W + 24, H);
+    this.tweens.add({
+      targets: aberration,
+      alpha: 0,
+      duration: 360,
+      ease: 'Quad.easeOut',
+      onComplete: () => aberration.destroy()
+    });
+
+    const tearCount = 5;
+    for (let i = 0; i < tearCount; i++) {
+      const tear = this.add.graphics().setDepth(56);
+      const tearY = 340 + Math.random() * (H - 600);
+      const tearH = 4 + Math.random() * 12;
+      tear.fillStyle(i % 2 === 0 ? 0xff00ff : 0x39ff14, 0.85);
+      tear.fillRect(0, tearY, W, tearH);
+      this.tweens.add({
+        targets: tear,
+        alpha: 0,
+        duration: 220 + Math.random() * 160,
+        ease: 'Quad.easeOut',
+        onComplete: () => tear.destroy()
+      });
+    }
+
+    this.cameras.main.shake(220, 0.012);
+    audio.playGlitchStatic?.({ duration: 0.22, peakGain: 0.14 });
+  }
+
   cycleBossProblem(asteroid) {
     if (!asteroid?.container?.active || this.bossDefeated) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
 
-    const newProblem = getProblemForWorld(this.worldId, this.mode);
+    const newProblem = this.isGlitchBoss
+      ? getGlitchProblem()
+      : getProblemForWorld(this.worldId, this.mode);
     asteroid.problem = newProblem;
     asteroid.startedAtMs = performance.now();
     asteroid.text?.setText(newProblem.display);
@@ -906,7 +1001,6 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.refreshMcButtons(newProblem);
-    this.problemStartedAtMs = asteroid.startedAtMs;
     bossTwistOn(this, 'onSpawn', asteroid);
   }
 
@@ -1591,6 +1685,17 @@ export class GameScene extends Phaser.Scene {
       this.stardustEarned += masteryBonus;
     }
 
+    let glitchUnlocked = false;
+    let glitchBonus = 0;
+    if (bossWin && this.isGlitchBoss && !progress.isHiddenWorldCleared(15)) {
+      glitchUnlocked = true;
+      glitchBonus = 750;
+      progress.clearHiddenWorld(15);
+      ship.addAndEquip('addon_glitch_module');
+      economy.addStardust(glitchBonus);
+      this.stardustEarned += glitchBonus;
+    }
+
     const dailyBonus = claimDailyBonusIfDue();
     this.stardustEarned += dailyBonus;
 
@@ -1602,7 +1707,7 @@ export class GameScene extends Phaser.Scene {
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
     const clearedThisRun = bossWin && !wasFullyCleared && worldFullyCleared;
 
-    const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus };
+    const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus, glitchUnlocked, glitchBonus };
 
     const proceedToSummary = () => {
       if (evolvedTo) {
@@ -1620,7 +1725,7 @@ export class GameScene extends Phaser.Scene {
     // After that, beating it again skips to the normal summary panel.
     if (bossWin && isFinalVisibleWorld(this.worldId) && worldFullyCleared && !progress.endingSeen) {
       this.registry.set('currentWorldId', this.worldId);
-      this.scene.start('CreditsScene', { bossWin: true });
+      this.scene.start('CreditsScene');
       return;
     }
 
@@ -1649,7 +1754,7 @@ export class GameScene extends Phaser.Scene {
     return 1;
   }
 
-  showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0 }) {
+  showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0, glitchUnlocked = false, glitchBonus = 0 }) {
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50).setInteractive();
     this.tweens.add({ targets: overlay, alpha: 0.7, duration: 350 });
 
@@ -1749,8 +1854,29 @@ export class GameScene extends Phaser.Scene {
       panel.add(banner);
     }
 
-    if (firstMastery) {
+    if (glitchUnlocked) {
       const banner = this.add.container(0, -panelH / 2 + (evolvedTo ? 90 : 30));
+      const bg2 = this.add.graphics();
+      bg2.fillStyle(0x39ff14, 1);
+      bg2.fillRoundedRect(-360, -34, 720, 68, 34);
+      bg2.lineStyle(3, 0xff00ff, 1);
+      bg2.strokeRoundedRect(-360, -34, 720, 68, 34);
+      banner.add(bg2);
+      banner.add(this.add.text(0, 0, `UNLOCKED: GLITCH MODULE + ${glitchBonus} STARDUST`, style('subhead', {
+        fontSize: '24px',
+        fill: '#0a0a1a',
+        fontStyle: '900'
+      })).setOrigin(0.5));
+      panel.add(banner);
+      this.tweens.add({
+        targets: banner, scale: { from: 0.6, to: 1 },
+        duration: 320, ease: 'Back.easeOut'
+      });
+      audio.playGlitchStatic?.({ duration: 0.28, peakGain: 0.15 });
+    }
+
+    if (firstMastery) {
+      const banner = this.add.container(0, -panelH / 2 + (evolvedTo || glitchUnlocked ? 90 : 30));
       const bg2 = this.add.graphics();
       bg2.fillStyle(COLORS.warning, 1);
       bg2.fillRoundedRect(-340, -34, 680, 68, 34);
@@ -2394,7 +2520,15 @@ export class GameScene extends Phaser.Scene {
 
     this.time.delayedCall(2200, () => {
       this.registry.set('hiddenWorldId', hiddenId);
-      this.scene.start('HiddenWorldScene', { worldId: hiddenId });
+      if (hiddenId === 15) {
+        // Glitch World is a real boss fight in GameScene now.
+        this.registry.set('currentWorldId', 15);
+        this.registry.set('currentLevel', 1);
+        this.registry.set('levelMode', 'boss');
+        this.scene.start('GameScene');
+      } else {
+        this.scene.start('HiddenWorldScene', { worldId: hiddenId });
+      }
     });
   }
 }

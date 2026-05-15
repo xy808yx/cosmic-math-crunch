@@ -2,7 +2,7 @@
 // cards in front (×, ÷, mixed, boss). Locked modes show a lock icon.
 
 import Phaser from 'phaser';
-import { WORLDS, MODES, progress } from '../GameData.js';
+import { WORLDS, MODES, progress, findWorld } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -29,7 +29,7 @@ export class LevelSelectScene extends Phaser.Scene {
   create() {
     music.ensurePlaying(this);
     const worldId = this.registry.get('selectedWorld') || 1;
-    this.world = WORLDS[worldId - 1];
+    this.world = findWorld(worldId) || WORLDS[0];
     this.worldProgress = progress.getWorldProgress(worldId);
 
     this.events.on('wake', this.onSceneWake, this);

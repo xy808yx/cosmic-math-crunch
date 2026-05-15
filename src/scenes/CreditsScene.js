@@ -16,6 +16,7 @@ import { COLORS } from '../colorPalette.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
+import { drawWorldNode } from '../WorldNodeArt.js';
 import { createButton } from '../buttonHelper.js';
 
 const W = 1080;
@@ -35,10 +36,6 @@ const CINEMATIC_CARDS = [
 export class CreditsScene extends Phaser.Scene {
   constructor() {
     super({ key: 'CreditsScene' });
-  }
-
-  init(data) {
-    this._bossWin = !!data?.bossWin;
   }
 
   create() {
@@ -177,8 +174,8 @@ export class CreditsScene extends Phaser.Scene {
       }
     });
 
-    // Pet appears, glows, scales up — represents "cosmic" final form.
-    const pet = drawCompanion(this, cx, cy, { scale: 1.6 }).setDepth(16);
+    // Pet appears as ADULT (the player's current form) and scales up.
+    let pet = drawCompanion(this, cx, cy, { stage: 'adult', scale: 1.6 }).setDepth(16);
     pet.setScale(0);
     audio.playEvolutionBuildup?.();
     this.tweens.add({
@@ -201,6 +198,14 @@ export class CreditsScene extends Phaser.Scene {
           ease: 'Quad.easeOut',
           onComplete: () => ring.destroy()
         });
+
+        // Set cosmicForm before redraw so other renders see it.
+        if (progress.companion && progress.companion.stage === 'adult') {
+          progress.companion.cosmicForm = true;
+          progress.save();
+        }
+        pet.destroy();
+        pet = drawCompanion(this, cx, cy, { stage: 'cosmic', scale: 1.6 }).setDepth(16);
 
         // Pet scales briefly larger then settles
         this.tweens.add({
@@ -227,12 +232,6 @@ export class CreditsScene extends Phaser.Scene {
               ease: 'Quad.easeOut'
             });
 
-            // Mark cosmic form on save (permanent flag).
-            if (progress.companion) {
-              progress.companion.cosmicForm = true;
-              progress.save();
-            }
-
             this.time.delayedCall(1700, () => {
               this.tweens.add({
                 targets: [pet, tag],
@@ -256,7 +255,7 @@ export class CreditsScene extends Phaser.Scene {
   // slow and soft so they read as background motion behind the names.
   // ============================================================
   startChronoChoreography() {
-    const shipContainer = this.add.container(-200, H * 0.85).setDepth(30);
+    const shipContainer = this.add.container(-200, H * 0.85).setDepth(65);
     const shipG = drawShip(this, 0, 0, {
       scale: 1.0,
       parts: ship.getCurrentParts()
@@ -271,7 +270,7 @@ export class CreditsScene extends Phaser.Scene {
       shipG.add(petInCockpit);
     }
 
-    this._chronoShip = shipContainer;
+    this._cockpitPet = petInCockpit;
 
     // Soft figure-8-ish loop staying out of the central hero text area.
     const stages = [
@@ -304,7 +303,7 @@ export class CreditsScene extends Phaser.Scene {
           }
           if (stage.zap) {
             for (let s = 0; s < 6; s++) {
-              const star = this.add.graphics().setDepth(31);
+              const star = this.add.graphics().setDepth(66);
               star.fillStyle(0xfbbf24, 1);
               star.fillCircle(0, 0, 4);
               star.x = shipContainer.x;
@@ -329,6 +328,61 @@ export class CreditsScene extends Phaser.Scene {
     loop(0);
   }
 
+  startWorldsParallax() {
+    this._worldNodes = [];
+    this._worldIdx = 0;
+
+    const spawnOne = () => {
+      const worldId = (this._worldIdx++ % 11) + 1;
+      const y = Phaser.Math.Between(H * 0.06, H * 0.18);
+      const node = drawWorldNode(this, W + 120, y, worldId, { scale: 0.5 });
+      node.setDepth(62);
+      node.alpha = 0.5;
+      this._worldNodes.push(node);
+
+      const driftDur = 14000;
+      this.tweens.add({
+        targets: node,
+        x: -160,
+        duration: driftDur,
+        ease: 'Linear',
+        onComplete: () => {
+          const i = this._worldNodes.indexOf(node);
+          if (i >= 0) this._worldNodes.splice(i, 1);
+          node.destroy();
+        }
+      });
+      this.tweens.add({
+        targets: node,
+        y: y + 12,
+        duration: 2400,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      this.time.delayedCall(driftDur / 2, () => {
+        if (!this._cockpitPet || !this._cockpitPet.active) return;
+        this.tweens.add({
+          targets: this._cockpitPet,
+          scaleX: 0.45,
+          scaleY: 0.35,
+          duration: 220,
+          yoyo: true,
+          repeat: 1,
+          ease: 'Sine.easeInOut'
+        });
+      });
+    };
+
+    this.time.delayedCall(2000, spawnOne);
+    this._worldsSpawner = this.time.addEvent({
+      delay: 6500,
+      loop: true,
+      startAt: -2000,
+      callback: spawnOne
+    });
+  }
+
   // ============================================================
   // PART C — Personalized hero shout-out (long, slow, the magic moment)
   // Names reveal one at a time, then the message. Ship choreographs in
@@ -338,6 +392,7 @@ export class CreditsScene extends Phaser.Scene {
     // Kick off the pet+ship choreography in the background (they orbit the
     // bottom of the screen, behind the hero text).
     this.startChronoChoreography();
+    this.startWorldsParallax();
 
     // Slow dark wash — gives the hero text a quiet stage. Paced to the 52s
     // credits song: cards (~14s) + evolution (~4s) + this hero card (~34s)
@@ -521,6 +576,11 @@ export class CreditsScene extends Phaser.Scene {
     // Stop the ambient spawners so they don't keep firing after we leave.
     if (this._heroRingSpawner) this._heroRingSpawner.remove();
     if (this._driftStars) this._driftStars.remove();
+    if (this._worldsSpawner) this._worldsSpawner.remove();
+    (this._worldNodes || []).forEach(c => {
+      this.tweens.killTweensOf(c);
+      c.destroy();
+    });
 
     if (this._creditsSong && this._creditsSong.isPlaying) {
       this.tweens.add({

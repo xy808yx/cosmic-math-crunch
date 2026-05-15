@@ -2,14 +2,13 @@
 // in PetSprites.js — silhouettes diverge dramatically per stage so a Cinder Egg
 // looks like an egg and a Solfire looks like a dragon.
 //
-// Public API (callsite-compatible with the old Phaser-Graphics renderer):
+// Public API:
 //   drawCompanion(scene, x, y, opts) → container
 //     opts.speciesId, opts.stage, opts.scale, opts.preview, opts.mood,
-//     opts.cosmeticsOverride — { hat, accessory, aura } overriding
+//     opts.cosmeticsOverride — { accessory, aura } overriding
 //                              progress.cosmetics.pet (used by shop previews)
 //   container.bounceHappy() / .slumpSad()
-//   container.rocketBoost() / .propellerSpin() / .radioWavePing() / .starHaloOrbit()
-//   container.applyCosmetics() — re-reads cosmetics + redraws hat/accessory layers
+//   container.applyCosmetics() — re-reads cosmetics + redraws accessory layers
 
 import { progress } from './GameData.js';
 import { companion, SPECIES } from './CompanionManager.js';
@@ -19,22 +18,23 @@ import { PET_SPRITES, gridLayout, anchorXY } from './PetSprites.js';
 import { renderPetCosmetic } from './PetCosmeticSprites.js';
 
 // Per-species palette resolves grid characters → colors.
-function paletteFor(species) {
+function paletteFor(species, stage) {
   const c = species.color;
+  const isCosmic = stage === 'cosmic';
   return {
     body:    c,
-    bodyHi:  lighten(c, 0.30),
-    bodyLo:  darken(c, 0.22),
-    accent:  species.accent,
-    accentHi: lighten(species.accent, 0.30),
-    secondary: darken(species.accent, 0.30), // wing membrane / fin / bark
+    bodyHi:  lighten(c, isCosmic ? 0.45 : 0.30),
+    bodyLo:  darken(c, isCosmic ? 0.32 : 0.22),
+    accent:  isCosmic ? lighten(species.accent, 0.18) : species.accent,
+    accentHi: lighten(species.accent, isCosmic ? 0.50 : 0.30),
+    secondary: darken(species.accent, isCosmic ? 0.18 : 0.30),
     secondaryHi: species.accent,
     outline: 0x07071a,
     eyeWhite: 0xffffff,
     eyeBlack: 0x121225,
     sparkle:  0xffffff,
     mouth:    0x3a1a2a,
-    tongue:   0xff7a99,
+    tongue:   isCosmic ? 0xff5b9e : 0xff7a99,
     blush:    0xffb3c1
   };
 }
@@ -80,14 +80,14 @@ function pixelGrid(scene, grid, ox, oy, pixelSize, paletteFn) {
 
 export function drawCompanion(scene, x, y, opts = {}) {
   const speciesId = opts.speciesId || progress.companion.speciesId || 'ember';
-  const stage = opts.stage || progress.companion.stage || 'egg';
+  const stage = opts.stage || companion.getActiveStage() || 'egg';
   const userScale = opts.scale ?? 1;
   const species = SPECIES[speciesId];
 
   const container = scene.add.container(x, y);
   if (!species) return container;
 
-  const pal = paletteFor(species);
+  const pal = paletteFor(species, stage);
   const grid = (PET_SPRITES[speciesId] && PET_SPRITES[speciesId][stage]) || PET_SPRITES.ember.egg;
 
   // Pixel size — eggs/babies stay punchy; teens/adults render at the same
@@ -124,12 +124,38 @@ export function drawCompanion(scene, x, y, opts = {}) {
   const sprite = pixelGrid(scene, grid, layout.originX, layout.originY, PIXEL_SIZE, ch => colorFor(ch, pal));
   bodyG.add(sprite);
 
+  if (stage === 'cosmic') {
+    const pulseOverlay = pixelGrid(
+      scene, grid, layout.originX, layout.originY, PIXEL_SIZE,
+      ch => (ch === 'A' || ch === 'a' || ch === 'T') ? pal.sparkle : null
+    );
+    pulseOverlay.setBlendMode('ADD');
+    pulseOverlay.alpha = 0;
+    bodyG.add(pulseOverlay);
+    const stillAlive = () => pulseOverlay.active && scene.scene.isActive();
+    const pulseOnce = () => {
+      if (!stillAlive()) return;
+      scene.tweens.add({
+        targets: pulseOverlay,
+        alpha: { from: 0, to: 0.45 },
+        duration: 520,
+        yoyo: true,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          if (!stillAlive()) return;
+          scene.time.delayedCall(6000 + Math.random() * 2000, pulseOnce);
+        }
+      });
+    };
+    scene.time.delayedCall(900 + Math.random() * 1200, pulseOnce);
+  }
+
   // Mouth swap for sad mood. Cells with 'M' (mouth) get hidden and a frown
   // overlay is drawn at the mouth row.
   const mouth = scene.add.graphics();
   bodyG.add(mouth);
 
-  // Cosmetics that should bob WITH the pet body — hats and accessories.
+  // Cosmetics that bob WITH the pet body — held items, shades, etc.
   const wornG = scene.add.container(0, 0);
   bodyG.add(wornG);
 
@@ -137,16 +163,11 @@ export function drawCompanion(scene, x, y, opts = {}) {
   const auraG = scene.add.container(0, 0);
   container.add(auraG);
 
-  // Back-compat alias — older code paths read .cosmeticG; we expose wornG so
-  // animation hooks (jetpack flame, propeller, antenna) keep working.
-  const cosmeticG = wornG;
-
   container.setScale(userScale);
   container.species = species;
   container.stage = stage;
   container.pal = pal;
   container.layout = layout;
-  container.cosmeticG = cosmeticG;
   container.bodyG = bodyG;
   container.mouthG = mouth;
 
@@ -170,10 +191,6 @@ export function drawCompanion(scene, x, y, opts = {}) {
       duration: 250,
       ease: 'Back.easeOut'
     });
-    for (const item of cosmetics.itemsWithTrigger('correct')) {
-      const fn = container[item.animation];
-      if (typeof fn === 'function') fn();
-    }
   };
 
   container.slumpSad = () => {
@@ -189,84 +206,10 @@ export function drawCompanion(scene, x, y, opts = {}) {
     });
   };
 
-  container.rocketBoost = () => {
-    if (!cosmeticG.jetpackFlame) return;
-    const flame = cosmeticG.jetpackFlame;
-    flame.setAlpha(1);
-    scene.tweens.add({
-      targets: bodyG,
-      y: { from: bodyG.y, to: bodyG.y - 30 },
-      duration: 220,
-      yoyo: true,
-      ease: 'Quad.easeOut'
-    });
-    scene.tweens.add({
-      targets: flame,
-      scaleY: { from: 1, to: 1.8 },
-      alpha: { from: 1, to: 0.2 },
-      duration: 320,
-      ease: 'Quad.easeOut',
-      onComplete: () => flame.setAlpha(0)
-    });
-  };
-
-  container.propellerSpin = () => {
-    if (!cosmeticG.propeller) return;
-    const prop = cosmeticG.propeller;
-    scene.tweens.add({
-      targets: prop,
-      angle: prop.angle + 720,
-      duration: 480,
-      ease: 'Quad.easeOut'
-    });
-    scene.tweens.add({
-      targets: bodyG,
-      y: { from: bodyG.y, to: bodyG.y - 8 },
-      duration: 200,
-      yoyo: true,
-      ease: 'Sine.easeInOut'
-    });
-  };
-
-  container.radioWavePing = () => {
-    if (!cosmeticG.antennaTip) return;
-    const tip = cosmeticG.antennaTip;
-    for (let i = 0; i < 3; i++) {
-      const ring = scene.add.graphics();
-      ring.lineStyle(2, 0xffd86b, 0.9);
-      ring.strokeCircle(tip.x, tip.y, 6);
-      cosmeticG.add(ring);
-      scene.tweens.add({
-        targets: ring,
-        scaleX: 4, scaleY: 4, alpha: 0,
-        duration: 700,
-        delay: i * 130,
-        ease: 'Quad.easeOut',
-        onComplete: () => ring.destroy()
-      });
-    }
-  };
-
-  container.starHaloOrbit = () => {
-    if (!cosmeticG.starHalo) return;
-    for (const star of cosmeticG.starHalo.list) {
-      scene.tweens.add({
-        targets: star,
-        scale: { from: 1.6, to: 1 },
-        duration: 320,
-        ease: 'Back.easeOut'
-      });
-    }
-  };
-
   // Cosmetic application — reads override if provided (used by shop preview).
   container.applyCosmetics = () => {
     wornG.removeAll(true);
     auraG.removeAll(true);
-    wornG.jetpackFlame = null;
-    wornG.propeller = null;
-    wornG.antennaTip = null;
-    wornG.starHalo = null;
 
     const equipped = opts.cosmeticsOverride || cosmetics.getEquipped();
     const slots = ['accessory', 'hat', 'aura'];
@@ -284,17 +227,6 @@ export function drawCompanion(scene, x, y, opts = {}) {
         anchor: (name) => anchorXY(speciesId, stage, name, layout)
       };
       renderPetCosmetic(ctx);
-    }
-
-    // Always-on halo orbit
-    if (wornG.starHalo) {
-      scene.tweens.add({
-        targets: wornG.starHalo,
-        angle: 360,
-        duration: 6000,
-        repeat: -1,
-        ease: 'Linear'
-      });
     }
   };
 

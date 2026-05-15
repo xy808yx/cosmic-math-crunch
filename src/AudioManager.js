@@ -170,9 +170,7 @@ export class AudioManager {
     osc.stop(this.context.currentTime + 0.2);
   }
 
-  // Decaying white-noise burst. Returns nothing; schedules immediately or at
-  // `startOffset` seconds from now. Used by explosions, rumbles, etc.
-  _playNoiseBurst({ duration = 0.35, startOffset = 0, peakGain = 0.3, amplitude = 1 } = {}) {
+  _playNoiseBurst({ duration = 0.35, startOffset = 0, peakGain = 0.3, amplitude = 1, filter = null } = {}) {
     const bufferSize = Math.floor(this.context.sampleRate * duration);
     const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
     const data = buffer.getChannelData(0);
@@ -185,7 +183,16 @@ export class AudioManager {
     const startAt = this.context.currentTime + startOffset;
     gain.gain.setValueAtTime(peakGain, startAt);
     gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
-    noise.connect(gain);
+    if (filter) {
+      const f = this.context.createBiquadFilter();
+      f.type = filter.type || 'bandpass';
+      f.frequency.value = filter.frequency || 1000;
+      f.Q.value = filter.Q || 1;
+      noise.connect(f);
+      f.connect(gain);
+    } else {
+      noise.connect(gain);
+    }
     gain.connect(this.sfxGain);
     noise.start(startAt);
   }
@@ -376,6 +383,15 @@ export class AudioManager {
     melody.forEach(note => {
       this.playTone(note.freq, note.dur, 'sine', 0.35, note.time);
       this.playTone(note.freq * 1.25, note.dur, 'sine', 0.18, note.time);
+    });
+  }
+
+  playGlitchStatic({ duration = 0.18, peakGain = 0.10 } = {}) {
+    if (!this.enabled || !this.initialized) return;
+    this.resume();
+    this._playNoiseBurst({
+      duration, peakGain,
+      filter: { type: 'bandpass', frequency: 2200 + Math.random() * 1600, Q: 1.4 }
     });
   }
 

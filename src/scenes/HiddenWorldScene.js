@@ -1,30 +1,19 @@
-// Hidden world dispatcher: routes Glitch World (15) → Datamosh boss fight,
-// Dad's Garage (16) → non-combat exploration with cameo bubbles.
-// Both reward a unique cosmetic on first clear and return to the world map.
-//
-// Entered via the warp asteroid (from GameScene) or by tapping the hidden
-// node on the world map (after first discovery).
+// Dad's Garage exploration scene.
 
 import Phaser from 'phaser';
-import { progress, findWorld, getProblemForWorld, getDistractors } from '../GameData.js';
+import { progress, findWorld } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
-import { createStarfield } from '../starfieldHelper.js';
 import { style } from '../textStyles.js';
 import { createButton } from '../buttonHelper.js';
 import { createModal } from '../modalHelper.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
-import { ship } from '../ShipManager.js';
 import { cosmetics } from '../CosmeticManager.js';
 import { GARAGE_ITEMS, DAILY_NOTES } from '../content/dadGarage.js';
 
 const W = 1080;
 const H = 1920;
-
-const DATAMOSH_HP = 14;
-const CORE_INTEGRITY = 5;
-const DATAMOSH_ATTACK_INTERVAL_MS = 6500;
 
 export class HiddenWorldScene extends Phaser.Scene {
   constructor() {
@@ -34,7 +23,7 @@ export class HiddenWorldScene extends Phaser.Scene {
   init(data) {
     this.hiddenWorldId = data?.worldId
       || this.registry.get('hiddenWorldId')
-      || 15;
+      || 16;
     this.world = findWorld(this.hiddenWorldId);
   }
 
@@ -42,601 +31,17 @@ export class HiddenWorldScene extends Phaser.Scene {
     audio.init();
     music.pause();
 
-    if (!this.world) {
-      // Defensive: bail to map.
+    if (!this.world || this.world.kind !== 'exploration') {
+      // Defensive: this scene only handles exploration now. Anything else
+      // (legacy Glitch entry, missing world) bounces back to the map.
       this.scene.start('WorldMapScene');
       return;
     }
 
-    if (this.world.kind === 'gauntlet') {
-      this.createGlitchBossFight();
-      music.ensurePlaying(this, 'bossTheme');
-    } else {
-      this.createGarageExploration();
-      music.ensurePlaying(this, 'dadsGarage');
-    }
+    this.createGarageExploration();
+    music.ensurePlaying(this, 'dadsGarage');
 
     new TransitionManager(this).fadeIn(300);
-  }
-
-  // ============================================================
-  // GLITCH WORLD — Datamosh boss fight
-  // ============================================================
-  createGlitchBossFight() {
-    // Glitchy backdrop: green/magenta CRT noise feel.
-    this.cameras.main.setBackgroundColor('#0a0010');
-    createStarfield(this, {
-      width: W, height: H,
-      bgTopColor: 0x100020,
-      bgBottomColor: 0x000010,
-      accentColor: 0x39ff14,
-      accentStrength: 0.35
-    });
-
-    // Title — flickers
-    const title = this.add.text(W / 2, 130, 'GLITCH WORLD', style('display', {
-      fontSize: '64px',
-      fill: '#39ff14',
-      stroke: '#ff00ff',
-      strokeThickness: 5
-    })).setOrigin(0.5).setDepth(5);
-    this.tweens.add({
-      targets: title,
-      alpha: { from: 1, to: 0.4 },
-      duration: 280,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Linear'
-    });
-
-    this.add.text(W / 2, 188, 'Datamosh has corrupted the math core.', style('caption', {
-      fontSize: '24px',
-      fill: '#cfcfe0'
-    })).setOrigin(0.5).setDepth(5);
-    this.add.text(W / 2, 218, 'Debug the universe before it crashes.', style('caption', {
-      fontSize: '22px',
-      fill: '#ff00ff'
-    })).setOrigin(0.5).setDepth(5);
-
-    // Fight state
-    this.datamoshHp = DATAMOSH_HP;
-    this.maxDatamoshHp = DATAMOSH_HP;
-    this.coreIntegrity = CORE_INTEGRITY;
-    this.maxCoreIntegrity = CORE_INTEGRITY;
-    this.fightOver = false;
-    this.startTimeMs = this.time.now;
-    this._currentCorrect = null;
-    this._currentQuestionType = 'clean';
-    this._datamoshAttackQueued = false;
-
-    // Datamosh HP bar (top)
-    this.add.text(W / 2 - 460, 290, 'DATAMOSH', style('subhead', {
-      fontSize: '26px',
-      fill: '#ff00ff',
-      stroke: '#0a0a1a',
-      strokeThickness: 3
-    })).setOrigin(0, 0.5).setDepth(6);
-    this.hpText = this.add.text(W / 2 + 460, 290, `${this.datamoshHp}/${this.maxDatamoshHp}`, style('subhead', {
-      fontSize: '26px',
-      fill: '#ffffff',
-      stroke: '#0a0a1a',
-      strokeThickness: 3
-    })).setOrigin(1, 0.5).setDepth(6);
-    this.hpBarBg = this.add.graphics().setDepth(5);
-    this.hpBarFill = this.add.graphics().setDepth(5);
-    this.drawHpBar();
-
-    // Datamosh entity (re-skinned planet)
-    this.createGlitchPlanet(W / 2, 640, 180);
-
-    // Question card
-    this.questionCard = this.add.container(W / 2, 1000).setDepth(10);
-    const cardBg = this.add.graphics();
-    cardBg.fillStyle(0x000010, 0.95);
-    cardBg.fillRoundedRect(-440, -130, 880, 260, 24);
-    cardBg.lineStyle(4, 0x39ff14, 0.95);
-    cardBg.strokeRoundedRect(-440, -130, 880, 260, 24);
-    this.questionCard.add(cardBg);
-    this.questionText = this.add.text(0, 0, '', style('display', {
-      fontSize: '80px',
-      fill: '#ffffff',
-      stroke: '#39ff14',
-      strokeThickness: 4
-    })).setOrigin(0.5);
-    this.questionCard.add(this.questionText);
-
-    // Answer button container — rebuilt per question.
-    this.answerContainer = this.add.container(W / 2, 1330).setDepth(10);
-
-    // Math core integrity bar (bottom)
-    this.add.text(W / 2 - 460, 1570, 'MATH CORE', style('subhead', {
-      fontSize: '26px',
-      fill: '#39ff14',
-      stroke: '#0a0a1a',
-      strokeThickness: 3
-    })).setOrigin(0, 0.5).setDepth(6);
-    this.integrityText = this.add.text(W / 2 + 460, 1570, `${this.coreIntegrity}/${this.maxCoreIntegrity}`, style('subhead', {
-      fontSize: '26px',
-      fill: '#ffffff',
-      stroke: '#0a0a1a',
-      strokeThickness: 3
-    })).setOrigin(1, 0.5).setDepth(6);
-    this.integrityBarBg = this.add.graphics().setDepth(5);
-    this.integrityBarFill = this.add.graphics().setDepth(5);
-    this.drawIntegrityBar();
-
-    // Datamosh attack timer — every ~6.5s, force next question to be corrupted.
-    this.datamoshAttackEvent = this.time.addEvent({
-      delay: DATAMOSH_ATTACK_INTERVAL_MS,
-      loop: true,
-      callback: () => this.queueDatamoshAttack()
-    });
-
-    // First question
-    this.nextGlitchQuestion();
-  }
-
-  drawHpBar() {
-    const x = W / 2 - 460, y = 318, w = 920, h = 22;
-    this.hpBarBg.clear();
-    this.hpBarBg.fillStyle(0x000010, 1);
-    this.hpBarBg.fillRoundedRect(x, y, w, h, 6);
-    this.hpBarBg.lineStyle(3, 0x6c2bd9, 0.9);
-    this.hpBarBg.strokeRoundedRect(x, y, w, h, 6);
-    this.hpBarFill.clear();
-    const pct = this.datamoshHp / this.maxDatamoshHp;
-    if (pct > 0) {
-      this.hpBarFill.fillStyle(0xff00ff, 1);
-      this.hpBarFill.fillRoundedRect(x + 3, y + 3, (w - 6) * pct, h - 6, 4);
-    }
-  }
-
-  drawIntegrityBar() {
-    const x = W / 2 - 460, y = 1598, w = 920, h = 22;
-    this.integrityBarBg.clear();
-    this.integrityBarBg.fillStyle(0x000010, 1);
-    this.integrityBarBg.fillRoundedRect(x, y, w, h, 6);
-    this.integrityBarBg.lineStyle(3, 0x2a8aff, 0.9);
-    this.integrityBarBg.strokeRoundedRect(x, y, w, h, 6);
-    this.integrityBarFill.clear();
-    const pct = this.coreIntegrity / this.maxCoreIntegrity;
-    if (pct > 0) {
-      const color = pct > 0.5 ? 0x39ff14 : pct > 0.25 ? 0xffd86b : 0xff5b3d;
-      this.integrityBarFill.fillStyle(color, 1);
-      this.integrityBarFill.fillRoundedRect(x + 3, y + 3, (w - 6) * pct, h - 6, 4);
-    }
-  }
-
-  createGlitchPlanet(cx, cy, R) {
-    const container = this.add.container(cx, cy).setDepth(4);
-
-    // Red channel ghost (offset slightly left)
-    const redGhost = this.add.graphics();
-    drawGlitchPlanetSphere(redGhost, R, { tint: 0xff2244, alpha: 0.55, offsetX: -8 });
-    container.add(redGhost);
-
-    // Blue channel ghost (offset slightly right)
-    const blueGhost = this.add.graphics();
-    drawGlitchPlanetSphere(blueGhost, R, { tint: 0x2a8aff, alpha: 0.55, offsetX: 8 });
-    container.add(blueGhost);
-
-    // Main planet body (full sphere, green/magenta surface)
-    const body = this.add.graphics();
-    drawGlitchPlanetBody(body, R);
-    container.add(body);
-
-    // Datamosh blocks (procedural — re-drawn on flicker)
-    const mosh = this.add.graphics();
-    container.add(mosh);
-    const redrawMosh = () => {
-      mosh.clear();
-      const blockCount = 8 + Math.floor(Math.random() * 8);
-      for (let i = 0; i < blockCount; i++) {
-        const ang = Math.random() * Math.PI * 2;
-        const r = Math.random() * R * 0.92;
-        const bx = Math.cos(ang) * r;
-        const by = Math.sin(ang) * r;
-        const bw = 16 + Math.random() * 60;
-        const bh = 6 + Math.random() * 20;
-        const colors = [0x39ff14, 0xff00ff, 0xfff700, 0xffffff, 0x00f0ff];
-        const c = colors[Math.floor(Math.random() * colors.length)];
-        mosh.fillStyle(c, 0.55 + Math.random() * 0.4);
-        mosh.fillRect(bx - bw / 2, by - bh / 2, bw, bh);
-      }
-    };
-    redrawMosh();
-
-    // Scanline tears overlay (drawn over body)
-    const tears = this.add.graphics();
-    container.add(tears);
-    const redrawTears = () => {
-      tears.clear();
-      // Mostly inside the planet disc
-      for (let y = -R; y < R; y += 4) {
-        if (Math.random() < 0.07) {
-          const dx = (Math.random() - 0.5) * 30;
-          const halfW = Math.sqrt(Math.max(0, R * R - y * y)) - 2;
-          tears.fillStyle(0xff00ff, 0.55);
-          tears.fillRect(-halfW + dx, y, halfW * 2, 2);
-        }
-      }
-      // Hard horizontal slice tear
-      if (Math.random() < 0.6) {
-        const ty = (Math.random() - 0.5) * R * 1.4;
-        const halfW = Math.sqrt(Math.max(0, R * R - ty * ty)) + 8;
-        tears.fillStyle(0x39ff14, 0.65);
-        tears.fillRect(-halfW, ty, halfW * 2, 5);
-      }
-    };
-    redrawTears();
-
-    // "Missing chunk" — datamosh wedge revealing the void
-    const wedge = this.add.graphics();
-    const redrawWedge = () => {
-      wedge.clear();
-      const ang = Math.random() * Math.PI * 2;
-      const span = 0.5 + Math.random() * 0.4;
-      wedge.fillStyle(0x000010, 1);
-      wedge.beginPath();
-      wedge.moveTo(0, 0);
-      wedge.arc(0, 0, R + 4, ang, ang + span);
-      wedge.closePath();
-      wedge.fillPath();
-      // Glitchy edge of the void: jagged colored sparks
-      const steps = 12;
-      for (let i = 0; i <= steps; i++) {
-        const a = ang + (span * i) / steps;
-        const er = R + (Math.random() - 0.3) * 18;
-        wedge.fillStyle(i % 2 ? 0x39ff14 : 0xff00ff, 0.9);
-        wedge.fillRect(Math.cos(a) * er - 3, Math.sin(a) * er - 3, 6, 6);
-      }
-    };
-    container.add(wedge);
-    redrawWedge();
-
-    // Orbiting glitch debris
-    const debrisLayer = this.add.container(0, 0);
-    container.add(debrisLayer);
-    const debrisCount = 7;
-    for (let i = 0; i < debrisCount; i++) {
-      const d = this.add.graphics();
-      const colors = [0x39ff14, 0xff00ff, 0xfff700, 0xffffff];
-      const dc = colors[i % colors.length];
-      d.fillStyle(dc, 1);
-      const sz = 6 + Math.random() * 8;
-      d.fillRect(-sz / 2, -sz / 2, sz, sz);
-      d.orbitRadius = R + 30 + Math.random() * 60;
-      d.orbitAngle = (i / debrisCount) * Math.PI * 2;
-      d.orbitSpeed = 0.0008 + Math.random() * 0.0012;
-      debrisLayer.add(d);
-    }
-
-    // CRT vignette/glow halo around the planet (tight so HUD stays clean)
-    const halo = this.add.graphics();
-    halo.fillStyle(0x39ff14, 0.14);
-    halo.fillCircle(0, 0, R + 22);
-    halo.fillStyle(0xff00ff, 0.08);
-    halo.fillCircle(0, 0, R + 52);
-    container.addAt(halo, 0);
-
-    // Subtle bob + slow rotation feel via container scale
-    this.tweens.add({
-      targets: container,
-      y: cy - 6,
-      duration: 2200,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
-
-    // Periodic glitch flicker — redraw mosh/tears/wedge and jitter ghosts
-    this.time.addEvent({
-      delay: 220,
-      loop: true,
-      callback: () => {
-        redrawMosh();
-        redrawTears();
-        if (Math.random() < 0.5) redrawWedge();
-        const jx = (Math.random() - 0.5) * 14;
-        redGhost.x = -8 + jx;
-        blueGhost.x = 8 - jx;
-      }
-    });
-
-    // Orbit tick
-    this.time.addEvent({
-      delay: 32,
-      loop: true,
-      callback: () => {
-        for (const d of debrisLayer.list) {
-          d.orbitAngle += d.orbitSpeed * 32;
-          d.x = Math.cos(d.orbitAngle) * d.orbitRadius;
-          d.y = Math.sin(d.orbitAngle) * d.orbitRadius * 0.45; // squashed orbit
-          d.alpha = 0.5 + Math.sin(d.orbitAngle * 3) * 0.4;
-        }
-      }
-    });
-
-    return container;
-  }
-
-  nextGlitchQuestion() {
-    if (this.fightOver) return;
-
-    // 60% clean / 40% corrupted, BUT if Datamosh attack is queued, force corrupted.
-    const forceCorrupted = this._datamoshAttackQueued;
-    this._datamoshAttackQueued = false;
-    const isCorrupted = forceCorrupted || Math.random() < 0.4;
-
-    const problem = getProblemForWorld(15, 'mixed');
-
-    if (isCorrupted) {
-      this.showCorruptedQuestion(problem);
-    } else {
-      this.showCleanQuestion(problem);
-    }
-
-    this.questionCard.setScale(0.92);
-    this.tweens.add({
-      targets: this.questionCard,
-      scale: 1,
-      duration: 200,
-      ease: 'Back.easeOut'
-    });
-  }
-
-  showCleanQuestion(problem) {
-    this._currentQuestionType = 'clean';
-    this._currentCorrect = problem.answer;
-    this.questionText.setStyle({ fill: '#ffffff', stroke: '#39ff14' });
-    this.questionText.setText(`${problem.display} = ?`);
-
-    const distractors = getDistractors(problem, 3);
-    const buttons = shuffle([problem.answer, ...distractors]);
-    this.renderAnswerButtons(buttons, problem.answer, 0x39ff14);
-  }
-
-  showCorruptedQuestion(problem) {
-    this._currentQuestionType = 'corrupted';
-    const { a, b, op, answer } = problem;
-
-    // Hide one digit of the displayed answer (or the whole one-digit answer).
-    const ansStr = String(answer);
-    const hideIdx = Math.floor(Math.random() * ansStr.length);
-    const correctDigit = ansStr[hideIdx];
-    const masked = ansStr.slice(0, hideIdx) + '▓' + ansStr.slice(hideIdx + 1);
-
-    this._currentCorrect = correctDigit;
-    this.questionText.setStyle({ fill: '#ff00ff', stroke: '#39ff14' });
-    this.questionText.setText(`${a} ${op} ${b} = ${masked}`);
-
-    // 3 wrong single-digit options + the correct digit.
-    const wrongs = [];
-    while (wrongs.length < 3) {
-      const d = String(Math.floor(Math.random() * 10));
-      if (d !== correctDigit && !wrongs.includes(d)) wrongs.push(d);
-    }
-    const buttons = shuffle([correctDigit, ...wrongs]);
-    this.renderAnswerButtons(buttons, correctDigit, 0xff00ff);
-  }
-
-  renderAnswerButtons(values, correctValue, color) {
-    this.answerContainer.removeAll(true);
-    const cols = values.length;
-    const buttonWidth = 200;
-    const gap = 24;
-    const totalW = cols * buttonWidth + (cols - 1) * gap;
-    const startX = -totalW / 2 + buttonWidth / 2;
-
-    values.forEach((val, idx) => {
-      const x = startX + idx * (buttonWidth + gap);
-      const btn = createButton(this, {
-        x, y: 0,
-        width: buttonWidth, height: 140,
-        label: String(val),
-        color,
-        textOverrides: { fontSize: '44px', fill: '#0a0a1a', fontStyle: '900' },
-        onClick: () => this.handleGlitchAnswer(val, correctValue)
-      });
-      this.answerContainer.add(btn);
-    });
-  }
-
-  handleGlitchAnswer(val, correctVal) {
-    if (this.fightOver) return;
-    const right = String(val) === String(correctVal);
-    if (right) {
-      this.damageDatamosh();
-      audio.playMatch?.();
-      if (this._currentQuestionType === 'corrupted') {
-        this.showDebuggedFlash();
-      } else {
-        // Subtle green flash for clean hits
-        const flash = this.add.rectangle(W / 2, H / 2, W, H, 0x39ff14, 0).setDepth(50);
-        this.tweens.add({
-          targets: flash, alpha: 0.14, duration: 80, yoyo: true,
-          onComplete: () => flash.destroy()
-        });
-      }
-    } else {
-      this.damageIntegrity();
-      audio.playWrong?.();
-      this.cameras.main.shake(150, 0.006);
-    }
-    if (this.fightOver) return;
-    this.nextGlitchQuestion();
-  }
-
-  damageDatamosh() {
-    this.datamoshHp = Math.max(0, this.datamoshHp - 1);
-    this.hpText.setText(`${this.datamoshHp}/${this.maxDatamoshHp}`);
-    this.drawHpBar();
-    if (this.datamoshHp <= 0) {
-      this.fightOver = true;
-      this.time.delayedCall(400, () => this.endGlitchBossFight(true));
-    }
-  }
-
-  damageIntegrity() {
-    this.coreIntegrity = Math.max(0, this.coreIntegrity - 1);
-    this.integrityText.setText(`${this.coreIntegrity}/${this.maxCoreIntegrity}`);
-    this.drawIntegrityBar();
-    if (this.coreIntegrity <= 0) {
-      this.fightOver = true;
-      this.time.delayedCall(400, () => this.endGlitchBossFight(false));
-    }
-  }
-
-  queueDatamoshAttack() {
-    if (this.fightOver) return;
-    this._datamoshAttackQueued = true;
-    this.cameras.main.shake(220, 0.009);
-    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xff00ff, 0).setDepth(50);
-    this.tweens.add({
-      targets: flash, alpha: 0.22, duration: 160, yoyo: true,
-      onComplete: () => flash.destroy()
-    });
-  }
-
-  showDebuggedFlash() {
-    const txt = this.add.text(W / 2, 1180, 'DEBUGGED', style('display', {
-      fontSize: '54px',
-      fill: '#39ff14',
-      stroke: '#0a0a1a',
-      strokeThickness: 5
-    })).setOrigin(0.5).setDepth(60);
-    txt.setScale(0.6);
-    this.tweens.add({
-      targets: txt, scale: 1.1, alpha: 0, duration: 700, ease: 'Cubic.easeOut',
-      onComplete: () => txt.destroy()
-    });
-  }
-
-  endGlitchBossFight(won) {
-    if (this.datamoshAttackEvent) this.datamoshAttackEvent.remove();
-
-    if (won) {
-      const wasFirstClear = !progress.isHiddenWorldCleared(15);
-      progress.clearHiddenWorld(15);
-      const timeMs = this.time.now - this.startTimeMs;
-      const isNewBest = progress.recordGlitchClearTime(timeMs);
-      if (wasFirstClear) {
-        ship.addAndEquip('decal_glitch');
-      }
-      this.showVictoryModal(timeMs, wasFirstClear, isNewBest);
-    } else {
-      this.showDefeatModal();
-    }
-  }
-
-  showVictoryModal(timeMs, wasFirstClear, isNewBest) {
-    const { card, close } = createModal(this, {
-      width: 880, height: 760,
-      accentColor: 0x39ff14,
-      strokeWidth: 4,
-      showCloseHint: false
-    });
-
-    card.add(this.add.text(0, -280, 'DATAMOSH DEFEATED', style('display', {
-      fontSize: '52px',
-      fill: '#39ff14',
-      stroke: '#ff00ff',
-      strokeThickness: 4
-    })).setOrigin(0.5));
-
-    card.add(this.add.text(0, -190, `Time: ${formatTime(timeMs)}`, style('subhead', {
-      fontSize: '40px',
-      fill: '#ffffff'
-    })).setOrigin(0.5));
-
-    const prevBest = progress.getGlitchBest();
-    if (prevBest != null && !isNewBest) {
-      card.add(this.add.text(0, -130, `Best: ${formatTime(prevBest)}`, style('caption', {
-        fontSize: '24px',
-        fill: '#cfcfe0'
-      })).setOrigin(0.5));
-    } else if (isNewBest) {
-      card.add(this.add.text(0, -130, 'NEW BEST!', style('subhead', {
-        fontSize: '28px',
-        fill: '#ffd86b'
-      })).setOrigin(0.5));
-    }
-
-    if (wasFirstClear) {
-      card.add(this.add.text(0, -40, 'The math core stabilizes.\nDatamosh dissolves into pixels.', style('body', {
-        fontSize: '26px',
-        fill: '#cfcfe0',
-        align: 'center',
-        wordWrap: { width: 760 }
-      })).setOrigin(0.5));
-      card.add(this.add.text(0, 100, 'Unlocked: GLITCH ship decal', style('subhead', {
-        fontSize: '30px',
-        fill: '#39ff14'
-      })).setOrigin(0.5));
-    } else {
-      card.add(this.add.text(0, 0, 'The core holds. Glitch contained.', style('caption', {
-        fontSize: '26px',
-        fill: '#cfcfe0',
-        align: 'center'
-      })).setOrigin(0.5));
-    }
-
-    card.add(createButton(this, {
-      x: 0, y: 260, width: 320, height: 92,
-      label: 'Return',
-      color: 0x39ff14,
-      textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
-      onClick: () => {
-        close();
-        music.ensurePlaying(this, 'homeTheme');
-        this.scene.start('WorldMapScene');
-      }
-    }));
-  }
-
-  showDefeatModal() {
-    const { card, close } = createModal(this, {
-      width: 880, height: 620,
-      accentColor: 0xff5b3d,
-      strokeWidth: 4,
-      showCloseHint: false
-    });
-
-    card.add(this.add.text(0, -220, 'CORE CRASHED', style('display', {
-      fontSize: '52px',
-      fill: '#ff5b3d',
-      stroke: '#0a0a1a',
-      strokeThickness: 4
-    })).setOrigin(0.5));
-
-    card.add(this.add.text(0, -100, 'Datamosh wins this round.\nThe math core needs you.', style('body', {
-      fontSize: '28px',
-      fill: '#cfcfe0',
-      align: 'center',
-      wordWrap: { width: 760 }
-    })).setOrigin(0.5));
-
-    card.add(createButton(this, {
-      x: -130, y: 160, width: 260, height: 92,
-      label: 'Retry',
-      color: 0x39ff14,
-      textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
-      onClick: () => {
-        close();
-        this.scene.restart();
-      }
-    }));
-    card.add(createButton(this, {
-      x: 130, y: 160, width: 260, height: 92,
-      label: 'Return',
-      color: 0xff5b3d,
-      textOverrides: { fontSize: '28px', fill: '#ffffff', fontStyle: '900' },
-      onClick: () => {
-        close();
-        music.ensurePlaying(this, 'homeTheme');
-        this.scene.start('WorldMapScene');
-      }
-    }));
   }
 
   // ============================================================
@@ -657,8 +62,7 @@ export class HiddenWorldScene extends Phaser.Scene {
     this.createWhiteboard();
     this.createGaragePet();
 
-    // Item placement (visuals + hitboxes stay in code; bubble text lives in
-    // src/content/dadGarage.js so it's easy to edit without touching this scene).
+    // Bubble text lives in src/content/dadGarage.js.
     const bubbleFor = id => (GARAGE_ITEMS.find(i => i.id === id)?.bubble) || '';
     const items = [
       { id: 'freezer',  x: 175,    y: 580,  hitW: 240, hitH: 180, draw: drawChestFreezer, label: 'Chest freezer' },
@@ -672,14 +76,6 @@ export class HiddenWorldScene extends Phaser.Scene {
       { id: 'ebike',    x: 760,    y: 1280, hitW: 360, hitH: 240, draw: drawRadPower,     label: 'Ebike' },
       { id: 'shoes',    x: W / 2,  y: 1560, hitW: 760, hitH: 200, draw: drawShoeRack,     label: 'Running shoes' }
     ].map(it => ({ ...it, bubble: bubbleFor(it.id) }));
-
-    let visited = 0;
-    this.workshopProgress = this.add.text(W / 2, 1740, `0 / ${items.length} found`, style('caption', {
-      fontSize: '28px',
-      fill: '#ffd86b'
-    })).setOrigin(0.5).setDepth(5);
-
-    let returnBtn = null;
 
     for (const item of items) {
       const node = this.add.container(item.x, item.y).setDepth(8);
@@ -695,7 +91,7 @@ export class HiddenWorldScene extends Phaser.Scene {
         ease: 'Sine.easeInOut'
       });
 
-      const labelText = this.add.text(item.x, item.y + item.hitH / 2 + 16, item.label, style('caption', {
+      this.add.text(item.x, item.y + item.hitH / 2 + 16, item.label, style('caption', {
         fontSize: '20px',
         fill: '#ffd86b',
         stroke: '#0a0a1a',
@@ -705,30 +101,15 @@ export class HiddenWorldScene extends Phaser.Scene {
       const hit = this.add.rectangle(item.x, item.y, item.hitW, item.hitH, 0, 0)
         .setInteractive({ useHandCursor: true }).setDepth(9);
 
-      let used = false;
       hit.on('pointerdown', () => {
-        if (used) {
-          this.showBubble(item.x, item.y, item.bubble);
+        audio.playClick?.();
+        if (item.id === 'bins' && !progress.isHiddenWorldCleared(16)) {
+          this.showUnlockCelebration();
           return;
         }
-        used = true;
-        visited++;
-        audio.playClick?.();
-        this.workshopProgress.setText(`${visited} / ${items.length} found`);
-        labelText.setColor('#a7f3d0');
         this.showBubble(item.x, item.y, item.bubble);
-        if (visited === items.length && !returnBtn) {
-          this.time.delayedCall(1200, () => {
-            returnBtn = this.showWorkshopFinish();
-          });
-        }
       });
     }
-
-    this.add.text(W / 2, 1820, '(Find everything to unlock Dad\'s Glasses)', style('caption', {
-      fontSize: '20px',
-      fill: '#9a9aae'
-    })).setOrigin(0.5).setDepth(5);
 
     const leaveBtn = createButton(this, {
       x: W - 130, y: 100, label: 'Leave',
@@ -871,47 +252,44 @@ export class HiddenWorldScene extends Phaser.Scene {
     });
   }
 
-  showWorkshopFinish() {
-    const wasFirstClear = !progress.isHiddenWorldCleared(16);
+  showUnlockCelebration() {
     progress.clearHiddenWorld(16);
-    if (wasFirstClear) {
-      cosmetics.addAndEquip('acc_dad_glasses');
-    }
+    cosmetics.addAndEquip('acc_dad_glasses');
+    audio.playMatch?.();
 
-    const { card, close } = createModal(this, {
-      width: 880, height: 620,
+    const { card } = createModal(this, {
+      width: 880, height: 660,
       accentColor: 0xffd86b,
       showCloseHint: false
     });
-    card.add(this.add.text(0, -200, 'YOU FOUND EVERYTHING', style('display', {
-      fontSize: '52px',
-      fill: '#ffd86b'
+    card.add(this.add.text(0, -220, 'YOU FOUND IT!', style('display', {
+      fontSize: '60px',
+      fill: '#ffd86b',
+      stroke: '#0a0a1a',
+      strokeThickness: 5
     })).setOrigin(0.5));
-    if (wasFirstClear) {
-      card.add(this.add.text(0, -40, "Unlocked: Dad's Glasses", style('subhead', {
-        fontSize: '30px',
-        fill: '#ffd86b',
-        align: 'center'
-      })).setOrigin(0.5));
-      card.add(this.add.text(0, 70, '(equipped on your pet)', style('caption', {
-        fontSize: '22px',
-        fill: '#cfcfe0',
-        align: 'center'
-      })).setOrigin(0.5));
-    } else {
-      card.add(this.add.text(0, 40, 'Come back tomorrow for a new note.', style('caption', {
-        fontSize: '24px',
-        fill: '#cfcfe0',
-        align: 'center'
-      })).setOrigin(0.5));
-    }
+    card.add(this.add.text(0, -130, 'Tucked away in the storage bins.', style('caption', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      align: 'center'
+    })).setOrigin(0.5));
+
+    // Show the pet wearing the freshly-equipped glasses.
+    const previewPet = drawCompanion(this, 0, 20, { scale: 1.4 });
+    card.add(previewPet);
+
+    card.add(this.add.text(0, 150, "Unlocked: Dad's Glasses", style('subhead', {
+      fontSize: '32px',
+      fill: '#ffd86b',
+      align: 'center'
+    })).setOrigin(0.5));
+
     card.add(createButton(this, {
-      x: 0, y: 220, width: 320, height: 92,
-      label: 'Return',
+      x: 0, y: 240, width: 320, height: 92,
+      label: 'Sweet',
       color: 0xffd86b,
       textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
       onClick: () => {
-        close();
         music.ensurePlaying(this, 'homeTheme');
         this.scene.start('WorldMapScene');
       }
@@ -990,12 +368,10 @@ export class HiddenWorldScene extends Phaser.Scene {
       });
     }
 
-    // Tap behavior: a quick chirp + bubble pop confirming the message.
     const hit = this.add.rectangle(W / 2, 268, 460, 130, 0, 0)
       .setInteractive({ useHandCursor: true }).setDepth(4);
     hit.on('pointerdown', () => {
       audio.playClick?.();
-      this.showBubble(W / 2, 350, message);
       if (badge) {
         this.tweens.add({
           targets: badge,
@@ -1004,7 +380,41 @@ export class HiddenWorldScene extends Phaser.Scene {
         });
         badge = null;
       }
+      this.showDailyNotePopup(message);
     });
+  }
+
+  showDailyNotePopup(message) {
+    const { card } = createModal(this, {
+      width: 920, height: 1000,
+      accentColor: 0xffd86b,
+      radius: 28, strokeWidth: 4,
+      overlayAlpha: 0.85,
+      closeOnCardTap: true
+    });
+
+    card.add(this.add.text(0, -380, "DAD'S NOTE", style('display', {
+      fontSize: '52px',
+      fill: '#ffd86b',
+      stroke: '#0a0a1a',
+      strokeThickness: 5
+    })).setOrigin(0.5));
+
+    const board = this.add.graphics();
+    board.fillStyle(0x2a2620, 1);
+    board.fillRoundedRect(-380, -280, 760, 560, 10);
+    board.fillStyle(0xfafaf0, 1);
+    board.fillRoundedRect(-368, -268, 736, 536, 6);
+    card.add(board);
+
+    card.add(this.add.text(0, 0, message, style('body', {
+      fontSize: '52px',
+      fill: '#2a1f12',
+      align: 'center',
+      wordWrap: { width: 680 },
+      fontStyle: 'italic',
+      lineSpacing: 12
+    })).setOrigin(0.5));
   }
 
   createGaragePet() {
@@ -1079,27 +489,7 @@ export class HiddenWorldScene extends Phaser.Scene {
 }
 
 // ============================================================
-// MISC HELPERS
-// ============================================================
-
-function shuffle(arr) {
-  const out = [...arr];
-  for (let i = out.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [out[i], out[j]] = [out[j], out[i]];
-  }
-  return out;
-}
-
-function formatTime(ms) {
-  const totalSecs = Math.max(0, Math.round(ms / 100) / 10);
-  const m = Math.floor(totalSecs / 60);
-  const s = totalSecs - m * 60;
-  return m > 0 ? `${m}:${s.toFixed(1).padStart(4, '0')}` : `${s.toFixed(1)}s`;
-}
-
-// ============================================================
-// GLITCH PLANET HELPERS
+// GLITCH PLANET HELPERS — drawn on the world map only.
 // ============================================================
 
 // Single-tint ghost sphere (used for RGB channel split).

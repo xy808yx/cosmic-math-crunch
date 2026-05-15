@@ -2,7 +2,7 @@
 // black/red bar effect, the villain's name in heavy bold, an epithet, screen
 // shake, and a low boom. Skippable on tap. Calls onDone when finished.
 
-import { WORLDS } from './GameData.js';
+import { findWorld } from './GameData.js';
 import { audio } from './AudioManager.js';
 import { style } from './textStyles.js';
 
@@ -21,11 +21,12 @@ const BOSS_EPITHETS = {
   8: 'THE DYING-STAR REVENANT',
   9: 'CRUSHER OF GALAXIES',
   10: 'YOUR REFLECTION, ARMED',
-  11: 'WHEN ALL LIGHT ENDS'
+  11: 'WHEN ALL LIGHT ENDS',
+  15: 'CORRUPTOR OF FACTS'
 };
 
 export function playBossIntro(scene, worldId, onDone) {
-  const world = WORLDS[worldId - 1];
+  const world = findWorld(worldId);
   const villainName = (world?.villain || 'Boss').toUpperCase();
   const epithet = BOSS_EPITHETS[worldId] || '';
 
