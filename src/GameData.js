@@ -198,23 +198,23 @@ export const MODES = {
 // Phase 2 uses this to size each asteroid's fall duration; Phase 3 will also
 // drive multi-asteroid spawn cadence.
 const WORLD_PROBLEM_SECONDS = {
-  1: 7.0,  2: 6.0,  3: 5.5,  4: 5.0,  5: 4.5,
-  6: 4.0,  7: 3.5,  8: 3.0,  9: 2.5,  10: 2.0,  11: 1.5,
+  1: 8.0,  2: 7.5,  3: 7.0,  4: 6.5,  5: 6.0,
+  6: 5.5,  7: 5.0,  8: 4.5,  9: 4.0,  10: 3.5,  11: 3.0,
   // Hidden worlds use their own pacing (read lazily).
-  15: 2.0,  16: 4.0
+  15: 3.5,  16: 4.0
 };
 
 function getProblemSecondsForWorld(worldId) {
   return WORLD_PROBLEM_SECONDS[worldId] ?? 6.0;
 }
 
-// Number of asteroids on screen at once. Worlds 1–5 = 1, 6–8 = 2, 9–11 = 3.
-// Hidden Glitch World (15) plays with W11 density; Workshop (16) is non-combat.
+// Number of asteroids on screen at once. Worlds 1–7 = 1, 8–10 = 2, 11 = 3.
+// Hidden Glitch World (15) plays with endgame density; Workshop (16) is non-combat.
 export function getAsteroidCountForWorld(worldId) {
   if (worldId === 15) return 3;
   if (worldId === 16) return 0;
-  if (worldId <= 5) return 1;
-  if (worldId <= 8) return 2;
+  if (worldId <= 7) return 1;
+  if (worldId <= 10) return 2;
   return 3;
 }
 
