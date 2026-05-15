@@ -2575,16 +2575,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.time.delayedCall(2200, () => {
+      // Hand off to the world map. It picks up these flags in tryWarpArrival,
+      // animates the ship along the dashed branch from the host world to the
+      // newly discovered hidden world, then starts the destination scene.
       this.registry.set('hiddenWorldId', hiddenId);
-      if (hiddenId === 15) {
-        // Glitch World is a real boss fight in GameScene now.
-        this.registry.set('currentWorldId', 15);
-        this.registry.set('currentLevel', 1);
-        this.registry.set('levelMode', 'boss');
-        this.scene.start('GameScene');
-      } else {
-        this.scene.start('HiddenWorldScene', { worldId: hiddenId });
-      }
+      this.registry.set('warpArrivalHiddenId', hiddenId);
+      this.registry.set('warpArrivalFromWorldId', this.worldId);
+      this.scene.start('WorldMapScene');
     });
   }
 }
