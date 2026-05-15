@@ -620,27 +620,6 @@ function drawEngineTrail(scene, container, trailId, x, y, scale) {
     return;
   }
 
-  // ----- NEW TRAILS ----------------------------------------------------
-  if (trailId === 'trail_starlight') {
-    // Tiny gold stars drifting down with subtle scale pulse
-    for (let i = 0; i < 7; i++) {
-      const star = scene.add.graphics();
-      star.fillStyle(i % 3 === 0 ? 0xffffff : 0xfff3b8, 0.95);
-      drawStarShape(star, 0, 0, 5, (2 + Math.random() * 1.5) * scale, (0.8 + Math.random() * 0.6) * scale);
-      star.x = x + (Math.random() - 0.5) * 16 * scale;
-      star.y = baseY + Math.random() * 24 * scale;
-      container.add(star);
-      scene.tweens.add({
-        targets: star,
-        y: star.y + 36 * scale,
-        alpha: { from: 1, to: 0 },
-        scale: { from: 1, to: 0.4 },
-        duration: 1000 + Math.random() * 500,
-        repeat: -1, ease: 'Quad.easeOut'
-      });
-    }
-    return;
-  }
   if (trailId === 'trail_pixel_smoke') {
     // Chunky 8-bit smoke puffs — square-pixel blobs in light gray
     for (let i = 0; i < 6; i++) {
