@@ -91,6 +91,86 @@ function lerpToGray(color, t) {
   return (lr << 16) | (lg << 8) | lb;
 }
 
+// Stardust halo — a gold ring + inner glow drawn behind the asteroid body.
+// Caller (GameScene) layers orbital sparkles with tweens on top.
+export function drawStardustHalo(g, radius) {
+  g.fillStyle(0xffe07a, 0.20);
+  g.fillCircle(0, 0, radius * 1.55);
+  g.fillStyle(0xfff3b8, 0.30);
+  g.fillCircle(0, 0, radius * 1.30);
+  g.lineStyle(5, 0xffd86b, 0.85);
+  g.strokeCircle(0, 0, radius * 1.18);
+  g.lineStyle(2, 0xffffff, 0.55);
+  g.strokeCircle(0, 0, radius * 1.05);
+}
+
+// Twist overlay — a thin, non-distracting visual marker on the asteroid that
+// signals which problem twist is active. Caller decides whether to also tween
+// it (e.g. flare pulses).
+//
+//   flare    → red/orange flame ring (W8 + W11 random)
+//   gravity  → magenta pull-line streaks (W9 + W11 random)
+//   mirror   → cyan shimmer seam (W10 + W11 random)
+export function drawTwistOverlay(g, twistKind, radius) {
+  if (twistKind === 'flare') {
+    g.lineStyle(6, 0xff6b3d, 0.85);
+    g.strokeCircle(0, 0, radius * 1.20);
+    g.lineStyle(3, 0xffe07a, 0.65);
+    g.strokeCircle(0, 0, radius * 1.30);
+    // Inner heat glow.
+    g.fillStyle(0xff8b3d, 0.18);
+    g.fillCircle(0, 0, radius * 1.10);
+    return;
+  }
+  if (twistKind === 'gravity') {
+    // Four magenta pull-lines pointing into the center.
+    g.lineStyle(4, 0xff00ff, 0.65);
+    for (let i = 0; i < 4; i++) {
+      const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+      const x1 = Math.cos(a) * radius * 1.40;
+      const y1 = Math.sin(a) * radius * 1.40;
+      const x2 = Math.cos(a) * radius * 1.05;
+      const y2 = Math.sin(a) * radius * 1.05;
+      g.lineBetween(x1, y1, x2, y2);
+    }
+    g.lineStyle(2, 0xff00ff, 0.4);
+    g.strokeCircle(0, 0, radius * 1.45);
+    return;
+  }
+  if (twistKind === 'mirror') {
+    // Vertical shimmer seam down the middle, cyan accents on both sides.
+    g.lineStyle(4, 0x9bd4ff, 0.75);
+    g.lineBetween(0, -radius * 1.10, 0, radius * 1.10);
+    g.lineStyle(2, 0xffffff, 0.5);
+    g.lineBetween(-3, -radius * 1.08, -3, radius * 1.08);
+    g.lineBetween(3, -radius * 1.08, 3, radius * 1.08);
+    // Bracket marks left/right.
+    g.lineStyle(3, 0x9bd4ff, 0.7);
+    g.lineBetween(-radius * 1.20, -radius * 0.50, -radius * 1.20, radius * 0.50);
+    g.lineBetween(radius * 1.20, -radius * 0.50, radius * 1.20, radius * 0.50);
+  }
+}
+
+// Mini-boss HP pips — two small dots above the asteroid showing remaining hits.
+// Caller passes hpRemaining (0..maxHp). Renders into a Graphics that's
+// positioned at the asteroid's local origin; pips sit at -radius - 28.
+export function drawMiniBossPips(g, hpRemaining, maxHp, radius) {
+  g.clear();
+  const pipR = 9;
+  const spacing = 26;
+  const totalW = (maxHp - 1) * spacing;
+  const startX = -totalW / 2;
+  const y = -radius - 28;
+  for (let i = 0; i < maxHp; i++) {
+    const x = startX + i * spacing;
+    const filled = i < hpRemaining;
+    g.lineStyle(2, 0x0a0010, 0.9);
+    g.fillStyle(filled ? 0xffffff : 0x3a3a4a, 1);
+    g.fillCircle(x, y, pipR);
+    g.strokeCircle(x, y, pipR);
+  }
+}
+
 // =========================================================================
 // NORMAL QUESTION OBJECTS
 // =========================================================================

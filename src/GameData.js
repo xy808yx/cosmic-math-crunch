@@ -145,7 +145,7 @@ export const WORLDS = [
     flavorText: 'You found it. Dad smiles at the screen.',
     levelsRequired: 1,
     hidden: true,
-    discoveredFrom: { worldId: 9, mode: 'mixed' },
+    discoveredFrom: { worldId: 9, modes: ['mult', 'mixed'] },
     kind: 'exploration'
   }
 ];
@@ -157,7 +157,7 @@ export const VISIBLE_WORLDS = WORLDS.filter(w => !w.hidden);
 export const HIDDEN_WORLDS = WORLDS.filter(w => w.hidden);
 
 // The final visible boss — beating it triggers the endgame cinematic + credits.
-export const FINAL_VISIBLE_WORLD_ID =
+const FINAL_VISIBLE_WORLD_ID =
   VISIBLE_WORLDS[VISIBLE_WORLDS.length - 1].id;
 
 // True if this world is the FINAL visible world (last boss = end-of-game).
@@ -178,11 +178,15 @@ export function findWorld(worldId) {
 }
 
 // Which hidden world (if any) is reachable from this (worldId, mode) host?
+// Supports both shapes: { mode: 'div' } (single host mode) and
+// { modes: ['mult', 'mixed'] } (list of host modes — Dad's Garage uses this).
 export function getHiddenWorldForHost(worldId, mode) {
-  return HIDDEN_WORLDS.find(h =>
-    h.discoveredFrom?.worldId === worldId &&
-    h.discoveredFrom?.mode === mode
-  ) || null;
+  return HIDDEN_WORLDS.find(h => {
+    const df = h.discoveredFrom;
+    if (df?.worldId !== worldId) return false;
+    if (df.modes) return df.modes.includes(mode);
+    return df.mode === mode;
+  }) || null;
 }
 
 // Mode → human-readable label and config used by GameScene/LevelSelectScene.
@@ -194,9 +198,8 @@ export const MODES = {
   mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
 
-// Per-problem timer (seconds) keyed by world id. Drives asteroid descent speed.
-// Phase 2 uses this to size each asteroid's fall duration; Phase 3 will also
-// drive multi-asteroid spawn cadence.
+// Per-problem timer (seconds) keyed by world id. Drives asteroid descent speed
+// and spawn cadence.
 const WORLD_PROBLEM_SECONDS = {
   1: 8.0,  2: 7.5,  3: 7.0,  4: 6.5,  5: 6.0,
   6: 5.5,  7: 5.0,  8: 4.5,  9: 4.0,  10: 3.5,  11: 3.0,
@@ -204,18 +207,28 @@ const WORLD_PROBLEM_SECONDS = {
   15: 3.5,  16: 4.0
 };
 
+// Tuning dials for the upper-level variety mechanics. Stardust, twists, and
+// mini-bosses all gate on world id and roll against these. One stop for
+// playtest tweaks — no spelunking.
+export const UPPER_LEVEL_CONFIG = {
+  stardust: { minWorldId: 8,  oneIn: 8, bonusScore: 2, bonusStreak: 2 },
+  twist:    { minWorldId: 8,  rate: { 8: 0.30, 9: 0.30, 10: 0.30, 11: 0.40 } },
+  miniBoss: { minWorldId: 10, oneIn: 8, hp: 2, fallMultiplier: 1.3, bonusScore: 3 },
+};
+
 function getProblemSecondsForWorld(worldId) {
   return WORLD_PROBLEM_SECONDS[worldId] ?? 6.0;
 }
 
-// Number of asteroids on screen at once. Worlds 1–7 = 1, 8–10 = 2, 11 = 3.
-// Hidden Glitch World (15) plays with endgame density; Workshop (16) is non-combat.
+// Number of ANSWERABLE asteroids on screen at once. Every world is single-slot
+// now — multi-slot share-the-button-strip caused a class of bugs (warp focus
+// theft, duplicate problems, target-swap mid-tap, race conditions) that we
+// kept whack-a-moling. Difficulty still scales via fall speed (W1 8s/problem,
+// W11 3s/problem) and per-world problem pools.
+// Workshop (16) is non-combat (0 means no spawn loop).
 export function getAsteroidCountForWorld(worldId) {
-  if (worldId === 15) return 3;
   if (worldId === 16) return 0;
-  if (worldId <= 7) return 1;
-  if (worldId <= 10) return 2;
-  return 3;
+  return 1;
 }
 
 // Boss timer adds +1.0s to the world's per-problem timer — boss is rigorous
@@ -400,7 +413,7 @@ export function getDistractors(problem, count = 3) {
 // Math is no longer constrained by world — facts are sampled freely from 1..12.
 // `worldId` is accepted for back-compat but only used for theming elsewhere.
 //
-// Fact-pool weighting (Phase 3):
+// Fact-pool weighting:
 //   - mode === 'boss': 100% weak facts (lowest accuracy first; ties broken by
 //     slowest avg). Falls back to random if no factMastery data exists yet.
 //   - other modes: 60% weak fact, 40% pure random. The "weak" picker pulls
@@ -469,6 +482,109 @@ export function getProblemForWorld(_worldId, mode = 'mult') {
     answer: product,
     factKey
   };
+}
+
+// Wraps getProblemForWorld with a W8+ "twist" — same underlying fact, different
+// presentation. Each upper world has a signature twist; W11 mixes them. Twists
+// that don't fit the current operation (e.g. mirror only makes sense for ×)
+// degrade to flare (visual-only) so the upper levels never look "normal."
+//
+// Returns the standard problem shape plus { twistKind, twistDistractors? }.
+// `twistKind: null` means "no twist this spawn" (rolls below the per-world rate).
+export function getTwistedProblem(worldId, mode) {
+  const base = getProblemForWorld(worldId, mode);
+  if (worldId < UPPER_LEVEL_CONFIG.twist.minWorldId) {
+    return { ...base, twistKind: null };
+  }
+
+  const rate = UPPER_LEVEL_CONFIG.twist.rate[worldId] ?? 0;
+  if (Math.random() > rate) return { ...base, twistKind: null };
+
+  const kindForWorld = {
+    8: 'flare',
+    9: 'gravity',
+    10: 'mirror',
+    11: ['flare', 'gravity', 'mirror'][Math.floor(Math.random() * 3)],
+  };
+  const kind = kindForWorld[worldId] || 'flare';
+
+  if (kind === 'flare') {
+    return { ...base, twistKind: 'flare' };
+  }
+
+  if (kind === 'mirror' && base.op === '×') {
+    const match = base.display.match(/^(\d+)\s*×\s*(\d+)$/);
+    if (!match) return { ...base, twistKind: 'flare' };
+    const swapped = `${match[2]} × ${match[1]}`;
+    return { ...base, display: swapped, twistKind: 'mirror' };
+  }
+
+  if (kind === 'gravity' && base.op === '×') {
+    const match = base.display.match(/^(\d+)\s*×\s*(\d+)$/);
+    if (!match) return { ...base, twistKind: 'flare' };
+    const left = parseInt(match[1], 10);
+    const right = parseInt(match[2], 10);
+    const product = base.answer;
+    const hideLeft = Math.random() < 0.5;
+    const missingFactor = hideLeft ? left : right;
+    const visibleFactor = hideLeft ? right : left;
+    const display = hideLeft
+      ? `? × ${right} = ${product}`
+      : `${left} × ? = ${product}`;
+    return {
+      ...base,
+      display,
+      answer: missingFactor,
+      twistKind: 'gravity',
+      twistDistractors: getFactorDistractors(product, missingFactor, visibleFactor),
+    };
+  }
+
+  // Twist doesn't fit the operation (e.g. mirror/gravity on ÷); degrade
+  // to flare so the asteroid still LOOKS special.
+  return { ...base, twistKind: 'flare' };
+}
+
+// Distractors for gravity-twist problems where the answer is the missing
+// factor. Pulls other factors of the product, off-by-one slips, and the
+// visible factor itself (kid trap: "must be the number I can see").
+export function getFactorDistractors(product, missingFactor, visibleFactor, count = 3) {
+  const candidates = new Set();
+  candidates.add(missingFactor - 1);
+  candidates.add(missingFactor + 1);
+  candidates.add(missingFactor + 2);
+  candidates.add(missingFactor - 2);
+  candidates.add(visibleFactor);
+  for (let f = 1; f <= 12; f++) {
+    if (product % f === 0 && f !== missingFactor) candidates.add(f);
+  }
+
+  const valid = [...candidates].filter(n =>
+    Number.isInteger(n) &&
+    n > 0 &&
+    n !== missingFactor &&
+    n <= 144
+  );
+
+  for (let i = valid.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [valid[i], valid[j]] = [valid[j], valid[i]];
+  }
+
+  const picked = [];
+  for (const v of valid) {
+    if (picked.length >= count) break;
+    if (!picked.includes(v)) picked.push(v);
+  }
+
+  let pad = 1;
+  while (picked.length < count) {
+    const cand = missingFactor + pad;
+    if (cand > 0 && cand !== missingFactor && !picked.includes(cand)) picked.push(cand);
+    pad = pad > 0 ? -pad : -pad + 1;
+    if (Math.abs(pad) > 20) break;
+  }
+  return picked;
 }
 
 // Player progress manager
@@ -809,17 +925,20 @@ class PlayerProgress {
     if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
     const today = new Date().toISOString().slice(0, 10);
     const state = this.dadNoteState || { lastClaimDate: null, nextIndex: 0 };
+    const N = notes.length;
     const isNewDay = state.lastClaimDate !== today;
-    const index = state.nextIndex % notes.length;
-    const message = notes[index];
     if (isNewDay) {
+      const index = ((state.nextIndex % N) + N) % N;
       this.dadNoteState = {
         lastClaimDate: today,
-        nextIndex: (index + 1) % notes.length
+        nextIndex: (index + 1) % N
       };
       this.save();
+      return { isNewDay: true, message: notes[index], index };
     }
-    return { isNewDay, message, index };
+    // Same day — re-show the note already claimed today (nextIndex - 1).
+    const index = ((state.nextIndex - 1) % N + N) % N;
+    return { isNewDay: false, message: notes[index], index };
   }
 
   markTutorialSeen() {
@@ -1007,6 +1126,18 @@ class PlayerProgress {
     return Math.round((fact.correct / fact.total) * 100);
   }
 
+  // SM-2 weakness predicate. Used by the wrong-answer flow to decide whether
+  // to interrupt with a correction card. A fact qualifies as weak when the
+  // player has seen it more than once and is averaging below 70% — i.e.
+  // there's a real pattern of struggle, not just a single slip-up on a
+  // fresh fact. Returning false on first-misses keeps gameplay snappy.
+  isFactWeak(a, b) {
+    const key = `${Math.min(a, b)}x${Math.max(a, b)}`;
+    const fact = this.factMastery[key];
+    if (!fact || fact.total < 2) return false;
+    return (fact.correct / fact.total) < 0.7;
+  }
+
   // Get most missed facts for analytics
   getMostMissedFacts(count = 5) {
     return this.rankedWeakFacts(3).slice(0, count).map(f => ({
@@ -1020,3 +1151,17 @@ class PlayerProgress {
 
 // Singleton
 export const progress = new PlayerProgress();
+
+// Per-world music tempo. Pitches `levels.mp3` up/down via Web Audio
+// playbackRate so each world reads a little differently. 2^(n/12) gives
+// n semitones: +1=1.0595, +0.5≈1.0293, -2=0.8909, -3=0.8409. Default 1.0.
+const WORLD_MUSIC_RATE = {
+  1: 1.0,
+  4: 1.0595,   // crystal sparkle: +1 semitone
+  6: 0.8909,   // frost: -2 semitones
+  9: 0.8409,   // void: -3 semitones
+  11: 1.0293,  // final: +0.5 semitones
+};
+export function getWorldMusicRate(worldId) {
+  return WORLD_MUSIC_RATE[worldId] ?? 1.0;
+}
