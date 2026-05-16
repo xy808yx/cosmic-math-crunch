@@ -1,6 +1,6 @@
 // Game-screen top bar: world name, mode label, streak/score/time stats,
 // HP hearts, and the time-bar at the bottom. Mutates the scene to expose
-// the references the rest of GameScene needs (streakText, scoreText, etc.).
+// the references the rest of GameScene needs (streakHUD, scoreText, etc.).
 
 import { createIconButton } from './buttonHelper.js';
 import { style } from './textStyles.js';
@@ -9,6 +9,7 @@ import {
   drawHeartIcon, drawSkullIcon, drawArrowLeftIcon, drawPauseIcon
 } from './StatIcons.js';
 import { COLORS } from './colorPalette.js';
+import { createStreakHUD } from './StreakHUD.js';
 
 const W = 1080;
 const SHIP_HP_MAX = 5;
@@ -59,16 +60,18 @@ export function createTopBar(scene, topBarH) {
   drawFlameIcon(scene.streakIcon, 0, 0, 18);
   scene.streakIcon.x = W * 0.18 - 60;
   scene.streakIcon.y = row1Y;
-  scene.streakText = scene.add.text(W * 0.18, row1Y, '0', style('display', {
-    fontSize: '52px',
-    fill: '#ff8b3d'
-  })).setOrigin(0, 0.5).setDepth(10);
+  scene.streakHUD = createStreakHUD(scene, {
+    x: W * 0.18, y: row1Y, depth: 10,
+    textStyle: { fontSize: '52px', fill: '#ff8b3d' },
+  });
   scene.add.text(W * 0.18 - 60, row1Y + 42, 'STREAK', style('caption', {
     fontSize: '22px',
     fill: '#7a7a90',
     fontStyle: '900'
   })).setOrigin(0, 0.5).setDepth(10);
 
+  // Score is hidden during gameplay; the scene fades scoreGroup back in at
+  // the summary so the kid sees the digit ticking up at the end of a round.
   scene.scoreIcon = scene.add.graphics().setDepth(10);
   drawStarIcon(scene.scoreIcon, 0, 0, 18);
   scene.scoreIcon.x = W * 0.50 - 60;
@@ -77,11 +80,13 @@ export function createTopBar(scene, topBarH) {
     fontSize: '52px',
     fill: '#ffffff'
   })).setOrigin(0, 0.5).setDepth(10);
-  scene.add.text(W * 0.50 - 60, row1Y + 42, 'SCORE', style('caption', {
+  const scoreLabel = scene.add.text(W * 0.50 - 60, row1Y + 42, 'SCORE', style('caption', {
     fontSize: '22px',
     fill: '#7a7a90',
     fontStyle: '900'
   })).setOrigin(0, 0.5).setDepth(10);
+  scene.scoreGroup = [scene.scoreIcon, scene.scoreText, scoreLabel];
+  scene.scoreGroup.forEach(o => o.setAlpha(0));
 
   scene.timeIcon = scene.add.graphics().setDepth(10);
   drawHourglassIcon(scene.timeIcon, 0, 0, 16);
