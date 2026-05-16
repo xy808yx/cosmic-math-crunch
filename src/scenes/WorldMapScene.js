@@ -794,11 +794,17 @@ export class WorldMapScene extends Phaser.Scene {
     }
 
     let skipped = false;
+    let arrived = false;
     let travelTween = null;
     const skipHit = this.add.rectangle(W / 2, H / 2, W, H, 0, 0)
       .setInteractive().setDepth(900);
 
+    // Guard against the natural-completion path and the tap-skip path both
+    // firing in the same frame — without the `arrived` flag, skipHit gets
+    // destroyed twice and the tooltip / dwell timer fire twice.
     const finishArrival = () => {
+      if (arrived) return;
+      arrived = true;
       skipHit.destroy();
       this._showArrivalTooltip(this._arrivalTooltipConfig(hiddenId, hiddenPos));
       const dwell = skipped ? 900 : 1600;
@@ -806,7 +812,7 @@ export class WorldMapScene extends Phaser.Scene {
     };
 
     skipHit.on('pointerdown', () => {
-      if (skipped) return;
+      if (skipped || arrived) return;
       skipped = true;
       if (travelTween) travelTween.stop();
       this.tweens.killTweensOf(this.shipPet);
@@ -941,7 +947,9 @@ export class WorldMapScene extends Phaser.Scene {
     };
     skipHit.on('pointerdown', skip);
 
-    this.time.delayedCall(400, () => {
+    // 600ms hold on the cleared world so the kid registers "you cleared this,"
+    // then ship walks the path toward the freshly-unlocked node.
+    this.time.delayedCall(600, () => {
       if (skipped) return;
       travelTween = this.travelTo(nextIdx, () => {
         skipHit.destroy();
@@ -953,6 +961,20 @@ export class WorldMapScene extends Phaser.Scene {
   showNewWorldTooltip(nextIdx) {
     const pos = this.nodePositions[nextIdx];
     if (!pos) return;
+    const world = VISIBLE_WORLDS[nextIdx];
+    // Pulse the freshly-unlocked node — three cycles, scale 1.0 → 1.15 → 1.0.
+    // Signals "this is the new spot you can play now" before the tooltip fires.
+    const node = this.nodeContainers?.[world?.id];
+    if (node) {
+      this.tweens.add({
+        targets: node,
+        scale: { from: 1, to: 1.15 },
+        duration: 320,
+        yoyo: true,
+        repeat: 2,
+        ease: 'Sine.easeInOut',
+      });
+    }
     this._showArrivalTooltip({ x: pos.x, y: pos.y });
   }
 
@@ -1098,44 +1120,38 @@ export class WorldMapScene extends Phaser.Scene {
     const stages = CAROUSEL_STAGE_ORDER;
     let viewIdx = Math.max(0, stages.indexOf(progress.companion.displayStage || companion.getActiveStage()));
 
-    const body = this.add.container(0, 0);
-    card.add(body);
+    // Chrome (arrows + dots) lives in the outer container so it persists
+    // across stage swaps; the per-stage content lives in `slidePane` so we
+    // can slide between stages without rebuilding the chrome.
+    const chrome = this.add.container(0, 0);
+    card.add(chrome);
 
-    const render = () => {
-      body.removeAll(true);
-      const stage = stages[viewIdx];
-      const isLocked = !companion.isStageUnlocked(stage);
-      const stageLore = sp.stages[stage] || {};
-      const isActive = stage === companion.getActiveStage();
+    let slidePane = null;
+    const topY = -ch / 2 + 100;
 
-      const topY = -ch / 2 + 100;
-      const arrowLeft = this.add.text(-cw / 2 + 80, topY, '◀', style('display', {
-        fontSize: '54px', fill: '#ffffff',
-        stroke: '#0a0a1a', strokeThickness: 4
-      })).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      arrowLeft.on('pointerdown', () => {
-        audio.playClick?.();
-        viewIdx = (viewIdx - 1 + stages.length) % stages.length;
-        render();
-      });
-      body.add(arrowLeft);
+    const arrowLeft = this.add.text(-cw / 2 + 80, topY, '◀', style('display', {
+      fontSize: '54px', fill: '#ffffff',
+      stroke: '#0a0a1a', strokeThickness: 4,
+    })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    arrowLeft.on('pointerdown', () => slideTo(-1));
+    chrome.add(arrowLeft);
 
-      const arrowRight = this.add.text(cw / 2 - 80, topY, '▶', style('display', {
-        fontSize: '54px', fill: '#ffffff',
-        stroke: '#0a0a1a', strokeThickness: 4
-      })).setOrigin(0.5).setInteractive({ useHandCursor: true });
-      arrowRight.on('pointerdown', () => {
-        audio.playClick?.();
-        viewIdx = (viewIdx + 1) % stages.length;
-        render();
-      });
-      body.add(arrowRight);
+    const arrowRight = this.add.text(cw / 2 - 80, topY, '▶', style('display', {
+      fontSize: '54px', fill: '#ffffff',
+      stroke: '#0a0a1a', strokeThickness: 4,
+    })).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    arrowRight.on('pointerdown', () => slideTo(1));
+    chrome.add(arrowRight);
 
-      const dotSpacing = 58;
-      const dotsStartX = -(stages.length - 1) * dotSpacing / 2;
+    const dotSpacing = 58;
+    const dotsStartX = -(stages.length - 1) * dotSpacing / 2;
+    const dotG = this.add.graphics();
+    chrome.add(dotG);
+
+    const renderDots = () => {
+      dotG.clear();
       stages.forEach((s, i) => {
         const x = dotsStartX + i * dotSpacing;
-        const dotG = this.add.graphics();
         const unlocked = companion.isStageUnlocked(s);
         const isSel = (i === viewIdx);
         if (unlocked) {
@@ -1146,56 +1162,67 @@ export class WorldMapScene extends Phaser.Scene {
           dotG.lineStyle(3, 0xcfcfe0, 0.7);
           dotG.strokeCircle(x, topY, 10);
         }
-        body.add(dotG);
       });
+    };
+
+    // Build the per-stage content into a fresh sub-container (so old + new
+    // can co-exist mid-slide). Returns the container.
+    const buildStagePane = (idx) => {
+      const pane = this.add.container(0, 0);
+      const stage = stages[idx];
+      const isLocked = !companion.isStageUnlocked(stage);
+      const stageLore = sp.stages[stage] || {};
+      const isActive = stage === companion.getActiveStage();
 
       const portraitY = -ch / 2 + 480;
       if (isLocked) {
-        const q = this.add.text(0, portraitY, '?', style('display', {
-          fontSize: '320px',
-          fill: '#' + sp.accent.toString(16).padStart(6, '0'),
+        // Locked stages: silhouette of the actual pet sprite + "???" overlay.
+        // Far more evocative than a generic "?" — kid sees the SHAPE coming.
+        const portraitScale = PORTRAIT_SCALE_BY_STAGE[stage] ?? 2.0;
+        const silhouette = drawCompanion(this, 0, portraitY, { scale: portraitScale, stage });
+        silhouette.setAlpha(0.35);
+        pane.add(silhouette);
+        pane.add(this.add.text(0, portraitY, '???', style('display', {
+          fontSize: '120px',
+          fill: '#ffffff',
           stroke: '#0a0a1a',
-          strokeThickness: 6
-        })).setOrigin(0.5);
-        q.setAlpha(0.35);
-        body.add(q);
+          strokeThickness: 6,
+        })).setOrigin(0.5));
       } else {
         const portraitScale = PORTRAIT_SCALE_BY_STAGE[stage] ?? 2.0;
         const portrait = drawCompanion(this, 0, portraitY, { scale: portraitScale, stage });
-        body.add(portrait);
+        pane.add(portrait);
       }
 
       const nameY = -ch / 2 + 820;
       const displayName = isLocked ? '???' : (stageLore.name || '').toUpperCase();
-      body.add(this.add.text(0, nameY, displayName, style('display', {
+      pane.add(this.add.text(0, nameY, displayName, style('display', {
         fontSize: '64px',
-        fill: '#ffffff'
+        fill: '#ffffff',
       })).setOrigin(0.5));
 
-      const tierTxt = `— ${stage.toUpperCase()} —`;
-      body.add(this.add.text(0, nameY + 60, tierTxt, style('caption', {
+      pane.add(this.add.text(0, nameY + 60, `— ${stage.toUpperCase()} —`, style('caption', {
         fontSize: '30px',
-        fill: '#' + sp.accent.toString(16).padStart(6, '0')
+        fill: '#' + sp.accent.toString(16).padStart(6, '0'),
       })).setOrigin(0.5));
 
-      const loreY = nameY + 150;
       const loreText = isLocked
         ? 'Keep playing to unlock this form.'
         : (stageLore.lore || '');
-      body.add(this.add.text(0, loreY, loreText, style('body', {
+      pane.add(this.add.text(0, nameY + 150, loreText, style('body', {
         fontSize: '32px',
         fill: isLocked ? '#9a9aae' : '#cfcfe0',
         align: 'center',
         wordWrap: { width: cw - 100 },
-        lineSpacing: 8
+        lineSpacing: 8,
       })).setOrigin(0.5));
 
       const btnY = ch / 2 - 260;
       if (!isLocked && !isActive) {
-        const btn = createButton(this, {
+        pane.add(createButton(this, {
           x: 0, y: btnY,
           width: 520, height: 96,
-          label: 'USE THIS STAGE',
+          label: 'Set as my pet',
           color: sp.accent,
           textStyle: 'subhead',
           textOverrides: { fontSize: '30px', fill: '#0a0a1a', fontStyle: '900' },
@@ -1203,10 +1230,14 @@ export class WorldMapScene extends Phaser.Scene {
             companion.setDisplayStage(stage);
             this.refreshPetBadge();
             this.showToast(`Now showing: ${stageLore.name}`);
-            render();
-          }
-        });
-        body.add(btn);
+            // Replace the current pane so the button flips to "✓ ACTIVE".
+            const fresh = buildStagePane(idx);
+            card.add(fresh);
+            slidePane.destroy();
+            slidePane = fresh;
+            renderDots();
+          },
+        }));
       } else if (!isLocked && isActive) {
         const chip = this.add.container(0, btnY);
         const cbg = this.add.graphics();
@@ -1214,27 +1245,57 @@ export class WorldMapScene extends Phaser.Scene {
         cbg.fillRoundedRect(-130, -28, 260, 56, 28);
         chip.add(cbg);
         chip.add(this.add.text(0, 0, '✓ ACTIVE', style('subhead', {
-          fontSize: '26px', fill: '#0a0a1a', fontStyle: '900'
+          fontSize: '26px', fill: '#0a0a1a', fontStyle: '900',
         })).setOrigin(0.5));
-        body.add(chip);
+        pane.add(chip);
       }
 
       if (companion.isFullyEvolved()) {
-        const raiseY = ch / 2 - 140;
-        const raiseBtn = createButton(this, {
-          x: 0, y: raiseY,
+        pane.add(createButton(this, {
+          x: 0, y: ch / 2 - 140,
           width: 580, height: 84,
           label: 'RAISE ANOTHER COMPANION',
           color: COLORS.accentWarm,
           textStyle: 'subhead',
           textOverrides: { fontSize: '24px', fill: '#0a0a1a', fontStyle: '900' },
-          onClick: () => this.confirmRaiseAnother()
-        });
-        body.add(raiseBtn);
+          onClick: () => this.confirmRaiseAnother(),
+        }));
       }
+
+      return pane;
     };
 
-    render();
+    let sliding = false;
+    const slideTo = (dir) => {
+      if (sliding) return;
+      audio.playClick?.();
+      const nextIdx = (viewIdx + dir + stages.length) % stages.length;
+      const outX = dir * -cw;
+      const inFromX = dir * cw;
+
+      const newPane = buildStagePane(nextIdx);
+      newPane.x = inFromX;
+      card.add(newPane);
+
+      const oldPane = slidePane;
+      sliding = true;
+      this.tweens.add({
+        targets: oldPane, x: outX, duration: 250, ease: 'Quad.easeOut',
+        onComplete: () => oldPane.destroy(),
+      });
+      this.tweens.add({
+        targets: newPane, x: 0, duration: 250, ease: 'Quad.easeOut',
+        onComplete: () => { sliding = false; },
+      });
+
+      viewIdx = nextIdx;
+      slidePane = newPane;
+      renderDots();
+    };
+
+    slidePane = buildStagePane(viewIdx);
+    card.add(slidePane);
+    renderDots();
   }
 
   confirmRaiseAnother() {

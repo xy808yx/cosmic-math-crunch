@@ -66,32 +66,37 @@ export class AudioManager {
 
   // Correct match - happy ascending arpeggio
   playMatch() {
+    music.musicDuck();
     const notes = [523, 659, 784]; // C5, E5, G5
     notes.forEach((freq, i) => {
       this.playTone(freq, 0.15, 'sine', 0.3, i * 0.08);
     });
   }
 
-  // Wrong answer - descending "bwah" sound
+  // Wrong answer - soft "oof". Sine wave with a gentle attack and a narrow
+  // 220→165 Hz dip; reads as "no" without the buzz of the old sawtooth bwah.
   playWrong() {
     if (!this.enabled || !this.initialized) return;
     this.resume();
+    music.musicDuck();
+    const t0 = this.context.currentTime;
 
     const osc = this.context.createOscillator();
     const gain = this.context.createGain();
 
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(300, this.context.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(150, this.context.currentTime + 0.2);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, t0);
+    osc.frequency.exponentialRampToValueAtTime(165, t0 + 0.22);
 
-    gain.gain.setValueAtTime(0.2, this.context.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.3);
+    gain.gain.setValueAtTime(0.001, t0);
+    gain.gain.linearRampToValueAtTime(0.18, t0 + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.30);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
 
-    osc.start();
-    osc.stop(this.context.currentTime + 0.3);
+    osc.start(t0);
+    osc.stop(t0 + 0.32);
   }
 
   // Level complete - triumphant fanfare
@@ -145,7 +150,7 @@ export class AudioManager {
   }
 
   // ============================================================
-  // ARCADE SFX — Phase 2: asteroid arcade
+  // ARCADE SFX — asteroid arcade
   // ============================================================
 
   // Laser fire on correct answer — quick zappy sweep down.
@@ -197,25 +202,44 @@ export class AudioManager {
     noise.start(startAt);
   }
 
-  // Asteroid explosion — noise burst with a quick low rumble.
+  // Asteroid explosion — noise burst + low rumble + sub-bass reverb tail
+  // (~700ms past the burst). Cheaper than a Web Audio convolver and reads
+  // as a heavy arcade boom against the ducked music.
   playAsteroidBoom() {
     if (!this.enabled || !this.initialized) return;
     this.resume();
+    music.musicDuck();
+    const t0 = this.context.currentTime;
 
     this._playNoiseBurst({ duration: 0.35, peakGain: 0.3 });
 
     // Low rumble layer
     const osc = this.context.createOscillator();
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(120, this.context.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(40, this.context.currentTime + 0.3);
+    osc.frequency.setValueAtTime(120, t0);
+    osc.frequency.exponentialRampToValueAtTime(40, t0 + 0.3);
     const oscGain = this.context.createGain();
-    oscGain.gain.setValueAtTime(0.35, this.context.currentTime);
-    oscGain.gain.exponentialRampToValueAtTime(0.001, this.context.currentTime + 0.35);
+    oscGain.gain.setValueAtTime(0.35, t0);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.35);
     osc.connect(oscGain);
     oscGain.connect(this.sfxGain);
-    osc.start();
-    osc.stop(this.context.currentTime + 0.4);
+    osc.start(t0);
+    osc.stop(t0 + 0.4);
+
+    // Reverb tail — sub-bass sine that fades over ~700ms, giving the boom
+    // its "weight" trailing behind the noise transient.
+    const tail = this.context.createOscillator();
+    tail.type = 'sine';
+    tail.frequency.setValueAtTime(55, t0);
+    tail.frequency.exponentialRampToValueAtTime(38, t0 + 0.7);
+    const tailGain = this.context.createGain();
+    tailGain.gain.setValueAtTime(0.001, t0);
+    tailGain.gain.exponentialRampToValueAtTime(0.22, t0 + 0.06);
+    tailGain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.75);
+    tail.connect(tailGain);
+    tailGain.connect(this.sfxGain);
+    tail.start(t0);
+    tail.stop(t0 + 0.8);
   }
 
   // Ship damage — clang + crackle.
@@ -272,7 +296,7 @@ export class AudioManager {
   }
 
   // ============================================================
-  // PHASE 3 BOSS / WORLD-CLEAR SFX
+  // BOSS / WORLD-CLEAR SFX
   // ============================================================
 
   // Boss rumble — a deep, building growl on boss appearance.
@@ -521,6 +545,7 @@ export class AudioManager {
   playEvolutionFlash() {
     if (!this.enabled || !this.initialized) return;
     this.resume();
+    music.musicDuck();
     const t0 = this.context.currentTime;
     // Bright triangle stab
     const o1 = this.context.createOscillator();

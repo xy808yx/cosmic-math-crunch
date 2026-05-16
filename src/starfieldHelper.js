@@ -17,22 +17,25 @@ export function createStarfield(scene, opts = {}) {
       { count: 14, speed: 0.38, sizeMin: 2, sizeMax: 4, alpha: 0.85 }
     ],
     enableShootingStars = true,
-    depth = -10
+    depth = -10,
+    parent = null
   } = opts;
+
+  const adopt = parent ? (obj) => parent.add(obj) : () => {};
 
   // === Background gradient ===
   const bg = scene.add.graphics().setDepth(depth);
   bg.fillGradientStyle(bgTopColor, bgTopColor, bgBottomColor, bgBottomColor, 1);
   bg.fillRect(0, 0, width, height);
+  adopt(bg);
 
-  // Optional accent bloom from the bottom — gives each world a subtle color identity
   if (accentColor !== null) {
     const accent = scene.add.graphics().setDepth(depth + 1);
     accent.fillStyle(accentColor, accentStrength);
     accent.fillEllipse(width / 2, height + height * 0.3, width * 1.4, height * 0.85);
+    adopt(accent);
   }
 
-  // === Stars ===
   const layerData = layers.map((cfg) => {
     const stars = [];
     for (let i = 0; i < cfg.count; i++) {
@@ -47,11 +50,11 @@ export function createStarfield(scene, opts = {}) {
       star.twinkleSpeed = Phaser.Math.FloatBetween(0.5, 2);
       star.twinkleOffset = Phaser.Math.FloatBetween(0, Math.PI * 2);
       stars.push(star);
+      adopt(star);
     }
     return { ...cfg, stars };
   });
 
-  // === Animation tick ===
   scene.time.addEvent({
     delay: 50,
     loop: true,
@@ -71,7 +74,6 @@ export function createStarfield(scene, opts = {}) {
     }
   });
 
-  // === Shooting stars ===
   if (enableShootingStars) {
     const fire = () => {
       const startX = Phaser.Math.Between(80, width - 80);
@@ -86,6 +88,7 @@ export function createStarfield(scene, opts = {}) {
       }
       trail.x = startX;
       trail.y = startY;
+      adopt(trail);
       scene.tweens.add({
         targets: trail,
         x: startX + 280,
