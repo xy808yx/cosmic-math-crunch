@@ -4,7 +4,9 @@ import { music } from '../MusicManager.js';
 import {
   MODES,
   BOSS_CONFIG,
+  UPPER_LEVEL_CONFIG,
   getProblemForWorld,
+  getTwistedProblem,
   getGlitchProblem,
   getDistractors,
   getProblemSecondsForWorldAndMode,
@@ -13,6 +15,7 @@ import {
   isFinalVisibleWorld,
   findWorld,
   getHiddenWorldForHost,
+  getWorldMusicRate,
   progress
 } from '../GameData.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -26,7 +29,7 @@ import { drawShip } from '../ShipRenderer.js';
 import { economy, claimDailyBonusIfDue } from '../EconomyManager.js';
 import { records } from '../RecordsManager.js';
 import { drawStarIcon, drawHeartIcon, drawSparkleIcon } from '../StatIcons.js';
-import { drawQuestionBody, drawBossBody as drawWorldBoss, drawDatamoshBlob } from '../QuestionObjectArt.js';
+import { drawQuestionBody, drawBossBody as drawWorldBoss, drawDatamoshBlob, drawStardustHalo, drawTwistOverlay, drawMiniBossPips } from '../QuestionObjectArt.js';
 import { ship } from '../ShipManager.js';
 import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
 import { darken, lighten } from '../colorUtils.js';
@@ -109,6 +112,14 @@ export class GameScene extends Phaser.Scene {
   create() {
     audio.init();
     music.ensurePlaying(this, this.isBoss ? 'bossTheme' : 'levelTheme');
+    // Pitch the level theme per-world; boss theme stays unmodified so boss
+    // fights read distinctly regardless of world.
+    if (!this.isBoss) {
+      const rate = getWorldMusicRate(this.worldId);
+      music.setPlaybackRate(rate, 600);
+    } else {
+      music.setPlaybackRate(1.0, 0);
+    }
     if (this.isGlitchBoss) this.startGlitchAmbientLoop();
     const wb = getWorldBackground(this.worldId);
     createStarfield(this, {
@@ -145,12 +156,10 @@ export class GameScene extends Phaser.Scene {
         });
       });
     } else {
-      for (let i = 0; i < this.asteroidSlots; i++) {
-        this.time.delayedCall(i * 600, () => {
-          if (this.state === 'failed' || this.state === 'ended') return;
-          this.spawnAsteroid();
-        });
-      }
+      this.time.delayedCall(0, () => {
+        if (this.state === 'failed' || this.state === 'ended') return;
+        this.spawnAsteroid();
+      });
       this.time.delayedCall(450, () => { this.state = 'playing'; });
 
       if (this.warpState === 'pending') {
@@ -263,14 +272,54 @@ export class GameScene extends Phaser.Scene {
       this.shipG.add(this.cockpitPet);
     }
 
-    this.tweens.add({
-      targets: this.shipContainer,
-      y: SHIP_Y - 8,
-      duration: 1600,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    this.startShipBob();
+    this.initExplosionPool();
+  }
+
+  // Pre-allocate graphics for explosion shards/chunks/flashes so we never
+  // construct mid-frame during the celebration. _freeFxIndexes is a stack of
+  // pool indices ready for reuse; if it empties the pool lazily extends.
+  initExplosionPool() {
+    this._explosionPool = [];
+    this._freeFxIndexes = [];
+    for (let i = 0; i < 48; i++) {
+      const g = this.add.graphics().setDepth(9);
+      g.setActive(false).setVisible(false);
+      g._poolIndex = i;
+      this._explosionPool.push(g);
+      this._freeFxIndexes.push(i);
+    }
+  }
+
+  _acquireFxGraphic() {
+    const free = this._freeFxIndexes;
+    if (free && free.length) {
+      const g = this._explosionPool[free.pop()];
+      if (g.scene) {
+        g.setActive(true).setVisible(true);
+        g.clear();
+        g.setAlpha(1);
+        g.setScale(1);
+        g.setAngle(0);
+        g.setPosition(0, 0);
+        g.setBlendMode(Phaser.BlendModes.NORMAL);
+        return g;
+      }
+    }
+    const g = this.add.graphics().setDepth(9);
+    if (this._explosionPool) {
+      g._poolIndex = this._explosionPool.length;
+      this._explosionPool.push(g);
+    }
+    return g;
+  }
+
+  _releaseFxGraphic(g) {
+    if (!g || !g.scene) return;
+    g.setActive(false).setVisible(false);
+    if (this._freeFxIndexes && g._poolIndex !== undefined) {
+      this._freeFxIndexes.push(g._poolIndex);
+    }
   }
 
   // ============================================================
@@ -287,33 +336,87 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const problem = this.isGlitchBoss
-      ? getGlitchProblem()
-      : getProblemForWorld(this.worldId, this.mode);
-
-    let xLane;
-    let slotIdx = null;
-    if (this.asteroidSlots === 1) {
-      xLane = W / 2 + Phaser.Math.Between(-60, 60);
-    } else {
-      const used = this.activeAsteroids.map(a => a.slotIdx);
-      const positions = this.asteroidSlots === 2 ? [W * 0.32, W * 0.68] : [W * 0.22, W * 0.5, W * 0.78];
-      for (let i = 0; i < positions.length; i++) {
-        if (!used.includes(i)) { slotIdx = i; break; }
+    // Decide variants up front so the rest of the function reads top-down.
+    // Mini-boss and stardust share the "special spawn" slot — never both on
+    // the same asteroid. Boss spawns and warp spawns are excluded entirely.
+    let isMiniBoss = false;
+    let isStardust = false;
+    if (!this.isBoss) {
+      if (this.worldId >= UPPER_LEVEL_CONFIG.miniBoss.minWorldId) {
+        this._miniBossCounter = (this._miniBossCounter || 0) + 1;
+        if (this._miniBossCounter % UPPER_LEVEL_CONFIG.miniBoss.oneIn === 0) {
+          isMiniBoss = true;
+        }
       }
-      if (slotIdx === null) slotIdx = 0;
-      xLane = positions[slotIdx];
+      if (!isMiniBoss && this.worldId >= UPPER_LEVEL_CONFIG.stardust.minWorldId) {
+        this._stardustCounter = (this._stardustCounter || 0) + 1;
+        if (this._stardustCounter % UPPER_LEVEL_CONFIG.stardust.oneIn === 0) {
+          isStardust = true;
+        }
+      }
     }
 
+    // Mini-boss / stardust use the untwisted problem so the special visual
+    // marker isn't competing with a twist overlay. Regular upper-world spawns
+    // roll for a twist via getTwistedProblem.
+    const problem = this.isGlitchBoss
+      ? getGlitchProblem()
+      : (this.isBoss || isMiniBoss || isStardust)
+        ? getProblemForWorld(this.worldId, this.mode)
+        : getTwistedProblem(this.worldId, this.mode);
+
+    const radius = isMiniBoss ? ASTEROID_RADIUS * 1.6 : ASTEROID_RADIUS;
+
+    const xLane = W / 2 + Phaser.Math.Between(-60, 60);
     const container = this.add.container(xLane, ASTEROID_TOP_Y).setDepth(7);
+
+    // Stardust halo + orbiting sparkles sit behind the body so the gold ring
+    // frames the question instead of obscuring it.
+    let stardustParts = null;
+    if (isStardust) {
+      stardustParts = this._attachStardustHalo(container, radius);
+    }
 
     if (this.isBoss) {
       this.drawBossBody(container);
     } else {
-      this.drawAsteroidBody(container);
+      this.drawAsteroidBody(container, radius);
     }
 
-    const fontSize = this.isGlitchBoss ? '80px' : this.isBoss ? '92px' : '70px';
+    // Twist overlay sits in front of the body but behind text. Flare pulses.
+    if (problem?.twistKind) {
+      const overlay = this.add.graphics();
+      drawTwistOverlay(overlay, problem.twistKind, radius);
+      container.add(overlay);
+      if (problem.twistKind === 'flare') {
+        this.tweens.add({
+          targets: overlay,
+          alpha: { from: 0.6, to: 1 },
+          duration: 500,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      } else if (problem.twistKind === 'mirror') {
+        // Subtle shimmer cycle on the cyan seam.
+        this.tweens.add({
+          targets: overlay,
+          alpha: { from: 0.7, to: 1 },
+          duration: 700,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
+    }
+
+    const fontSize = this.isGlitchBoss
+      ? '80px'
+      : this.isBoss
+        ? '92px'
+        : isMiniBoss
+          ? '82px'
+          : '70px';
     const text = this.add.text(0, 0, problem.display, style('display', {
       fontSize,
       fill: '#ffffff',
@@ -321,6 +424,15 @@ export class GameScene extends Phaser.Scene {
       strokeThickness: this.isGlitchBoss ? 8 : 7
     })).setOrigin(0.5);
     container.add(text);
+
+    // Mini-boss HP pips sit ABOVE the asteroid so the kid sees the fight
+    // state at a glance.
+    let miniBossPips = null;
+    if (isMiniBoss) {
+      miniBossPips = this.add.graphics();
+      drawMiniBossPips(miniBossPips, UPPER_LEVEL_CONFIG.miniBoss.hp, UPPER_LEVEL_CONFIG.miniBoss.hp, radius);
+      container.add(miniBossPips);
+    }
 
     this.tweens.add({
       targets: container,
@@ -331,20 +443,24 @@ export class GameScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
-    const variation = this.asteroidSlots > 1 ? Phaser.Math.FloatBetween(0.85, 1.15) : 1;
-    const fallSeconds = this.problemSeconds * variation;
-
     const asteroid = {
       container,
       text,
       problem,
-      slotIdx,
       lockedOut: false,
       fallTween: null,
       startedAtMs: performance.now(),
-      isBoss: this.isBoss
+      isBoss: this.isBoss,
+      _isStardust: isStardust,
+      _isMiniBoss: isMiniBoss,
+      _miniHp: isMiniBoss ? UPPER_LEVEL_CONFIG.miniBoss.hp : 0,
+      _miniBossPips: miniBossPips,
+      _radius: radius,
     };
 
+    const fallSeconds = isMiniBoss
+      ? this.problemSeconds * UPPER_LEVEL_CONFIG.miniBoss.fallMultiplier
+      : this.problemSeconds;
     asteroid.fallTween = this.tweens.add({
       targets: container,
       y: this.isBoss ? ASTEROID_IMPACT_Y - 80 : ASTEROID_IMPACT_Y,
@@ -359,16 +475,45 @@ export class GameScene extends Phaser.Scene {
     }
 
     this.activeAsteroids.push(asteroid);
+    this.targetAsteroid(asteroid);
+  }
 
-    if (this.asteroidSlots > 1) {
-      const hit = this.add.rectangle(0, 0, 280, 280, 0x000000, 0).setInteractive({ useHandCursor: true });
-      container.add(hit);
-      hit.on('pointerdown', () => this.targetAsteroid(asteroid));
-    }
+  // Gold halo + 6 orbiting sparkles behind a stardust asteroid. Returns the
+  // created parts so removeAsteroid can stop the orbital tweens cleanly.
+  _attachStardustHalo(container, radius) {
+    const halo = this.add.graphics();
+    drawStardustHalo(halo, radius);
+    container.add(halo);
+    this.tweens.add({
+      targets: halo,
+      angle: 360,
+      duration: 6000,
+      repeat: -1,
+      ease: 'Linear',
+    });
 
-    if (!this.targetedAsteroid) {
-      this.targetAsteroid(asteroid);
+    const sparkles = [];
+    const sparkleCount = 6;
+    const orbitR = radius * 1.30;
+    for (let i = 0; i < sparkleCount; i++) {
+      const sp = this.add.graphics();
+      sp.fillStyle(0xfff3b8, 1);
+      sp.fillCircle(0, 0, 5);
+      const a = (i / sparkleCount) * Math.PI * 2;
+      sp.x = Math.cos(a) * orbitR;
+      sp.y = Math.sin(a) * orbitR;
+      container.add(sp);
+      sparkles.push(sp);
+      this.tweens.add({
+        targets: sp,
+        alpha: { from: 0.4, to: 1 },
+        duration: 500 + i * 80,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
     }
+    return { halo, sparkles };
   }
 
   drawBossBody(container) {
@@ -481,25 +626,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  drawAsteroidBody(container) {
+  drawAsteroidBody(container, radius = ASTEROID_RADIUS) {
     const g = this.add.graphics();
-    drawQuestionBody(g, this.world.id, ASTEROID_RADIUS);
+    drawQuestionBody(g, this.world.id, radius);
     container.add(g);
   }
 
   targetAsteroid(asteroid) {
     if (!asteroid || !this.activeAsteroids.includes(asteroid)) return;
+    if (asteroid.lockedOut) return;
     this.targetedAsteroid = asteroid;
     this.refreshMcButtons(asteroid.problem);
-
-    if (this.targetReticle) this.targetReticle.destroy();
-    if (this.asteroidSlots > 1) {
-      const reticle = this.add.graphics();
-      reticle.lineStyle(4, this.world.accentColor, 0.9);
-      reticle.strokeCircle(0, 0, 160);
-      asteroid.container.add(reticle);
-      this.targetReticle = reticle;
-    }
   }
 
   // ============================================================
@@ -553,7 +690,7 @@ export class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: c, scale: 1, duration: 110 });
     });
     hit.on('pointerdown', () => {
-      if (this.state !== 'playing') return;
+      if (!this._inputUnlocked()) return;
       this.tweens.add({ targets: c, scaleX: 0.94, scaleY: 0.94, duration: 70, yoyo: true });
       this.handleMcChoice(index);
     });
@@ -592,6 +729,13 @@ export class GameScene extends Phaser.Scene {
       choices = [...problem.glitchChoices];
       while (choices.length < want) choices.push((choices[choices.length - 1] ?? 0) + 1);
       choices = choices.slice(0, want);
+    } else if (problem.twistDistractors) {
+      // Gravity-twist (`? × N = product`) — answer is the missing factor;
+      // distractors are pre-built factor-aware (other factors of the product,
+      // off-by-one slips, the visible factor as a kid-trap).
+      choices = [problem.answer, ...problem.twistDistractors].slice(0, want);
+      while (choices.length < want) choices.push(problem.answer + choices.length);
+      choices.sort((a, b) => a - b);
     } else {
       const distractors = getDistractors(problem, want - 1);
       choices = [problem.answer, ...distractors].slice(0, want);
@@ -626,8 +770,17 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   // INPUT
   // ============================================================
+  // Input is allowed during 'playing' and 'feedback'; the 'feedback' window
+  // is the 220+180ms after a correct answer where the previous asteroid is
+  // still exploding. In multi-slot worlds the kid needs to keep tapping the
+  // remaining asteroids during that window — the per-asteroid lockedOut flag
+  // prevents double-credit on the just-answered one.
+  _inputUnlocked() {
+    return this.state === 'playing' || this.state === 'feedback';
+  }
+
   onKeyDown(event) {
-    if (this.state !== 'playing') return;
+    if (!this._inputUnlocked()) return;
     const map = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5 };
     const idx = map[event.key];
     if (idx !== undefined && idx < this.mcButtons.length) {
@@ -636,11 +789,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleMcChoice(index) {
-    if (this.state !== 'playing') return;
+    if (!this._inputUnlocked()) return;
     const btn = this.mcButtons[index];
     if (!btn || btn.value === null) return;
     const asteroid = this.targetedAsteroid;
-    if (!asteroid) return;
+    if (!asteroid || asteroid.lockedOut) return;
 
     const correct = btn.value === asteroid.problem.answer;
     if (correct) {
@@ -654,6 +807,7 @@ export class GameScene extends Phaser.Scene {
   // ANSWER FLOW
   // ============================================================
   handleCorrect(asteroid, btn) {
+    asteroid.lockedOut = true;
     this.state = 'feedback';
     this.attempts++;
     if (this._tutorialHint) this.dismissTutorialHint();
@@ -666,14 +820,7 @@ export class GameScene extends Phaser.Scene {
     this.streak++;
     this.bestStreak = Math.max(this.bestStreak, this.streak);
     this.scoreText.setText(this.score.toString());
-    this.streakText.setText(this.streak.toString());
-
-    this.tweens.add({
-      targets: this.scoreText,
-      scale: { from: 1.4, to: 1 },
-      duration: 220,
-      ease: 'Back.easeOut'
-    });
+    this.streakHUD?.setStreak(this.streak);
 
     this.flashMcButton(btn, COLORS.success);
 
@@ -714,31 +861,106 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Mini-boss persistence: not the final hit — knock off a pip, shrink,
+    // and cycle to a new problem instead of removing the asteroid.
+    if (asteroid._isMiniBoss && asteroid._miniHp > 1) {
+      asteroid._miniHp -= 1;
+      if (asteroid._miniBossPips) {
+        drawMiniBossPips(asteroid._miniBossPips, asteroid._miniHp, UPPER_LEVEL_CONFIG.miniBoss.hp, asteroid._radius);
+      }
+      this.cameras.main.shake(120, 0.005);
+      this.tweens.add({
+        targets: asteroid.container,
+        scaleX: { from: 1, to: 0.92 },
+        scaleY: { from: 1, to: 0.92 },
+        duration: 200,
+        yoyo: true,
+        ease: 'Sine.easeInOut',
+      });
+      this.time.delayedCall(320, () => {
+        if (this.state === 'failed' || this.state === 'ended') return;
+        this.cycleAsteroidProblem(asteroid);
+      });
+      return;
+    }
+
+    // Bonus scoring for special asteroids' final-kill / flare hits. Stardust
+    // and final-hit mini-boss BOTH count as the same payout slot; flare is a
+    // separate tiny bonus that can stack with everything.
+    if (asteroid._isStardust) {
+      this.score += UPPER_LEVEL_CONFIG.stardust.bonusScore;
+      this.streak += UPPER_LEVEL_CONFIG.stardust.bonusStreak;
+      this.bestStreak = Math.max(this.bestStreak, this.streak);
+      this.scoreText.setText(this.score.toString());
+      this.streakHUD?.setStreak(this.streak);
+      audio.playPetChirp?.();
+    }
+    if (asteroid._isMiniBoss) {
+      this.score += UPPER_LEVEL_CONFIG.miniBoss.bonusScore;
+      this.scoreText.setText(this.score.toString());
+      this.cameras.main.shake(250, 0.012);
+    }
+    if (asteroid.problem?.twistKind === 'flare') {
+      this.score += 1;
+      this.scoreText.setText(this.score.toString());
+    }
+
     this.time.delayedCall(220, () => {
       audio.playAsteroidBoom?.();
       this.explodeAsteroid(asteroid, { big: true });
       this.removeAsteroid(asteroid);
-      this.time.delayedCall(180, () => {
-        if (this.state === 'feedback' || this.state === 'playing') {
-          this.state = 'playing';
-          this.spawnAsteroid();
-        }
-      });
+      if (this.state === 'feedback' || this.state === 'playing') {
+        this.state = 'playing';
+        this.spawnAsteroid();
+      }
     });
+  }
+
+  // Mini-boss problem cycle. Resumes the fall from the asteroid's current Y
+  // (does NOT teleport to top), swaps in a fresh problem, and re-targets so
+  // the answer buttons reflect the new value. Subsequent problems on a
+  // mini-boss are untwisted to keep the HP-pip story uncluttered.
+  cycleAsteroidProblem(asteroid) {
+    if (!asteroid?.container?.active) return;
+    if (this.state === 'failed' || this.state === 'ended') return;
+    if (asteroid.fallTween) asteroid.fallTween.stop();
+    asteroid.lockedOut = false;
+
+    const newProblem = getProblemForWorld(this.worldId, this.mode);
+    asteroid.problem = newProblem;
+    asteroid.startedAtMs = performance.now();
+    asteroid.text?.setText(newProblem.display);
+
+    const fallSeconds = this.problemSeconds * (asteroid._isMiniBoss ? UPPER_LEVEL_CONFIG.miniBoss.fallMultiplier : 1);
+    const fullFall = ASTEROID_IMPACT_Y - ASTEROID_TOP_Y;
+    const remainingFall = Math.max(40, ASTEROID_IMPACT_Y - asteroid.container.y);
+    const remainingMs = Math.max(800, fallSeconds * 1000 * (remainingFall / fullFall));
+    asteroid.fallTween = this.tweens.add({
+      targets: asteroid.container,
+      y: ASTEROID_IMPACT_Y,
+      duration: remainingMs,
+      ease: 'Linear',
+      onComplete: () => this.onAsteroidImpact(asteroid),
+    });
+
+    this.refreshMcButtons(newProblem);
+    this.state = 'playing';
+    this.targetAsteroid(asteroid);
   }
 
   // Wrong answer on a normal asteroid → instant impact (no retry on the same
   // asteroid). Boss problems instead cost ship HP and let the boss counter-attack.
   handleWrong(asteroid, btn) {
     const pickedValue = btn.value;
+    asteroid.lockedOut = true;
+    this.state = 'feedback';
     this.flashMcButton(btn, COLORS.error);
     audio.playWrong?.();
 
     this.streak = 0;
-    this.streakText.setText('0');
+    this.streakHUD?.setStreak(0);
 
     if (asteroid.isBoss) {
-      this.state = 'feedback';
       this.attempts++;
       this.history.push({ problem: asteroid.problem, userAnswer: pickedValue, correct: false });
       progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, false);
@@ -765,14 +987,40 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    // Mini-boss: take a ship hit but the asteroid SURVIVES — kid keeps fighting.
+    // No correction modal (would interrupt the level cadence too much); just
+    // damage + cycle to a new problem after a beat.
+    if (asteroid._isMiniBoss) {
+      this.attempts++;
+      this.history.push({ problem: asteroid.problem, userAnswer: pickedValue, correct: false });
+      progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, false);
+      records.recordAnswer(asteroid.problem, false, performance.now() - asteroid.startedAtMs);
+      this.damageShip();
+      this.cockpitPet?.slumpSad?.();
+      audio.playShipDamage?.();
+      this.setHp(this.shipHp - 1);
+      if (this.shipHp <= 0) {
+        this.failLevel();
+        return;
+      }
+      this.time.delayedCall(600, () => {
+        if (this.state === 'failed' || this.state === 'ended') return;
+        this.cycleAsteroidProblem(asteroid);
+      });
+      return;
+    }
+
     // Normal level: instant crash on the targeted asteroid
     this.onAsteroidImpact(asteroid, { fromWrongAnswer: true, userAnswer: pickedValue });
   }
 
   onAsteroidImpact(asteroid, opts = {}) {
     if (this.state === 'ended' || this.state === 'failed') return;
-    if (asteroid.lockedOut) return;
+    if (asteroid.lockedOut && !opts.fromWrongAnswer) return;
+    // handleWrong already set lockedOut + state; re-entering with
+    // fromWrongAnswer is a continuation of the same answer flow, not a retap.
     asteroid.lockedOut = true;
+    this.state = 'feedback';
 
     this.attempts++;
     this.history.push({
@@ -784,11 +1032,14 @@ export class GameScene extends Phaser.Scene {
     records.recordAnswer(asteroid.problem, false, performance.now() - asteroid.startedAtMs);
 
     this.streak = 0;
-    this.streakText.setText('0');
+    this.streakHUD?.setStreak(0);
 
     this.damageShip();
     this.cockpitPet?.slumpSad?.();
-    audio.playShipDamage?.();
+    // Wrong-answer taps stay soft — the "oof" from playWrong is all the
+    // audio feedback we want for a miss. Real impacts (asteroid timed out
+    // and hit the ship) still get the metallic clang.
+    if (!opts.fromWrongAnswer) audio.playShipDamage?.();
 
     this.setHp(this.shipHp - 1);
 
@@ -811,10 +1062,23 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Stop the asteroid's fall and snap it to the ship (the "crash") for
-    // a cleaner visual when the player tapped wrong well above the impact line.
-    if (asteroid.fallTween) asteroid.fallTween.stop();
-    if (asteroid.container?.active) {
+    // Non-boss path: always snap-back into play after the glance. The smart
+    // correction card was creating deadlocks (paused fall-tweens not resuming,
+    // dismiss handlers missing the tap in multi-slot worlds) — boss combat
+    // still uses it where the kid genuinely needs the answer flashed.
+    const queueNext = () => {
+      if (this.state !== 'playing' && this.state !== 'feedback') return;
+      this.state = 'playing';
+      this.spawnAsteroid();
+    };
+
+    // Wrong-answer taps (and timeouts) now glance off the shield and drift
+    // past instead of yanking down to the ship. Pass-through impacts on the
+    // ship (asteroid timed out) still play the crash visual.
+    if (opts.fromWrongAnswer) {
+      this.playGlanceMiss(asteroid, queueNext);
+    } else if (asteroid.container?.active) {
+      if (asteroid.fallTween) asteroid.fallTween.stop();
       this.tweens.add({
         targets: asteroid.container,
         y: SHIP_Y - 80,
@@ -823,25 +1087,101 @@ export class GameScene extends Phaser.Scene {
         onComplete: () => {
           this.explodeAsteroid(asteroid, { onShip: true });
           this.removeAsteroid(asteroid);
+          if (this.shipHp > 0) queueNext();
         }
       });
     } else {
       this.explodeAsteroid(asteroid, { onShip: true });
       this.removeAsteroid(asteroid);
+      if (this.shipHp > 0) queueNext();
     }
 
     if (this.shipHp <= 0) {
       this.failLevel();
       return;
     }
+  }
 
-    const correctionProblem = asteroid.problem;
-    this.time.delayedCall(450, () => {
-      if (this.state !== 'playing' && this.state !== 'feedback') return;
-      this.showCorrectionFlash(correctionProblem, () => {
-        if (this.state !== 'playing' && this.state !== 'feedback') return;
-        this.spawnAsteroid();
+  // Wrong-answer glance: small spark where the asteroid would have hit the
+  // shield, then the asteroid drifts past the ship (downward + outward,
+  // fading) instead of crashing into it. Ship gets a 16px recoil. `onRemoved`
+  // fires AFTER the asteroid is removed from `activeAsteroids` so callers can
+  // safely schedule a follow-up spawn against the slot-count check.
+  playGlanceMiss(asteroid, onRemoved) {
+    if (asteroid.fallTween) asteroid.fallTween.stop();
+
+    const ax = asteroid.container?.x ?? W / 2;
+    const sparkY = SHIP_Y - 100;
+    const spark = this.add.graphics().setDepth(11);
+    spark.fillStyle(0xfff3b8, 0.95);
+    spark.fillCircle(0, 0, 18);
+    spark.setBlendMode(Phaser.BlendModes.ADD);
+    spark.x = ax;
+    spark.y = sparkY;
+    spark.setScale(0.6);
+    this.tweens.add({
+      targets: spark,
+      alpha: 0,
+      scale: 1.4,
+      duration: 120,
+      ease: 'Quad.easeOut',
+      onComplete: () => spark.destroy()
+    });
+
+    if (asteroid.container?.active) {
+      const driftX = ax > W / 2 ? 80 : -80;
+      this.tweens.add({
+        targets: asteroid.container,
+        y: H + 200,
+        x: ax + driftX,
+        alpha: 0,
+        duration: 400,
+        ease: 'Quad.easeIn',
+        onComplete: () => {
+          this.removeAsteroid(asteroid);
+          onRemoved?.();
+        }
       });
+    } else {
+      this.removeAsteroid(asteroid);
+      onRemoved?.();
+    }
+
+    this.recoilShip();
+  }
+
+  recoilShip() {
+    if (!this.shipContainer?.active) return;
+    this.tweens.killTweensOf(this.shipContainer);
+    this.tweens.add({
+      targets: this.shipContainer,
+      y: SHIP_Y + 16,
+      duration: 100,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: this.shipContainer,
+          y: SHIP_Y - 8,
+          duration: 220,
+          ease: 'Sine.easeInOut',
+          onComplete: () => this.startShipBob()
+        });
+      }
+    });
+  }
+
+  // Resumes the gentle vertical bob the ship runs while idle. Safe to call
+  // multiple times — kills any prior bob tween first.
+  startShipBob() {
+    if (!this.shipContainer?.active) return;
+    this.tweens.killTweensOf(this.shipContainer);
+    this.tweens.add({
+      targets: this.shipContainer,
+      y: SHIP_Y - 8,
+      duration: 1600,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
     });
   }
 
@@ -983,6 +1323,7 @@ export class GameScene extends Phaser.Scene {
     if (!asteroid?.container?.active || this.bossDefeated) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
 
+    asteroid.lockedOut = false;
     const newProblem = this.isGlitchBoss
       ? getGlitchProblem()
       : getProblemForWorld(this.worldId, this.mode);
@@ -1036,6 +1377,11 @@ export class GameScene extends Phaser.Scene {
     bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 32);
     card.add(bg);
 
+    // Card-level hit so a tap directly on the panel dismisses, even if
+    // something above mis-routes the overlay tap.
+    const cardHit = this.add.rectangle(0, 0, cardW, cardH, 0x000000, 0).setInteractive();
+    card.add(cardHit);
+
     const equation = `${problem.display} = ${problem.answer}`;
     const eqText = this.add.text(0, -30, equation, style('display', {
       fontSize: '108px',
@@ -1066,10 +1412,13 @@ export class GameScene extends Phaser.Scene {
     });
 
     let dismissed = false;
+    let sceneHandler = null;
     const dismiss = () => {
       if (dismissed) return;
       dismissed = true;
       overlay.disableInteractive();
+      cardHit.disableInteractive();
+      if (sceneHandler) this.input.off('pointerdown', sceneHandler);
       audio.playClick?.();
       pausedTweens.forEach(t => t.resume?.());
       this.tweens.add({
@@ -1086,6 +1435,17 @@ export class GameScene extends Phaser.Scene {
     };
 
     overlay.on('pointerdown', dismiss);
+    cardHit.on('pointerdown', dismiss);
+    // Scene-level pointerdown + a hard auto-dismiss via setTimeout (not
+    // scene.time, so a paused scene clock can't strand it). Belt and braces:
+    // even if every hit handler somehow misses, 3.5s caps how long the kid
+    // can stay stuck on the card.
+    setTimeout(() => {
+      if (dismissed) return;
+      sceneHandler = () => dismiss();
+      this.input.on('pointerdown', sceneHandler);
+    }, 50);
+    setTimeout(dismiss, 3500);
   }
 
   defeatBoss(asteroid) {
@@ -1094,180 +1454,13 @@ export class GameScene extends Phaser.Scene {
     if (asteroid.fallTween) asteroid.fallTween.stop();
     this.tweens.killTweensOf(asteroid.container);
 
-    this.playBossDefeatCeremony(asteroid, () => {
-      this.endRound({ bossWin: true });
-    });
-  }
-
-  // Multi-stage boss defeat ceremony (~2s blocking before endRound).
-  // Sequence: white flash → cascading bursts → pet dance overlay → final blast.
-  playBossDefeatCeremony(asteroid, onComplete) {
-    const x = asteroid.container.x;
-    const y = asteroid.container.y;
-    const bossRadius = ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale;
-
-    const whiteOverlay = this.add.graphics().setDepth(8);
-    whiteOverlay.fillStyle(0xffffff, 1);
-    whiteOverlay.fillCircle(0, 0, bossRadius * 1.15);
-    whiteOverlay.alpha = 0;
-    asteroid.container.add(whiteOverlay);
-    this.tweens.add({
-      targets: whiteOverlay,
-      alpha: { from: 0, to: 0.85 },
-      duration: 75,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => whiteOverlay.destroy()
-    });
-    audio.playBossImpact?.();
-
-    const burstCount = 4;
-    for (let i = 0; i < burstCount; i++) {
-      const delay = 220 + i * 200;
-      this.time.delayedCall(delay, () => {
-        const a = Math.random() * Math.PI * 2;
-        const r = Math.random() * bossRadius * 0.55;
-        this.explodeAsteroid({ x: x + Math.cos(a) * r, y: y + Math.sin(a) * r });
-        audio.playAsteroidBoom?.();
-      });
-    }
-
-    this.time.delayedCall(1080, () => this.playPetVictoryDance());
-
-    this.time.delayedCall(1200, () => {
-      this.bossFinalBlast(x, y);
-      if (asteroid.container?.active) asteroid.container.destroy();
-      if (this.bossHpBar?.active) this.bossHpBar.destroy();
-      this.bossContainer = null;
-      this.bossHpBar = null;
-    });
-
-    this.time.delayedCall(2000, () => onComplete?.());
-  }
-
-  // Final huge blast: layers extra ring, shards, and screen flash on top of
-  // a normal explodeAsteroid for the world-clear hit.
-  bossFinalBlast(x, y) {
-    this.explodeAsteroid({ x, y }, { big: true });
-
-    const ring = this.add.graphics().setDepth(9);
-    ring.lineStyle(14, 0xffffff, 1);
-    ring.strokeCircle(0, 0, 80);
-    ring.x = x;
-    ring.y = y;
-    this.tweens.add({
-      targets: ring,
-      scale: 7,
-      alpha: 0,
-      duration: 600,
-      ease: 'Quad.easeOut',
-      onComplete: () => ring.destroy()
-    });
-
-    const colors = [this.world.accentColor, 0xffffff, 0xf7dc6f, 0xff8b3d];
-    for (let i = 0; i < 14; i++) {
-      const angle = (i / 14) * Math.PI * 2 + Math.random() * 0.4;
-      const dist = 220 + Math.random() * 200;
-      const shard = this.add.graphics().setDepth(9);
-      shard.fillStyle(colors[i % colors.length], 1);
-      shard.fillCircle(0, 0, 8 + Math.random() * 8);
-      shard.x = x;
-      shard.y = y;
-      this.tweens.add({
-        targets: shard,
-        x: x + Math.cos(angle) * dist,
-        y: y + Math.sin(angle) * dist,
-        alpha: 0,
-        duration: 800 + Math.random() * 320,
-        ease: 'Quad.easeOut',
-        onComplete: () => shard.destroy()
-      });
-    }
-
-    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0).setDepth(100);
-    this.tweens.add({
-      targets: flash,
-      alpha: { from: 0, to: 0.4 },
-      duration: 100,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => flash.destroy()
-    });
-
-    this.cameras.main.shake(520, 0.026);
-    audio.playAsteroidBoom?.();
-    audio.playWorldClearFanfare?.();
-  }
-
-  // Pet pops out of the cockpit, bounces 3x with a tinted halo, retreats.
-  // Shared animation across all species; tinted by species accent.
-  playPetVictoryDance() {
-    if (!this.shipContainer || !companion.hasStarter()) return;
-    const sp = companion.getSpecies();
-    const accent = sp ? sp.accent : COLORS.accentPurple;
-
-    const portholeX = this.shipContainer.x + (this.shipG?.portholeCenter?.x || 0);
-    const portholeY = this.shipContainer.y + (this.shipG?.portholeCenter?.y || -120);
-    const petY = portholeY - 120;
-
-    const halo = this.add.graphics().setDepth(11);
-    halo.fillStyle(accent, 1);
-    halo.fillCircle(0, 0, 90);
-    halo.x = portholeX;
-    halo.y = petY;
-    halo.setScale(0.3);
-    halo.alpha = 0;
-    this.tweens.add({
-      targets: halo,
-      scale: 1.7,
-      alpha: { from: 0.7, to: 0 },
-      duration: 1100,
-      ease: 'Quad.easeOut',
-      onComplete: () => halo.destroy()
-    });
-
-    // Hide the cockpit pet so the dance pet reads as the same animal popping out.
-    this.cockpitPet?.setVisible(false);
-
-    const pet = drawCompanion(this, portholeX, petY, { scale: 1.4 }).setDepth(12);
-    pet.setScale(0);
-
-    this.tweens.add({
-      targets: pet,
-      scale: 1.4,
-      duration: 220,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        let n = 0;
-        const bounce = () => {
-          if (n >= 3) {
-            this.tweens.add({
-              targets: pet,
-              scale: 0,
-              y: portholeY,
-              duration: 200,
-              ease: 'Back.easeIn',
-              onComplete: () => {
-                this.cockpitPet?.setVisible(true);
-                pet.destroy();
-              }
-            });
-            return;
-          }
-          n++;
-          pet.bounceHappy?.();
-          this.tweens.add({
-            targets: pet,
-            y: { from: petY, to: petY - 32 },
-            duration: 250,
-            yoyo: true,
-            ease: 'Sine.easeInOut',
-            onComplete: bounce
-          });
-        };
-        bounce();
-      }
-    });
+    // Pass the boss asteroid through so endRound can hand it to the 4-beat
+    // cinematic AFTER all stardust/completion data has been committed. The
+    // cinematic can't safely run before the data writes — a tab-close
+    // mid-cinematic would otherwise lose progress.
+    if (this.bossHpBar?.active) this.bossHpBar.destroy();
+    this.bossHpBar = null;
+    this.endRound({ bossWin: true, bossAsteroid: asteroid });
   }
 
   // Auto-dismissing world-clear banner: slides down from top, sits 2.5s, slides out.
@@ -1404,27 +1597,22 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    const big = !!opts.big;
+    if (opts.big) {
+      this._explodeBig(x, y);
+      return;
+    }
+
     const colors = opts.onShip
       ? [0xff6b6b, 0xff8b3d, 0xffd86b]
-      : big
-        ? [this.world.accentColor, 0xffffff, 0xf7dc6f, 0xff8b3d]
-        : [0xf7dc6f, 0xff8b3d, 0xffffff];
+      : [0xf7dc6f, 0xff8b3d, 0xffffff];
 
-    const shardCount = big ? 18 : 14;
-    const distMin   = big ? 90 : 80;
-    const distSpan  = big ? 110 : 100;
-    const sizeMin   = big ? 4  : 5;
-    const sizeSpan  = big ? 8  : 5;
-    const durMin    = big ? 600 : 500;
-    const durSpan   = big ? 240 : 200;
-
+    const shardCount = 14;
     for (let i = 0; i < shardCount; i++) {
       const angle = (i / shardCount) * Math.PI * 2 + Math.random() * 0.4;
-      const dist = distMin + Math.random() * distSpan;
+      const dist = 80 + Math.random() * 100;
       const shard = this.add.graphics().setDepth(9);
       shard.fillStyle(colors[i % colors.length], 1);
-      shard.fillCircle(0, 0, sizeMin + Math.random() * sizeSpan);
+      shard.fillCircle(0, 0, 5 + Math.random() * 5);
       shard.x = x;
       shard.y = y;
       this.tweens.add({
@@ -1432,75 +1620,148 @@ export class GameScene extends Phaser.Scene {
         x: x + Math.cos(angle) * dist,
         y: y + Math.sin(angle) * dist,
         alpha: 0,
-        duration: durMin + Math.random() * durSpan,
+        duration: 500 + Math.random() * 200,
         ease: 'Quad.easeOut',
         onComplete: () => shard.destroy()
       });
     }
 
-    const ringRadius = big ? 50 : 40;
     const ring = this.add.graphics().setDepth(9);
-    ring.lineStyle(big ? 9 : 7, 0xffffff, 1);
-    ring.strokeCircle(0, 0, ringRadius);
+    ring.lineStyle(7, 0xffffff, 1);
+    ring.strokeCircle(0, 0, 40);
     ring.x = x;
     ring.y = y;
     this.tweens.add({
       targets: ring,
-      scale: big ? 5 : 4,
+      scale: 4,
       alpha: 0,
-      duration: big ? 450 : 380,
+      duration: 380,
       ease: 'Quad.easeOut',
       onComplete: () => ring.destroy()
     });
+  }
 
-    if (!big) return;
+  // Layered correct-answer explosion. Four overlapping passes:
+  //   * 0–40ms   white impact flash (radius ≈ asteroid radius × 1.4)
+  //   * 40–240ms ~30 shards in 3 size tiers radiate to 140–280px (Quad.easeOut)
+  //   * 80–360ms 7 debris chunks (world-accent triangles) tumble to 220–380px
+  //               with a full 360–720° rotation (Cubic.easeOut)
+  //   * 0–600ms  soft dust cloud (single circle, world-accent at 0.18 alpha)
+  //               scales 0.5 → 1.4 and fades out
+  // Camera wobble fires only on streak ≥ 10 (gentler than the damageShip shake).
+  // All shards/chunks come from the pre-allocated pool so we never construct
+  // mid-frame during the back-to-back explosions of fast worlds.
+  _explodeBig(x, y) {
+    const accent = this.world.accentColor;
+    const shardColors = [accent, 0xffffff, 0xf7dc6f, 0xff8b3d];
 
-    // Debris chunks: small polygonal shards with rotation + gravity-ish fall.
-    const debrisColor = darken(this.world.color, 0.15);
-    for (let i = 0; i < 5; i++) {
-      const angle = Math.random() * Math.PI * 2;
-      const speed = 80 + Math.random() * 120;
-      const vx = Math.cos(angle) * speed;
-      const vy = Math.sin(angle) * speed * 0.6 - 60; // bias upward initially
-      const size = 14 + Math.random() * 10;
-      const chunk = this.add.graphics().setDepth(9);
-      chunk.fillStyle(debrisColor, 1);
-      // Quad shaped like an irregular shard
+    // ── Layer 1: white impact flash (0–40ms) ──────────────────────────────
+    const flash = this._acquireFxGraphic();
+    flash.fillStyle(0xffffff, 1);
+    flash.fillCircle(0, 0, ASTEROID_RADIUS * 1.4);
+    flash.setPosition(x, y);
+    flash.setBlendMode(Phaser.BlendModes.ADD);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 40,
+      ease: 'Quad.easeOut',
+      onComplete: () => this._releaseFxGraphic(flash),
+    });
+
+    // ── Layer 2: ~30 shards in 3 size tiers (40–240ms) ────────────────────
+    const tiers = [
+      { count: 12, sizeMin: 4, sizeSpan: 2, distMin: 140, distSpan: 60 },
+      { count: 10, sizeMin: 7, sizeSpan: 3, distMin: 180, distSpan: 60 },
+      { count: 8,  sizeMin: 11, sizeSpan: 3, distMin: 220, distSpan: 60 },
+    ];
+    let shardIndex = 0;
+    const totalShards = tiers.reduce((s, t) => s + t.count, 0);
+    for (const tier of tiers) {
+      for (let i = 0; i < tier.count; i++) {
+        const angle = (shardIndex / totalShards) * Math.PI * 2 + Math.random() * 0.35;
+        shardIndex++;
+        const dist = tier.distMin + Math.random() * tier.distSpan;
+        const size = tier.sizeMin + Math.random() * tier.sizeSpan;
+        const color = shardColors[Math.floor(Math.random() * shardColors.length)];
+        const shard = this._acquireFxGraphic();
+        shard.fillStyle(color, 1);
+        shard.fillCircle(0, 0, size);
+        shard.setPosition(x, y);
+        const targetX = x + Math.cos(angle) * dist;
+        const targetY = y + Math.sin(angle) * dist;
+        this.tweens.add({
+          targets: shard,
+          x: targetX,
+          y: targetY,
+          alpha: 0,
+          angle: (Math.random() < 0.5 ? -1 : 1) * (60 + Math.random() * 240),
+          delay: 40,
+          duration: 200,
+          ease: 'Quad.easeOut',
+          onComplete: () => this._releaseFxGraphic(shard),
+        });
+      }
+    }
+
+    // ── Layer 3: 7 debris chunks (80–360ms) ───────────────────────────────
+    const chunkColor = darken(accent, 0.18);
+    const chunkCount = 7;
+    for (let i = 0; i < chunkCount; i++) {
+      const angle = (i / chunkCount) * Math.PI * 2 + Math.random() * 0.5;
+      const dist = 220 + Math.random() * 160;
+      const size = 18 + Math.random() * 8;
       const half = size / 2;
+      const chunk = this._acquireFxGraphic();
+      chunk.fillStyle(chunkColor, 1);
       chunk.fillTriangle(-half, -half * 0.6, half, -half * 0.4, half * 0.3, half * 0.7);
       chunk.fillTriangle(-half, -half * 0.6, half * 0.3, half * 0.7, -half * 0.4, half * 0.5);
-      chunk.x = x;
-      chunk.y = y;
-      chunk.angle = Math.random() * 360;
-      const targetX = x + vx * 0.6;
-      const targetY = y + vy * 0.6 + 200; // gravity drop
+      chunk.setPosition(x, y);
+      chunk.setAngle(Math.random() * 360);
+      const rotSign = Math.random() < 0.5 ? -1 : 1;
       this.tweens.add({
         targets: chunk,
-        x: targetX,
-        y: targetY,
-        angle: chunk.angle + (Math.random() < 0.5 ? -1 : 1) * (180 + Math.random() * 200),
+        x: x + Math.cos(angle) * dist,
+        y: y + Math.sin(angle) * dist + 80, // gravity-ish bias downward
+        angle: chunk.angle + rotSign * (360 + Math.random() * 360),
         alpha: 0,
-        duration: 600,
-        ease: 'Quad.easeIn',
-        onComplete: () => chunk.destroy()
+        delay: 80,
+        duration: 280,
+        ease: 'Cubic.easeOut',
+        onComplete: () => this._releaseFxGraphic(chunk),
       });
     }
 
-    // Brief screen flash: full-screen white rect, alpha 0 -> 0.25 -> 0 over ~120ms.
-    const flash = this.add.rectangle(W / 2, H / 2, W, H, 0xffffff, 0).setDepth(100);
+    // ── Layer 4: soft dust cloud (0–600ms) ────────────────────────────────
+    const dust = this.add.graphics().setDepth(8);
+    dust.fillStyle(accent, 0.18);
+    dust.fillCircle(0, 0, ASTEROID_RADIUS * 0.9);
+    dust.setPosition(x, y);
+    dust.setScale(0.5);
     this.tweens.add({
-      targets: flash,
-      alpha: { from: 0, to: 0.25 },
-      duration: 60,
-      yoyo: true,
-      ease: 'Quad.easeOut',
-      onComplete: () => flash.destroy()
+      targets: dust,
+      scale: 1.4,
+      alpha: 0,
+      duration: 600,
+      ease: 'Sine.easeOut',
+      onComplete: () => dust.destroy(),
     });
+
+    // Streak shake: only on hot streaks. Gentler than damageShip's 280/0.012.
+    if (this.streak >= 10) {
+      this.cameras.main.shake(120, 0.004);
+    }
   }
 
   removeAsteroid(asteroid) {
     if (asteroid.fallTween) asteroid.fallTween.stop();
     if (asteroid.container?.active) {
+      // Kill any other tweens still acting on the container (the
+      // playGlanceMiss drift, the snap-to-ship tween, the sway, etc.).
+      // Otherwise they keep animating the soon-to-be-destroyed container
+      // while a NEW asteroid spawns, leaving a "ghost" question floating
+      // past the play area until its tween finally ends.
+      this.tweens.killTweensOf(asteroid.container);
       this.tweens.add({
         targets: asteroid.container,
         scale: 0,
@@ -1511,11 +1772,7 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.activeAsteroids = this.activeAsteroids.filter(a => a !== asteroid);
-    if (this.targetedAsteroid === asteroid) {
-      this.targetedAsteroid = null;
-      const next = this.activeAsteroids[0];
-      if (next) this.targetAsteroid(next);
-    }
+    if (this.targetedAsteroid === asteroid) this.targetedAsteroid = null;
   }
 
   damageShip() {
@@ -1537,6 +1794,35 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   update(_time, delta) {
     if (this.state !== 'playing' && this.state !== 'feedback') return;
+
+    // Deadlock watchdog. If the live asteroid is locked (mid-cleanup) for too
+    // long — e.g. a delayedCall never fires because of an exception or a
+    // stranded paused clock — force a reset so the kid isn't stranded with
+    // unresponsive buttons. Boss rounds opt out (cycleBossProblem paces them).
+    //
+    // Only counts an asteroid as "stuck" when it's still parked in the play
+    // field at full opacity. Asteroids mid-snap, mid-glance-drift, or
+    // mid-shrink are in legitimate cleanup animations — counting those would
+    // race the watchdog against the natural removeAsteroid path and produce a
+    // duplicate spawn.
+    const trulyStuck = !this.isBoss
+      && this.activeAsteroids.length > 0
+      && this.activeAsteroids.every(a =>
+        a.lockedOut
+        && a.container?.active
+        && a.container.alpha > 0.9
+        && a.container.y < ASTEROID_IMPACT_Y);
+    if (trulyStuck) {
+      this._stuckMs = (this._stuckMs || 0) + delta;
+      if (this._stuckMs > 1500) {
+        this._stuckMs = 0;
+        this.state = 'playing';
+        this.activeAsteroids.slice().forEach(a => this.removeAsteroid(a));
+        this.spawnAsteroid();
+      }
+    } else {
+      this._stuckMs = 0;
+    }
 
     if (this.bossHpBar?.active && this.bossContainer?.active) {
       this.bossHpBar.x = this.bossContainer.x;
@@ -1588,55 +1874,99 @@ export class GameScene extends Phaser.Scene {
   }
 
   showFailScreen() {
+    if (this.scoreGroup) {
+      this.scoreGroup.forEach(o => this.tweens.add({
+        targets: o, alpha: 1, duration: 240, ease: 'Quad.easeOut'
+      }));
+    }
+
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50).setInteractive();
     this.tweens.add({ targets: overlay, alpha: 0.8, duration: 350 });
 
-    const panelW = 800;
-    const panelH = 600;
+    const panelW = 820;
+    const panelH = 760;
     const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
 
     const bg = this.add.graphics();
     bg.fillStyle(COLORS.bgPanel, 0.98);
     bg.fillRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
-    bg.lineStyle(3, COLORS.error, 0.9);
+    bg.lineStyle(3, COLORS.error, 0.85);
     bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
     panel.add(bg);
 
-    panel.add(this.add.text(0, -panelH / 2 + 80, 'Ship Destroyed', style('display', {
-      fontSize: '60px',
-      fill: '#ff6b6b'
+    // Softer headline than the old "Ship Destroyed" — fail screen leads with
+    // encouragement, not punishment.
+    panel.add(this.add.text(0, -panelH / 2 + 76, 'Mission incomplete', style('display', {
+      fontSize: '48px',
+      fill: '#ff9a9a',
     })).setOrigin(0.5));
 
-    panel.add(this.add.text(0, -panelH / 2 + 160, 'Five hits and the hull gave way.', style('body', {
-      fill: '#cfcfe0', fontSize: '28px'
+    // Pet rallies on the fail screen: brief slumpSad → bounceHappy.
+    const missed = this.getWeakFactsFromHistory().slice(0, 3);
+    let petY = -panelH / 2 + 240;
+    if (companion.hasStarter()) {
+      const pet = drawCompanion(this, 0, petY, { scale: 1.2 });
+      panel.add(pet);
+      pet.setScale(0);
+      this.tweens.add({
+        targets: pet,
+        scale: 1.2,
+        duration: 280,
+        delay: 280,
+        ease: 'Back.easeOut',
+        onComplete: () => {
+          pet.slumpSad?.();
+          this.time.delayedCall(520, () => pet.bounceHappy?.());
+          // Gentle idle breath afterwards.
+          this.tweens.add({
+            targets: pet,
+            scale: { from: 1.2, to: 1.2 * 1.03 },
+            duration: 900,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
+            delay: 900,
+          });
+        },
+      });
+    } else {
+      // Without a pet, drop the gap so the equation list still feels centered.
+      petY = -panelH / 2 + 160;
+    }
+
+    // Caption sits below the pet — uses the missed-facts log to pivot copy.
+    const captionY = petY + 110;
+    const caption = missed.length > 0
+      ? 'These were tricky! Try again to crush them.'
+      : 'So close! One more run.';
+    panel.add(this.add.text(0, captionY, caption, style('body', {
+      fontSize: '26px', fill: '#cfcfe0',
     })).setOrigin(0.5));
 
-    panel.add(this.add.text(0, -panelH / 2 + 220, 'Try again, pilot.', style('body', {
-      fill: '#cfcfe0', fontSize: '28px'
-    })).setOrigin(0.5));
+    // 1–3 missed equations in display font. Empty list (timeout with no
+    // misses) just shows the caption above.
+    if (missed.length > 0) {
+      const listTop = captionY + 70;
+      missed.forEach((m, i) => {
+        panel.add(this.add.text(0, listTop + i * 64, `${m.display} = ${m.answer}`, style('display', {
+          fontSize: '40px',
+          fill: '#f7dc6f',
+        })).setOrigin(0.5));
+      });
+    }
 
-    panel.add(this.add.text(-150, 30, this.score.toString(), style('display', {
-      fontSize: '70px', fill: '#ffffff'
-    })).setOrigin(0.5));
-    panel.add(this.add.text(-150, 90, 'CORRECT', style('caption')).setOrigin(0.5));
-
-    panel.add(this.add.text(150, 30, this.bestStreak.toString(), style('display', {
-      fontSize: '70px', fill: '#ff8b3d'
-    })).setOrigin(0.5));
-    panel.add(this.add.text(150, 90, 'BEST STREAK', style('caption')).setOrigin(0.5));
-
-    const btnY = panelH / 2 - 100;
+    const btnY = panelH / 2 - 90;
     panel.add(createButton(this, {
-      x: -150, y: btnY, label: 'Retry',
+      x: -150, y: btnY, label: 'Try again',
       width: 280, height: 90,
       color: this.world.accentColor,
-      onClick: () => this.scene.restart()
+      onClick: () => this.scene.restart(),
     }));
     panel.add(createButton(this, {
-      x: 150, y: btnY, label: 'Exit',
+      x: 150, y: btnY, label: 'Back to map',
       width: 280, height: 90,
       color: 0x4a4a6a,
-      onClick: () => this.exitToLevelSelect()
+      onClick: () => this.exitToLevelSelect(),
     }));
 
     this.tweens.add({
@@ -1650,7 +1980,7 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   // END OF ROUND
   // ============================================================
-  endRound({ bossWin } = {}) {
+  endRound({ bossWin, bossAsteroid } = {}) {
     this.state = 'ended';
     audio.playRoundComplete?.();
 
@@ -1728,13 +2058,24 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // World cleared (any non-final visible world): mark for auto-advance,
-    // show banner, then summary. Continue button routes back to the map.
-    if (clearedThisRun && !this.freePlay && !this.world?.hidden) {
-      progress.setJustClearedWorld(this.worldId);
-      this.showWorldClearBanner(() => proceedToSummary());
+    // Boss-win path runs the 4-beat defeat cinematic between the data writes
+    // above and the summary surface below. Non-boss rounds skip straight to
+    // the post-round flow.
+    const afterCinematic = () => {
+      if (clearedThisRun && !this.freePlay && !this.world?.hidden) {
+        progress.setJustClearedWorld(this.worldId);
+        this.showWorldClearBanner(() => proceedToSummary());
+      } else {
+        proceedToSummary();
+      }
+    };
+
+    if (bossWin && bossAsteroid) {
+      import('../BossDefeatCinematic.js').then(({ playBossDefeatCinematic }) => {
+        playBossDefeatCinematic(this, bossAsteroid, afterCinematic);
+      });
     } else {
-      proceedToSummary();
+      afterCinematic();
     }
   }
 
@@ -1754,11 +2095,17 @@ export class GameScene extends Phaser.Scene {
   }
 
   showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0, glitchUnlocked = false, glitchBonus = 0 }) {
+    if (this.scoreGroup) {
+      this.scoreGroup.forEach(o => this.tweens.add({
+        targets: o, alpha: 1, duration: 240, ease: 'Quad.easeOut'
+      }));
+    }
+
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setDepth(50).setInteractive();
     this.tweens.add({ targets: overlay, alpha: 0.7, duration: 350 });
 
     const panelW = 880;
-    const panelH = 1200;
+    const panelH = 980;
     const panel = this.add.container(W / 2, H + panelH / 2).setDepth(60);
 
     const bg = this.add.graphics();
@@ -1813,26 +2160,89 @@ export class GameScene extends Phaser.Scene {
     })).setOrigin(0.5));
     panel.add(this.add.text(220, statY + 60, 'BEST STREAK', style('caption')).setOrigin(0.5));
 
-    // Always-celebratory pet, top-right corner of the summary panel.
-    // Spec: pet visible regardless of star count; positive reinforcement.
+    // Summary pet — confetti moment + gentle happy idle. Three-star clears
+    // get a rotating star halo behind the pet for extra ceremony.
     if (companion.hasStarter()) {
-      const pet = drawCompanion(this, 320, -260, { scale: 0.9 });
+      const petX = 320;
+      const petY = -260;
+      const petScale = 1.6;
+
+      // Halo: 8-pointed star shape behind the pet, only on 3-star clears.
+      let halo = null;
+      if (stars >= 3) {
+        halo = this.add.graphics();
+        const N = 8;
+        const innerR = 36;
+        const outerR = 92;
+        halo.fillStyle(this.world.accentColor, 0.25);
+        for (let i = 0; i < N * 2; i++) {
+          const r = i % 2 === 0 ? outerR : innerR;
+          const a = (i / (N * 2)) * Math.PI * 2 - Math.PI / 2;
+          const x = Math.cos(a) * r;
+          const y = Math.sin(a) * r;
+          if (i === 0) halo.moveTo(x, y);
+          else halo.lineTo(x, y);
+        }
+        halo.closePath();
+        halo.fillPath();
+        halo.setPosition(petX, petY);
+        halo.setAlpha(0);
+        panel.add(halo);
+        this.tweens.add({
+          targets: halo, alpha: 0.25, duration: 400, delay: 700,
+        });
+        this.tweens.add({
+          targets: halo, angle: 360, duration: 12000,
+          repeat: -1, ease: 'Linear',
+        });
+      }
+
+      const pet = drawCompanion(this, petX, petY, { scale: petScale });
       panel.add(pet);
       pet.setScale(0);
       this.tweens.add({
         targets: pet,
-        scale: 0.9,
+        scale: petScale,
         duration: 320,
         delay: 600,
         ease: 'Back.easeOut',
         onComplete: () => {
           pet.bounceHappy?.();
-          const loop = this.time.addEvent({
-            delay: 1600,
-            loop: true,
-            callback: () => pet.bounceHappy?.()
+
+          // Confetti burst: 14 particles (20 on 3-star) in pet accent + gold +
+          // white, radiating outward over 800ms with Cubic.easeOut.
+          const accent = pet.species?.accent ?? 0xff8b3d;
+          const colors = [accent, 0xf7dc6f, 0xffffff];
+          const count = stars >= 3 ? 20 : 14;
+          for (let i = 0; i < count; i++) {
+            const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.45;
+            const dist = 90 + Math.random() * 90;
+            const p = this.add.graphics();
+            p.fillStyle(colors[i % colors.length], 1);
+            p.fillCircle(0, 0, 4 + Math.random() * 3);
+            p.setPosition(petX, petY);
+            panel.add(p);
+            this.tweens.add({
+              targets: p,
+              x: petX + Math.cos(angle) * dist,
+              y: petY + Math.sin(angle) * dist,
+              alpha: 0,
+              duration: 800,
+              ease: 'Cubic.easeOut',
+              onComplete: () => p.destroy(),
+            });
+          }
+
+          // Gentle happy idle — 3% scale breathe, 1.6s loop. Replaces the
+          // periodic bounceHappy ping from the legacy summary.
+          this.tweens.add({
+            targets: pet,
+            scale: { from: petScale, to: petScale * 1.03 },
+            duration: 800,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.easeInOut',
           });
-          pet.once('destroy', () => loop.destroy());
         }
       });
     }
@@ -1901,21 +2311,6 @@ export class GameScene extends Phaser.Scene {
       this.time.delayedCall(180, () => audio.playStar?.());
       this.time.delayedCall(360, () => audio.playStar?.());
     }
-
-    const weakFacts = this.getWeakFactsFromHistory();
-    const reviewY = statY + 170;
-    panel.add(this.add.text(0, reviewY, weakFacts.length ? 'Practice these' : 'No tricky facts!', style('subhead', {
-      fontSize: '28px',
-      fill: '#cfcfe0'
-    })).setOrigin(0.5));
-
-    weakFacts.slice(0, 3).forEach((wf, i) => {
-      const wy = reviewY + 60 + i * 64;
-      panel.add(this.add.text(0, wy, `${wf.display} = ${wf.answer}`, style('subhead', {
-        fontSize: '36px',
-        fill: '#f7dc6f'
-      })).setOrigin(0.5));
-    });
 
     const btnY = panelH / 2 - 110;
 
@@ -2202,12 +2597,24 @@ export class GameScene extends Phaser.Scene {
     this.time.paused = true;
     if (this.physics?.world) this.physics.world.pause();
 
+    // Idempotent: safe to call from any close path. The modal's overlay-tap
+    // dismiss routes through onClose below, so a kid who taps outside the
+    // panel also resumes the game instead of stranding tweens/time paused.
+    const resumeAll = () => {
+      if (!this._pauseOpen) return;
+      this.tweens.resumeAll();
+      this.time.paused = false;
+      if (this.physics?.world) this.physics.world.resume();
+      this._pauseOpen = false;
+    };
+
     const { card, close } = createModal(this, {
       width: 760, height: 760,
       depth: 100,
       overlayAlpha: 0.7,
       accentColor: this.world.accentColor,
-      showCloseHint: false
+      showCloseHint: false,
+      onClose: resumeAll
     });
 
     card.add(this.add.text(0, -300, 'PAUSED', style('display', {
@@ -2215,22 +2622,12 @@ export class GameScene extends Phaser.Scene {
       fill: '#ffffff'
     })).setOrigin(0.5));
 
-    const resumeAll = () => {
-      this.tweens.resumeAll();
-      this.time.paused = false;
-      if (this.physics?.world) this.physics.world.resume();
-      this._pauseOpen = false;
-    };
-
     card.add(createButton(this, {
       x: 0, y: -160, width: 420, height: 88,
       label: 'Resume',
       color: 0x39ff14,
       textOverrides: { fontSize: '30px', fill: '#0a0a1a', fontStyle: '900' },
-      onClick: () => {
-        resumeAll();
-        close();
-      }
+      onClick: () => close()
     }));
 
     // Sound + Music toggles — render once, redraw on tap.
@@ -2363,7 +2760,6 @@ export class GameScene extends Phaser.Scene {
     const fallSeconds = this.problemSeconds * 2.4; // Falls much slower.
     const asteroid = {
       container, text, problem,
-      slotIdx: null,
       lockedOut: false,
       fallTween: null,
       startedAtMs: performance.now(),
@@ -2378,22 +2774,10 @@ export class GameScene extends Phaser.Scene {
       onComplete: () => this.onAsteroidImpact(asteroid)
     });
     this.activeAsteroids.push(asteroid);
-
-    // Multi-slot hosts (e.g. W9 mixed → Dad's Garage) need a pointer hit so the
-    // kid can switch target onto the warp asteroid. Sized for the 1.5x body.
-    if (this.asteroidSlots > 1) {
-      const hit = this.add.rectangle(0, 0, 400, 400, 0x000000, 0).setInteractive({ useHandCursor: true });
-      container.add(hit);
-      hit.on('pointerdown', () => this.targetAsteroid(asteroid));
-    }
-
-    // Without this, the MC buttons keep showing the previous asteroid's
-    // choices — so the correct answer for the warp problem isn't on screen
-    // and taps go nowhere. Single-slot hosts (W5 div) always hit this branch
-    // because the previous target was cleared on removeAsteroid.
-    if (!this.targetedAsteroid) {
-      this.targetAsteroid(asteroid);
-    }
+    this.targetAsteroid(asteroid);
+    // Belt + braces: if a delayed callback or correction card left state in
+    // a non-playing mode, the warp's arrival is the moment to unlock input.
+    if (this.state !== 'playing') this.state = 'playing';
 
     this.playPetFreakout();
   }
