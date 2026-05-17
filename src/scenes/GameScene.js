@@ -51,6 +51,7 @@ const ASTEROID_TOP_Y = TOP_BAR_H + 60;
 const ASTEROID_IMPACT_Y = 1240;
 const SHIP_Y = 1370;
 const ASTEROID_RADIUS = 110;
+const IMPACT_GRACE_MS = 120;
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -96,6 +97,7 @@ export class GameScene extends Phaser.Scene {
     this.bestStreak = 0;
     this.stardustEarned = 0;
     this.history = [];
+    this.pendingEvolution = null;
 
     this.shipHp = SHIP_HP_MAX;
     this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
@@ -151,16 +153,16 @@ export class GameScene extends Phaser.Scene {
           audio.playBossRumble?.();
           this.cameras.main.flash(280, 90, 0, 0);
           this.cameras.main.shake(420, 0.008);
+          this.state = 'playing';
           this.spawnAsteroid();
-          this.time.delayedCall(700, () => { this.state = 'playing'; });
         });
       });
     } else {
+      this.state = 'playing';
       this.time.delayedCall(0, () => {
         if (this.state === 'failed' || this.state === 'ended') return;
         this.spawnAsteroid();
       });
-      this.time.delayedCall(450, () => { this.state = 'playing'; });
 
       if (this.warpState === 'pending') {
         const delay = 28000 + Math.floor(Math.random() * 12000);
@@ -448,6 +450,7 @@ export class GameScene extends Phaser.Scene {
       text,
       problem,
       lockedOut: false,
+      impactPending: false,
       fallTween: null,
       startedAtMs: performance.now(),
       isBoss: this.isBoss,
@@ -632,9 +635,21 @@ export class GameScene extends Phaser.Scene {
     container.add(g);
   }
 
+  isAnswerableAsteroid(asteroid) {
+    return !!(
+      asteroid &&
+      this.activeAsteroids.includes(asteroid) &&
+      !asteroid.lockedOut &&
+      asteroid.container?.active
+    );
+  }
+
+  getAnswerableAsteroid() {
+    return this.activeAsteroids.find(a => this.isAnswerableAsteroid(a)) || null;
+  }
+
   targetAsteroid(asteroid) {
-    if (!asteroid || !this.activeAsteroids.includes(asteroid)) return;
-    if (asteroid.lockedOut) return;
+    if (!this.isAnswerableAsteroid(asteroid)) return;
     this.targetedAsteroid = asteroid;
     this.refreshMcButtons(asteroid.problem);
   }
@@ -743,6 +758,19 @@ export class GameScene extends Phaser.Scene {
       choices.sort((a, b) => a - b);
     }
 
+    const seen = new Set();
+    choices = choices.filter(v => Number.isFinite(v) && !seen.has(v) && seen.add(v));
+    if (!choices.includes(problem.answer)) choices.unshift(problem.answer);
+    let pad = 1;
+    while (choices.length < want) {
+      const candidate = problem.answer + pad;
+      if (candidate > 0 && !choices.includes(candidate)) choices.push(candidate);
+      pad = pad > 0 ? -pad : -pad + 1;
+    }
+    choices = choices.slice(0, want);
+    if (!choices.includes(problem.answer)) choices[want - 1] = problem.answer;
+    choices.sort((a, b) => a - b);
+
     const faceColor = this.isGlitchBoss ? 0x1a3a14 : this.isBoss ? 0x3a1a2a : 0x2a2a44;
     this.mcButtons.forEach((btn, i) => {
       btn.value = choices[i];
@@ -792,8 +820,12 @@ export class GameScene extends Phaser.Scene {
     if (!this._inputUnlocked()) return;
     const btn = this.mcButtons[index];
     if (!btn || btn.value === null) return;
-    const asteroid = this.targetedAsteroid;
-    if (!asteroid || asteroid.lockedOut) return;
+    let asteroid = this.targetedAsteroid;
+    if (!this.isAnswerableAsteroid(asteroid)) {
+      asteroid = this.getAnswerableAsteroid();
+      if (!asteroid) return;
+      this.targetAsteroid(asteroid);
+    }
 
     const correct = btn.value === asteroid.problem.answer;
     if (correct) {
@@ -808,6 +840,8 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   handleCorrect(asteroid, btn) {
     asteroid.lockedOut = true;
+    asteroid.impactPending = false;
+    if (asteroid.fallTween) asteroid.fallTween.stop();
     this.state = 'feedback';
     this.attempts++;
     if (this._tutorialHint) this.dismissTutorialHint();
@@ -825,7 +859,10 @@ export class GameScene extends Phaser.Scene {
     this.flashMcButton(btn, COLORS.success);
 
     this.cockpitPet?.bounceHappy?.();
-    companion.feed();
+    const evolvedTo = companion.feed();
+    if (evolvedTo && !this.pendingEvolution) {
+      this.pendingEvolution = evolvedTo;
+    }
     if (this.streak === 3 || this.streak === 7 || this.streak % 10 === 0) {
       audio.playPetChirp?.();
     }
@@ -925,6 +962,7 @@ export class GameScene extends Phaser.Scene {
     if (this.state === 'failed' || this.state === 'ended') return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
     asteroid.lockedOut = false;
+    asteroid.impactPending = false;
 
     const newProblem = getProblemForWorld(this.worldId, this.mode);
     asteroid.problem = newProblem;
@@ -1017,6 +1055,18 @@ export class GameScene extends Phaser.Scene {
   onAsteroidImpact(asteroid, opts = {}) {
     if (this.state === 'ended' || this.state === 'failed') return;
     if (asteroid.lockedOut && !opts.fromWrongAnswer) return;
+
+    if (!opts.fromWrongAnswer && !opts.afterGrace) {
+      if (asteroid.impactPending) return;
+      asteroid.impactPending = true;
+      this.time.delayedCall(IMPACT_GRACE_MS, () => {
+        if (asteroid.lockedOut || !asteroid.container?.active) return;
+        this.onAsteroidImpact(asteroid, { ...opts, afterGrace: true });
+      });
+      return;
+    }
+
+    asteroid.impactPending = false;
     // handleWrong already set lockedOut + state; re-entering with
     // fromWrongAnswer is a continuation of the same answer flow, not a retap.
     asteroid.lockedOut = true;
@@ -1324,6 +1374,7 @@ export class GameScene extends Phaser.Scene {
     if (asteroid.fallTween) asteroid.fallTween.stop();
 
     asteroid.lockedOut = false;
+    asteroid.impactPending = false;
     const newProblem = this.isGlitchBoss
       ? getGlitchProblem()
       : getProblemForWorld(this.worldId, this.mode);
@@ -1772,7 +1823,11 @@ export class GameScene extends Phaser.Scene {
       });
     }
     this.activeAsteroids = this.activeAsteroids.filter(a => a !== asteroid);
-    if (this.targetedAsteroid === asteroid) this.targetedAsteroid = null;
+    if (this.targetedAsteroid === asteroid) {
+      this.targetedAsteroid = null;
+      const next = this.getAnswerableAsteroid();
+      if (next) this.targetAsteroid(next);
+    }
   }
 
   damageShip() {
@@ -1822,6 +1877,22 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       this._stuckMs = 0;
+    }
+
+    const emptyPlayableSlot = !this.isBoss
+      && !this.bossDefeated
+      && this.asteroidSlots > 0
+      && this.activeAsteroids.length === 0
+      && this.state !== 'warp';
+    if (emptyPlayableSlot) {
+      this._emptySlotMs = (this._emptySlotMs || 0) + delta;
+      if (this._emptySlotMs > 650) {
+        this._emptySlotMs = 0;
+        this.state = 'playing';
+        this.spawnAsteroid();
+      }
+    } else {
+      this._emptySlotMs = 0;
     }
 
     if (this.bossHpBar?.active && this.bossContainer?.active) {
@@ -2030,8 +2101,9 @@ export class GameScene extends Phaser.Scene {
 
     records.recordLevelComplete(this.bestStreak);
 
-    // Check for evolution after this round
-    const evolvedTo = companion.checkEvolutionEligibility();
+    // Evolution can become eligible mid-round from lifetime-correct gates, or
+    // after completeLevel unlocks a world-clear gate. Preserve either case.
+    const evolvedTo = this.pendingEvolution || companion.checkEvolutionEligibility();
 
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
     const clearedThisRun = bossWin && !wasFullyCleared && worldFullyCleared;
@@ -2761,6 +2833,7 @@ export class GameScene extends Phaser.Scene {
     const asteroid = {
       container, text, problem,
       lockedOut: false,
+      impactPending: false,
       fallTween: null,
       startedAtMs: performance.now(),
       isBoss: false,
@@ -2846,7 +2919,7 @@ export class GameScene extends Phaser.Scene {
   triggerWarp(asteroid) {
     // Lock the scene and play a hyperspace warp animation, then load the
     // hidden world. Marks discovery so it doesn't re-spawn here next time.
-    this.state = 'feedback';
+    this.state = 'warp';
     if (this.warpTargetId) {
       progress.discoverHiddenWorld(this.warpTargetId);
     }
