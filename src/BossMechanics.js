@@ -220,7 +220,7 @@ const BOSS_TWISTS = {
       const used = scene.bossTwistState.healUsed || 0;
       if (used >= 3) return;
       scene.bossTwistState.healUsed = used + 1;
-      scene.bossHp = (scene.bossHp || 0) + 1;
+      scene.bossHp = Math.min(scene.bossMaxHp || scene.bossHp || 0, (scene.bossHp || 0) + 1);
       if (scene.drawBossHp) scene.drawBossHp();
       // Gold flash
       if (scene.bossContainer?.active) {
@@ -235,8 +235,8 @@ const BOSS_TWISTS = {
     }
   },
 
-  // 10 — Mirrorshade: every other problem, briefly swap two MC buttons (visual
-  //     wiggle hinting at the mirror world).
+  // 10 — Mirrorshade: every other problem, briefly sends ghost outlines across
+  //     two MC buttons without moving the real hit areas.
   10: {
     init(scene) {
       scene.bossTwistState.problemCount = 0;
@@ -248,15 +248,26 @@ const BOSS_TWISTS = {
       if (btns.length < 2) return;
       const a = btns[0]; const b = btns[1];
       if (!a?.active || !b?.active) return;
-      const ax = a.x, bx = b.x;
-      scene.tweens.add({
-        targets: a, x: bx,
-        duration: 350, yoyo: true, ease: 'Sine.easeInOut'
-      });
-      scene.tweens.add({
-        targets: b, x: ax,
-        duration: 350, yoyo: true, ease: 'Sine.easeInOut'
-      });
+      const drawGhost = (from, to) => {
+        const { w = 320, h = 150 } = from.dimensions || {};
+        const ghost = scene.add.graphics().setDepth((from.depth || 10) + 1);
+        ghost.x = from.x;
+        ghost.y = from.y;
+        ghost.fillStyle(0xa6f0e8, 0.16);
+        ghost.fillRoundedRect(-w / 2, -h / 2, w, h - 6, 26);
+        ghost.lineStyle(4, 0xa6f0e8, 0.65);
+        ghost.strokeRoundedRect(-w / 2, -h / 2, w, h - 6, 26);
+        scene.tweens.add({
+          targets: ghost,
+          x: to.x,
+          alpha: 0,
+          duration: 420,
+          ease: 'Sine.easeInOut',
+          onComplete: () => ghost.destroy()
+        });
+      };
+      drawGhost(a, b);
+      drawGhost(b, a);
     }
   },
 

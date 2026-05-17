@@ -4,7 +4,7 @@ import { style } from './textStyles.js';
 import { COLORS } from './colorPalette.js';
 
 // Standard rounded-rect button. Returns the container.
-// onClick fires on pointerup if the pointer is still inside.
+// onClick fires on pointerdown.
 export function createButton(scene, opts) {
   const {
     x = 0,
@@ -185,35 +185,34 @@ export function createProgressBar(scene, opts) {
 
   // Fill — only when ratio > 0
   if (safeRatio > 0) {
-    const fillW = Math.max(h, Math.round(w * safeRatio));
+    const fillW = Math.max(1, Math.round(w * safeRatio));
+    const fillRadius = Math.min(radius, fillW / 2);
     const darken = Phaser.Display.Color.ValueToColor(color).darken(25).color;
     const lighten = Phaser.Display.Color.ValueToColor(color).lighten(35).color;
 
-    // Clip the fill to the track shape so it never pokes past the right edge
-    // when ratio < 1: render a sub-container masked to the track shape.
     const fillContainer = scene.add.container(0, 0);
     container.add(fillContainer);
 
     const fillG = scene.add.graphics();
     // Base gradient — solid color, then a darker bottom band for depth
     fillG.fillStyle(color, 1);
-    fillG.fillRoundedRect(-w / 2, -h / 2, fillW, h, radius);
+    fillG.fillRoundedRect(-w / 2, -h / 2, fillW, h, fillRadius);
     fillG.fillStyle(darken, 0.55);
     fillG.fillRoundedRect(-w / 2, -h / 2 + h * 0.55, fillW, h * 0.45, {
-      tl: 0, tr: 0, bl: radius, br: radius
+      tl: 0, tr: 0, bl: fillRadius, br: fillRadius
     });
     // Top highlight gloss
-    fillG.fillStyle(lighten, 0.55);
-    fillG.fillRoundedRect(-w / 2 + 4, -h / 2 + 4, Math.max(0, fillW - 8), h * 0.38, {
-      tl: radius - 2, tr: radius - 2, bl: 4, br: 4
-    });
+    const glossW = Math.max(0, fillW - 8);
+    if (glossW > 0) {
+      fillG.fillStyle(lighten, 0.55);
+      fillG.fillRoundedRect(-w / 2 + 4, -h / 2 + 4, glossW, h * 0.38, {
+        tl: Math.min(radius - 2, glossW / 2),
+        tr: Math.min(radius - 2, glossW / 2),
+        bl: 4,
+        br: 4
+      });
+    }
     fillContainer.add(fillG);
-
-    // Mask to the track shape — guarantees the right edge stays within the pill
-    const maskShape = scene.make.graphics({ x: 0, y: 0, add: false });
-    maskShape.fillStyle(0xffffff, 1);
-    maskShape.fillRoundedRect(x - w / 2, y - h / 2, w, h, radius);
-    fillContainer.setMask(maskShape.createGeometryMask());
 
     // End-cap shimmer — a soft bright dot at the leading edge of the fill
     if (safeRatio < 1) {

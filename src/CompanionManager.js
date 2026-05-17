@@ -199,7 +199,7 @@ class CompanionManager {
   // Counts a correct answer toward evolution. checkEvolutionEligibility
   // saves only when the stage actually advances.
   feed() {
-    this.checkEvolutionEligibility();
+    return this.checkEvolutionEligibility();
   }
 
   // Re-evaluates the pet's stage against the new gate criteria. If the next
