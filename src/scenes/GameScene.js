@@ -699,13 +699,19 @@ export class GameScene extends Phaser.Scene {
     const hit = this.add.rectangle(0, 0, w, h, 0x000000, 0).setInteractive({ useHandCursor: true });
     c.add(hit);
     hit.on('pointerover', () => {
+      if (!this._buttonsActive()) return;
       this.tweens.add({ targets: c, scale: 1.04, duration: 110 });
     });
     hit.on('pointerout', () => {
       this.tweens.add({ targets: c, scale: 1, duration: 110 });
     });
     hit.on('pointerdown', () => {
-      if (!this._inputUnlocked()) return;
+      // Two-tier gate: state must permit input AND there must actually be an
+      // asteroid to answer right now. Without the second check, the kid can
+      // tap during the 220ms post-correct gap (state still 'feedback', asteroid
+      // locked, no fresh spawn yet) and see the press animation play with no
+      // game response — which reads exactly as "unclickable answers".
+      if (!this._buttonsActive()) return;
       this.tweens.add({ targets: c, scaleX: 0.94, scaleY: 0.94, duration: 70, yoyo: true });
       this.handleMcChoice(index);
     });
@@ -805,6 +811,28 @@ export class GameScene extends Phaser.Scene {
   // prevents double-credit on the just-answered one.
   _inputUnlocked() {
     return this.state === 'playing' || this.state === 'feedback';
+  }
+
+  // True when MC buttons should respond. Distinct from _inputUnlocked: even
+  // when state allows input, there must be a live asteroid the kid can actually
+  // answer. This is the gate the per-button pointerdown checks so taps during
+  // the post-correct cleanup window read as "wait" rather than "broken".
+  _buttonsActive() {
+    return this._inputUnlocked() && !!this.getAnswerableAsteroid();
+  }
+
+  // Visually dim MC buttons when no asteroid is answerable. Called from
+  // update() — the kid sees the buttons fade slightly during the post-correct
+  // / correction cleanup window so the lack of response is obviously
+  // intentional, not a tap that got dropped.
+  _refreshMcButtonsDim() {
+    const active = this._buttonsActive();
+    if (this._mcButtonsActiveCache === active) return;
+    this._mcButtonsActiveCache = active;
+    const targetAlpha = active ? 1 : 0.45;
+    this.mcButtons?.forEach(btn => {
+      if (btn?.active) btn.setAlpha(targetAlpha);
+    });
   }
 
   onKeyDown(event) {
@@ -1464,21 +1492,31 @@ export class GameScene extends Phaser.Scene {
 
     let dismissed = false;
     let sceneHandler = null;
+    const sceneAlive = () => this.scene && this.scene.isActive?.() !== false && !!this.sys?.displayList;
     const dismiss = () => {
       if (dismissed) return;
       dismissed = true;
-      overlay.disableInteractive();
-      cardHit.disableInteractive();
-      if (sceneHandler) this.input.off('pointerdown', sceneHandler);
+      // The scene may have shut down before this fires (warp scene-swap,
+      // pause-quit, route change). Without this guard the tween/input calls
+      // below crash on torn-down systems.
+      if (!sceneAlive()) {
+        try { onContinue?.(); } catch (_) { /* downstream may also touch dead scene */ }
+        return;
+      }
+      try { overlay.disableInteractive(); } catch (_) {}
+      try { cardHit.disableInteractive(); } catch (_) {}
+      if (sceneHandler) {
+        try { this.input.off('pointerdown', sceneHandler); } catch (_) {}
+      }
       audio.playClick?.();
-      pausedTweens.forEach(t => t.resume?.());
+      pausedTweens.forEach(t => { try { t.resume?.(); } catch (_) {} });
       this.tweens.add({
         targets: [overlay, card],
         alpha: 0,
         duration: 160,
         onComplete: () => {
-          overlay.destroy();
-          card.destroy();
+          if (overlay?.active) overlay.destroy();
+          if (card?.active) card.destroy();
         }
       });
       this.state = 'playing';
@@ -1487,16 +1525,19 @@ export class GameScene extends Phaser.Scene {
 
     overlay.on('pointerdown', dismiss);
     cardHit.on('pointerdown', dismiss);
-    // Scene-level pointerdown + a hard auto-dismiss via setTimeout (not
-    // scene.time, so a paused scene clock can't strand it). Belt and braces:
-    // even if every hit handler somehow misses, 3.5s caps how long the kid
-    // can stay stuck on the card.
-    setTimeout(() => {
-      if (dismissed) return;
+    // Belt and braces:
+    //   * 50ms after open, register a scene-level pointerdown as a final tap
+    //     catcher (in case the overlay/card-hit miss the event).
+    //   * 3.5s hard cap so the kid can't get stranded reading the card.
+    // Both timers go through scene.time so a scene shutdown (warp swap, quit,
+    // restart) cleans them up automatically — the previous setTimeout-based
+    // version fired after shutdown and crashed dismiss.
+    this.time.delayedCall(50, () => {
+      if (dismissed || !sceneAlive()) return;
       sceneHandler = () => dismiss();
       this.input.on('pointerdown', sceneHandler);
-    }, 50);
-    setTimeout(dismiss, 3500);
+    });
+    this.time.delayedCall(3500, dismiss);
   }
 
   defeatBoss(asteroid) {
@@ -1819,7 +1860,9 @@ export class GameScene extends Phaser.Scene {
         alpha: 0,
         duration: 200,
         ease: 'Back.easeIn',
-        onComplete: () => asteroid.container.destroy()
+        onComplete: () => {
+          if (asteroid.container?.active) asteroid.container.destroy();
+        }
       });
     }
     this.activeAsteroids = this.activeAsteroids.filter(a => a !== asteroid);
@@ -1827,6 +1870,15 @@ export class GameScene extends Phaser.Scene {
       this.targetedAsteroid = null;
       const next = this.getAnswerableAsteroid();
       if (next) this.targetAsteroid(next);
+    }
+
+    // Warp asteroid recovery: if a warp asteroid is removed for any reason
+    // OTHER than a successful triggerWarp (state would be 'warp' in that case),
+    // restore the warp opportunity so the next spawn brings it back. Without
+    // this, a single mis-tap or timeout permanently consumed the gateway and
+    // the kid never saw the hidden world.
+    if (asteroid._isWarp && this.warpState === 'spawned' && this.state !== 'warp') {
+      this.warpState = 'ready';
     }
   }
 
@@ -1848,6 +1900,11 @@ export class GameScene extends Phaser.Scene {
   // UPDATE
   // ============================================================
   update(_time, delta) {
+    // Tap-feedback runs in ALL states (including 'intro', 'correction',
+    // 'warp', 'ended') so the buttons always reflect whether they would do
+    // anything if tapped — no "looks enabled, behaves dead" frames.
+    this._refreshMcButtonsDim();
+
     if (this.state !== 'playing' && this.state !== 'feedback') return;
 
     // Deadlock watchdog. If the live asteroid is locked (mid-cleanup) for too
@@ -1893,6 +1950,30 @@ export class GameScene extends Phaser.Scene {
       }
     } else {
       this._emptySlotMs = 0;
+    }
+
+    // Boss recovery watchdog. trulyStuck / emptyPlayableSlot both exclude
+    // boss because the boss flow paces itself with cycleBossProblem after a
+    // delayedCall. But if THAT callback ever silently bails (asteroid
+    // container destroyed, exception swallowed, paused clock), the kid would
+    // be stuck on a frozen boss with dimmed unanswerable buttons. After 3s
+    // of a locked boss asteroid with no answerable problem, force-cycle it.
+    const bossLockedTooLong = this.isBoss
+      && !this.bossDefeated
+      && this.activeAsteroids.length > 0
+      && this.activeAsteroids.every(a => a.lockedOut && a.container?.active);
+    if (bossLockedTooLong) {
+      this._bossStuckMs = (this._bossStuckMs || 0) + delta;
+      if (this._bossStuckMs > 3000) {
+        this._bossStuckMs = 0;
+        const stuck = this.activeAsteroids.find(a => a.container?.active);
+        if (stuck) {
+          this.state = 'playing';
+          this.cycleBossProblem(stuck);
+        }
+      }
+    } else {
+      this._bossStuckMs = 0;
     }
 
     if (this.bossHpBar?.active && this.bossContainer?.active) {
