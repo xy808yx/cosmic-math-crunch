@@ -764,15 +764,23 @@ export class WorldMapScene extends Phaser.Scene {
   tryWarpArrival() {
     const hiddenId = this.registry.get('warpArrivalHiddenId');
     if (!hiddenId) return false;
-    this.registry.set('warpArrivalHiddenId', null);
-    this.registry.set('warpArrivalFromWorldId', null);
 
     const hostIdx = HIDDEN_HOST_INDEX[hiddenId];
     const hiddenPos = HIDDEN_NODE_POSITIONS[hiddenId];
-    if (hostIdx == null || !hiddenPos) return false;
+    const hostPos = hostIdx != null ? this.nodePositions[hostIdx] : null;
 
-    const hostPos = this.nodePositions[hostIdx];
-    if (!hostPos) return false;
+    // Validate BEFORE clearing flags. If anything is missing the kid still
+    // ended up on the map (triggerWarp already did discoverHiddenWorld) — drop
+    // them straight into the destination so the warp isn't silently dropped.
+    if (hostIdx == null || !hiddenPos || !hostPos) {
+      this.registry.set('warpArrivalHiddenId', null);
+      this.registry.set('warpArrivalFromWorldId', null);
+      this._enterHiddenDestination(hiddenId);
+      return true;
+    }
+
+    this.registry.set('warpArrivalHiddenId', null);
+    this.registry.set('warpArrivalFromWorldId', null);
 
     // Snap the ship to the host world so the journey starts where the
     // player was actually playing. Stop the idle bob so it doesn't fight
