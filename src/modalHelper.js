@@ -61,16 +61,38 @@ export function createModal(scene, opts = {}) {
 
   let closed = false;
   let sceneCloseHandler = null;
+  let deferTimer = null;
+
+  // Drop the closeOnCardTap scene-level backup: cancel the pending registration
+  // and remove the listener if it was already added. Safe to call repeatedly.
+  const teardownSceneBackup = () => {
+    if (deferTimer) { clearTimeout(deferTimer); deferTimer = null; }
+    if (sceneCloseHandler) {
+      scene.input.off('pointerdown', sceneCloseHandler);
+      sceneCloseHandler = null;
+    }
+  };
+
   const close = () => {
     if (closed) return;
     closed = true;
-    if (sceneCloseHandler) scene.input.off('pointerdown', sceneCloseHandler);
+    teardownSceneBackup();
+    scene.events.off('shutdown', onSceneShutdown);
     try { audio.playClick?.(); } catch (e) { /* audio may be unavailable */ }
     overlay.destroy();
     card.destroy();
     closeHint?.destroy();
     onClose?.();
   };
+
+  // Scene swap / restart / quit while the modal is still open: cancel the
+  // deferred registration and drop the listener so neither fires against a
+  // torn-down scene (the bug this guards against — a raw setTimeout that
+  // outlived its scene re-registered input on a destroyed InputPlugin).
+  function onSceneShutdown() {
+    closed = true;
+    teardownSceneBackup();
+  }
 
   overlay.on('pointerdown', close);
   cardHit?.on('pointerdown', close);
@@ -80,11 +102,14 @@ export function createModal(scene, opts = {}) {
   // opens — overlay isn't in it yet, so a tap routes to whichever interactive
   // object underneath the modal sorts highest. Phaser emits this scene-level
   // event AFTER per-object dispatch in the same input cycle, so we defer
-  // registration past the current event to avoid catching the tap that
-  // opened the modal.
+  // registration past the current event (a macrotask) to avoid catching the
+  // tap that opened the modal. The shutdown hook cancels this timer and the
+  // alive-guard re-checks the scene, so a teardown before/after it fires is safe.
   if (closeOnCardTap) {
-    setTimeout(() => {
-      if (closed) return;
+    scene.events.once('shutdown', onSceneShutdown);
+    deferTimer = setTimeout(() => {
+      deferTimer = null;
+      if (closed || !scene.sys || !scene.sys.isActive()) return;
       sceneCloseHandler = () => close();
       scene.input.on('pointerdown', sceneCloseHandler);
     }, 0);

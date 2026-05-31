@@ -923,7 +923,11 @@ class PlayerProgress {
   // the note as "today's". Cycles sequentially through the notes array.
   claimDailyDadNoteIfDue(notes) {
     if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
-    const today = new Date().toISOString().slice(0, 10);
+    // Local calendar date (YYYY-MM-DD) — must match EconomyManager.todayString so
+    // the note and its daily stardust reset together at LOCAL midnight. Using UTC
+    // here rolled the note over hours early/late for non-UTC players.
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const state = this.dadNoteState || { lastClaimDate: null, nextIndex: 0 };
     const N = notes.length;
     const isNewDay = state.lastClaimDate !== today;

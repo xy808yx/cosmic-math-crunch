@@ -64,7 +64,9 @@ export class GameScene extends Phaser.Scene {
     this.mode = this.registry.get('levelMode') || 'mult';
     this.world = findWorld(this.worldId);
     this.isBoss = this.mode === 'boss';
-    this.isGlitchBoss = this.isBoss && this.worldId === 15;
+    // Data-driven: the Glitch World is the lone 'gauntlet'-kind world (see
+    // GameData WORLDS), so behavior keys off that instead of a hardcoded id.
+    this.isGlitchBoss = this.isBoss && this.world?.kind === 'gauntlet';
     this.freePlay = !!this.registry.get('freePlay');
 
     // Hidden-world warp asteroid: when the kid plays a host level (e.g. W5
@@ -140,6 +142,11 @@ export class GameScene extends Phaser.Scene {
     this.input.keyboard?.on('keydown', this._onKeyDown);
     this.events.once('shutdown', () => {
       this.input.keyboard?.off('keydown', this._onKeyDown);
+      // If we tear down while the pause menu still has the clock/tweens/physics
+      // paused (any exit path that bypasses the Resume handler), restore them so
+      // the next scene reusing this instance doesn't inherit a frozen clock —
+      // Phaser's Clock.start() does NOT reset `paused` on restart.
+      this._resumePausedSystems();
     });
 
     new TransitionManager(this).fadeIn(280);
@@ -160,14 +167,14 @@ export class GameScene extends Phaser.Scene {
     } else {
       this.state = 'playing';
       this.time.delayedCall(0, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         this.spawnAsteroid();
       });
 
       if (this.warpState === 'pending') {
         const delay = 28000 + Math.floor(Math.random() * 12000);
         this.time.delayedCall(delay, () => {
-          if (this.state === 'ended' || this.state === 'failed') return;
+          if (this._isOver()) return;
           if (this.warpState === 'pending') this.warpState = 'ready';
         });
       }
@@ -176,7 +183,7 @@ export class GameScene extends Phaser.Scene {
       // Auto-dismisses on the first correct answer.
       if (!progress.tutorialSeen) {
         this.time.delayedCall(900, () => {
-          if (this.state === 'failed' || this.state === 'ended') return;
+          if (this._isOver()) return;
           this.showTutorialHint();
         });
       }
@@ -327,8 +334,21 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   // ASTEROIDS
   // ============================================================
+  // Shared falling-asteroid tween: every spawn/cycle path drops the asteroid to
+  // `targetY` over `durationMs` and fires the impact on arrival. Centralizing the
+  // ease + onComplete wiring keeps the four call sites from drifting apart.
+  _startAsteroidFall(asteroid, targetY, durationMs) {
+    asteroid.fallTween = this.tweens.add({
+      targets: asteroid.container,
+      y: targetY,
+      duration: durationMs,
+      ease: 'Linear',
+      onComplete: () => this.onAsteroidImpact(asteroid)
+    });
+  }
+
   spawnAsteroid() {
-    if (this.state === 'ended' || this.state === 'failed') return;
+    if (this._isOver()) return;
     if (this.bossDefeated) return;
     if (this.activeAsteroids.length >= this.asteroidSlots) return;
 
@@ -464,13 +484,7 @@ export class GameScene extends Phaser.Scene {
     const fallSeconds = isMiniBoss
       ? this.problemSeconds * UPPER_LEVEL_CONFIG.miniBoss.fallMultiplier
       : this.problemSeconds;
-    asteroid.fallTween = this.tweens.add({
-      targets: container,
-      y: this.isBoss ? ASTEROID_IMPACT_Y - 80 : ASTEROID_IMPACT_Y,
-      duration: fallSeconds * 1000,
-      ease: 'Linear',
-      onComplete: () => this.onAsteroidImpact(asteroid)
-    });
+    this._startAsteroidFall(asteroid, this.isBoss ? ASTEROID_IMPACT_Y - 80 : ASTEROID_IMPACT_Y, fallSeconds * 1000);
 
     if (this.isBoss) {
       this.attachBossHpBar(container);
@@ -915,7 +929,7 @@ export class GameScene extends Phaser.Scene {
       bossTwistOn(this, 'onCorrect', asteroid);
 
       this.time.delayedCall(360, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         if (this.bossHp <= 0) {
           this.defeatBoss(asteroid);
         } else {
@@ -943,7 +957,7 @@ export class GameScene extends Phaser.Scene {
         ease: 'Sine.easeInOut',
       });
       this.time.delayedCall(320, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         this.cycleAsteroidProblem(asteroid);
       });
       return;
@@ -987,7 +1001,7 @@ export class GameScene extends Phaser.Scene {
   // mini-boss are untwisted to keep the HP-pip story uncluttered.
   cycleAsteroidProblem(asteroid) {
     if (!asteroid?.container?.active) return;
-    if (this.state === 'failed' || this.state === 'ended') return;
+    if (this._isOver()) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
     asteroid.lockedOut = false;
     asteroid.impactPending = false;
@@ -1001,13 +1015,7 @@ export class GameScene extends Phaser.Scene {
     const fullFall = ASTEROID_IMPACT_Y - ASTEROID_TOP_Y;
     const remainingFall = Math.max(40, ASTEROID_IMPACT_Y - asteroid.container.y);
     const remainingMs = Math.max(800, fallSeconds * 1000 * (remainingFall / fullFall));
-    asteroid.fallTween = this.tweens.add({
-      targets: asteroid.container,
-      y: ASTEROID_IMPACT_Y,
-      duration: remainingMs,
-      ease: 'Linear',
-      onComplete: () => this.onAsteroidImpact(asteroid),
-    });
+    this._startAsteroidFall(asteroid, ASTEROID_IMPACT_Y, remainingMs);
 
     this.refreshMcButtons(newProblem);
     this.state = 'playing';
@@ -1044,9 +1052,9 @@ export class GameScene extends Phaser.Scene {
       }
       const correctionProblem = asteroid.problem;
       this.time.delayedCall(700, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         this.showCorrectionFlash(correctionProblem, () => {
-          if (this.state === 'failed' || this.state === 'ended') return;
+          if (this._isOver()) return;
           this.cycleBossProblem(asteroid);
         });
       });
@@ -1070,7 +1078,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       this.time.delayedCall(600, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         this.cycleAsteroidProblem(asteroid);
       });
       return;
@@ -1081,7 +1089,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   onAsteroidImpact(asteroid, opts = {}) {
-    if (this.state === 'ended' || this.state === 'failed') return;
+    if (this._isOver()) return;
     if (asteroid.lockedOut && !opts.fromWrongAnswer) return;
 
     if (!opts.fromWrongAnswer && !opts.afterGrace) {
@@ -1131,9 +1139,9 @@ export class GameScene extends Phaser.Scene {
       this.bossAttackBack(asteroid);
       const correctionProblem = asteroid.problem;
       this.time.delayedCall(220, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         this.showCorrectionFlash(correctionProblem, () => {
-          if (this.state === 'failed' || this.state === 'ended') return;
+          if (this._isOver()) return;
           this.cycleBossProblem(asteroid);
         });
       });
@@ -1352,7 +1360,7 @@ export class GameScene extends Phaser.Scene {
       if (!this.scene.isActive()) return;
       const delay = 4000 + Math.random() * 2000;
       this._glitchAmbientTimer = this.time.delayedCall(delay, () => {
-        if (this.state === 'failed' || this.state === 'ended') return;
+        if (this._isOver()) return;
         audio.playGlitchStatic?.({ duration: 0.16 + Math.random() * 0.10, peakGain: 0.08 });
         scheduleNext();
       });
@@ -1411,13 +1419,7 @@ export class GameScene extends Phaser.Scene {
     asteroid.text?.setText(newProblem.display);
 
     asteroid.container.y = ASTEROID_TOP_Y;
-    asteroid.fallTween = this.tweens.add({
-      targets: asteroid.container,
-      y: ASTEROID_IMPACT_Y - 80,
-      duration: this.problemSeconds * 1000,
-      ease: 'Linear',
-      onComplete: () => this.onAsteroidImpact(asteroid)
-    });
+    this._startAsteroidFall(asteroid, ASTEROID_IMPACT_Y - 80, this.problemSeconds * 1000);
 
     this.refreshMcButtons(newProblem);
     bossTwistOn(this, 'onSpawn', asteroid);
@@ -1896,6 +1898,28 @@ export class GameScene extends Phaser.Scene {
     this.cameras.main.shake(280, 0.012);
   }
 
+  // True once the round has reached a terminal state — used by the many
+  // deferred callbacks that must bail if the level already failed or ended.
+  _isOver() {
+    return this.state === 'failed' || this.state === 'ended';
+  }
+
+  // Frame watchdog: accumulate `delta` while `cond` holds; once it crosses
+  // `thresholdMs`, reset the accumulator (stored on `this[key]`) and run
+  // `recover`. Releasing `cond` resets immediately. Collapses three identical
+  // stuck / empty-slot / boss-locked recovery loops in update() into one shape.
+  _tickWatchdog(key, cond, thresholdMs, delta, recover) {
+    if (cond) {
+      this[key] = (this[key] || 0) + delta;
+      if (this[key] > thresholdMs) {
+        this[key] = 0;
+        recover();
+      }
+    } else {
+      this[key] = 0;
+    }
+  }
+
   // ============================================================
   // UPDATE
   // ============================================================
@@ -1924,33 +1948,21 @@ export class GameScene extends Phaser.Scene {
         && a.container?.active
         && a.container.alpha > 0.9
         && a.container.y < ASTEROID_IMPACT_Y);
-    if (trulyStuck) {
-      this._stuckMs = (this._stuckMs || 0) + delta;
-      if (this._stuckMs > 1500) {
-        this._stuckMs = 0;
-        this.state = 'playing';
-        this.activeAsteroids.slice().forEach(a => this.removeAsteroid(a));
-        this.spawnAsteroid();
-      }
-    } else {
-      this._stuckMs = 0;
-    }
+    this._tickWatchdog('_stuckMs', trulyStuck, 1500, delta, () => {
+      this.state = 'playing';
+      this.activeAsteroids.slice().forEach(a => this.removeAsteroid(a));
+      this.spawnAsteroid();
+    });
 
     const emptyPlayableSlot = !this.isBoss
       && !this.bossDefeated
       && this.asteroidSlots > 0
       && this.activeAsteroids.length === 0
       && this.state !== 'warp';
-    if (emptyPlayableSlot) {
-      this._emptySlotMs = (this._emptySlotMs || 0) + delta;
-      if (this._emptySlotMs > 650) {
-        this._emptySlotMs = 0;
-        this.state = 'playing';
-        this.spawnAsteroid();
-      }
-    } else {
-      this._emptySlotMs = 0;
-    }
+    this._tickWatchdog('_emptySlotMs', emptyPlayableSlot, 650, delta, () => {
+      this.state = 'playing';
+      this.spawnAsteroid();
+    });
 
     // Boss recovery watchdog. trulyStuck / emptyPlayableSlot both exclude
     // boss because the boss flow paces itself with cycleBossProblem after a
@@ -1962,19 +1974,13 @@ export class GameScene extends Phaser.Scene {
       && !this.bossDefeated
       && this.activeAsteroids.length > 0
       && this.activeAsteroids.every(a => a.lockedOut && a.container?.active);
-    if (bossLockedTooLong) {
-      this._bossStuckMs = (this._bossStuckMs || 0) + delta;
-      if (this._bossStuckMs > 3000) {
-        this._bossStuckMs = 0;
-        const stuck = this.activeAsteroids.find(a => a.container?.active);
-        if (stuck) {
-          this.state = 'playing';
-          this.cycleBossProblem(stuck);
-        }
+    this._tickWatchdog('_bossStuckMs', bossLockedTooLong, 3000, delta, () => {
+      const stuck = this.activeAsteroids.find(a => a.container?.active);
+      if (stuck) {
+        this.state = 'playing';
+        this.cycleBossProblem(stuck);
       }
-    } else {
-      this._bossStuckMs = 0;
-    }
+    });
 
     if (this.bossHpBar?.active && this.bossContainer?.active) {
       this.bossHpBar.x = this.bossContainer.x;
@@ -2168,10 +2174,10 @@ export class GameScene extends Phaser.Scene {
 
     let glitchUnlocked = false;
     let glitchBonus = 0;
-    if (bossWin && this.isGlitchBoss && !progress.isHiddenWorldCleared(15)) {
+    if (bossWin && this.isGlitchBoss && !progress.isHiddenWorldCleared(this.worldId)) {
       glitchUnlocked = true;
       glitchBonus = 750;
-      progress.clearHiddenWorld(15);
+      progress.clearHiddenWorld(this.worldId);
       ship.addAndEquip('addon_glitch_module');
       economy.addStardust(glitchBonus);
       this.stardustEarned += glitchBonus;
@@ -2741,6 +2747,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // Inverse of the pause applied in openPauseMenu: resume the shared
+  // clock/tweens/physics and clear the flag. Self-guards on _pauseOpen so it's
+  // safe to call from the Resume button, overlay tap, or shutdown teardown.
+  _resumePausedSystems() {
+    if (!this._pauseOpen) return;
+    this.tweens.resumeAll();
+    this.time.paused = false;
+    if (this.physics?.world) this.physics.world.resume();
+    this._pauseOpen = false;
+  }
+
   openPauseMenu() {
     if (this._pauseOpen) return;
     this._pauseOpen = true;
@@ -2753,13 +2770,7 @@ export class GameScene extends Phaser.Scene {
     // Idempotent: safe to call from any close path. The modal's overlay-tap
     // dismiss routes through onClose below, so a kid who taps outside the
     // panel also resumes the game instead of stranding tweens/time paused.
-    const resumeAll = () => {
-      if (!this._pauseOpen) return;
-      this.tweens.resumeAll();
-      this.time.paused = false;
-      if (this.physics?.world) this.physics.world.resume();
-      this._pauseOpen = false;
-    };
+    const resumeAll = () => this._resumePausedSystems();
 
     const { card, close } = createModal(this, {
       width: 760, height: 760,
@@ -2795,7 +2806,7 @@ export class GameScene extends Phaser.Scene {
         color: audio.enabled ? 0xb6e0ff : 0x4a4a5a,
         textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
         onClick: () => {
-          audio.toggleEnabled?.();
+          audio.setEnabled?.(!audio.enabled);
           rebuild();
         }
       });
@@ -2920,13 +2931,7 @@ export class GameScene extends Phaser.Scene {
       isBoss: false,
       _isWarp: true
     };
-    asteroid.fallTween = this.tweens.add({
-      targets: container,
-      y: ASTEROID_IMPACT_Y,
-      duration: fallSeconds * 1000,
-      ease: 'Linear',
-      onComplete: () => this.onAsteroidImpact(asteroid)
-    });
+    this._startAsteroidFall(asteroid, ASTEROID_IMPACT_Y, fallSeconds * 1000);
     this.activeAsteroids.push(asteroid);
     this.targetAsteroid(asteroid);
     // Belt + braces: if a delayed callback or correction card left state in

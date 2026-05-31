@@ -21,31 +21,21 @@ export class BootScene extends Phaser.Scene {
   preload() {
     this.load.audio('homeTheme',   'audio/home-theme.mp3');
     this.load.audio('creditsSong', 'audio/credits.mp3');
-    this._maybeLoadAudio('levelTheme', 'audio/levels.mp3');
-    this._maybeLoadAudio('bossTheme',  'audio/boss-fight.mp3');
-    this._maybeLoadAudio('dadsGarage', 'audio/dads-garage.mp3');
+    // Optional themes load normally; a missing file fails softly via 'loaderror'
+    // (MusicManager.ensurePlaying no-ops on absent audio) instead of blocking the
+    // main thread with synchronous HEAD probes before first paint.
+    this.load.audio('levelTheme', 'audio/levels.mp3');
+    this.load.audio('bossTheme',  'audio/boss-fight.mp3');
+    this.load.audio('dadsGarage', 'audio/dads-garage.mp3');
+    this.load.on('loaderror', (file) => {
+      console.info(`[boot] optional audio "${file?.key}" unavailable — skipped`);
+    });
 
     // Only visible if preload runs long; create() destroys it on entry.
     this.loadingText = this.add.text(W / 2, H / 2, 'Loading…', style('headline', {
       fontSize: '54px',
       fill: '#cfcfe0'
     })).setOrigin(0.5);
-  }
-
-  _maybeLoadAudio(key, url) {
-    try {
-      const xhr = new XMLHttpRequest();
-      xhr.open('HEAD', url, false);
-      xhr.send(null);
-      const ct = xhr.getResponseHeader('Content-Type') || '';
-      if (xhr.status >= 200 && xhr.status < 300 && /audio\//i.test(ct)) {
-        this.load.audio(key, url);
-      } else {
-        console.info(`[boot] skipping optional audio "${key}" (file not provided)`);
-      }
-    } catch (e) {
-      console.info(`[boot] skipping optional audio "${key}" (probe failed)`);
-    }
   }
 
   create() {

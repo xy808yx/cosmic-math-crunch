@@ -2,7 +2,7 @@
 // dark base + cyan/coral/mint accents. Includes a Reset Progress button.
 
 import Phaser from 'phaser';
-import { progress, WORLDS } from '../GameData.js';
+import { progress, VISIBLE_WORLDS, findWorld } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
@@ -589,12 +589,12 @@ export class ParentDashboardScene extends Phaser.Scene {
     let totalStars = progress.totalStars || 0;
     let levelsCompleted = 0;
     let currentWorldId = 1;
-    for (let worldId = 1; worldId <= WORLDS.length; worldId++) {
-      const wp = progress.getWorldProgress(worldId);
-      levelsCompleted += wp.levelsCompleted || 0;
-      if (progress.isWorldUnlocked(worldId)) currentWorldId = worldId;
+    for (const world of VISIBLE_WORLDS) {
+      const wp = progress.getWorldProgress(world.id);
+      levelsCompleted += wp?.levelsCompleted || 0;
+      if (progress.isWorldUnlocked(world.id)) currentWorldId = world.id;
     }
-    const currentWorld = WORLDS[currentWorldId - 1]?.name || 'Moon Base';
+    const currentWorld = findWorld(currentWorldId)?.name || 'Moon Base';
     const accStats = records.getOverallStats();
     const overallAccuracy = accStats.totalAttempts > 0
       ? Math.round((accStats.totalCorrect / accStats.totalAttempts) * 100)

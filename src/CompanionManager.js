@@ -150,6 +150,10 @@ class CompanionManager {
     if (!SPECIES[speciesId]) return false;
     progress.companion.speciesId = speciesId;
     progress.companion.stage = 'egg';
+    // A new pet starts fresh: cosmic form and any display-stage override belong
+    // to the previous pet and must not carry over (else the egg renders cosmic).
+    progress.companion.cosmicForm = false;
+    progress.companion.displayStage = null;
     progress.save();
     return true;
   }
@@ -182,6 +186,10 @@ class CompanionManager {
     progress.companion.completed = completed;
     progress.companion.speciesId = null;
     progress.companion.stage = null;
+    // Retire the cosmic/display state with the pet so the intermediate
+    // (pre-pick) state is consistent and never bleeds into the next pet.
+    progress.companion.cosmicForm = false;
+    progress.companion.displayStage = null;
     progress.save();
     return true;
   }
