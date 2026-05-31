@@ -8,6 +8,10 @@ class MusicManager {
     this.tracks = {};        // key -> Phaser sound instance
     this.enabled = true;
     this.volume = 0.35;
+    // Current fade level as a fraction of `volume` (1 = full). setVolume/fadeVolume
+    // update it; ducks dip below and restore to `volume * volumeMultiplier`, so an
+    // SFX duck during a fade no longer snaps the music back to full.
+    this.volumeMultiplier = 1;
     this.currentKey = null;  // last-requested track key
   }
 
@@ -15,6 +19,9 @@ class MusicManager {
   // playing, it's stopped first. Missing audio (file not provided yet) is
   // a quiet no-op rather than a crash.
   ensurePlaying(scene, key = 'homeTheme') {
+    // Switching to a different track starts it at its natural full volume —
+    // drop any stale fade level so it doesn't inherit a previous track's dip.
+    if (this.currentKey !== key) this.volumeMultiplier = 1;
     if (!scene.cache.audio.exists(key)) {
       if (this.currentKey && this.currentKey !== key) this._stopCurrent();
       this.currentKey = key;
@@ -79,6 +86,7 @@ class MusicManager {
   // Used by the boot intro to start at 30% before ramping to full. No-op if
   // no music is playing or the active sound has no WebAudio volumeNode.
   setVolume(multiplier = 1) {
+    this.volumeMultiplier = multiplier;
     if (!this.currentKey) return;
     const t = this.tracks[this.currentKey];
     if (!t || !t.volumeNode || !t.volumeNode.context) return;
@@ -93,6 +101,7 @@ class MusicManager {
   // Linearly ramp the current music's volume to `base * multiplier` over
   // `durationMs`. Used by the boot intro to fade from 30% → 100% on exit.
   fadeVolume(multiplier = 1, durationMs = 400) {
+    this.volumeMultiplier = multiplier;
     if (!this.currentKey) return;
     const t = this.tracks[this.currentKey];
     if (!t || !t.volumeNode || !t.volumeNode.context) return;
@@ -123,7 +132,9 @@ class MusicManager {
 
     const ctx = gainNode.context;
     const now = ctx.currentTime;
-    const baseVol = this.volume;
+    // Restore to the current fade level, not raw full volume, so ducking an SFX
+    // mid-fade (e.g. the boss-defeat cinematic at 40%) doesn't snap music to 100%.
+    const baseVol = this.volume * this.volumeMultiplier;
     const duckedVol = Math.max(0, baseVol * (1 - amount));
     const rampS = 0.04;
     const holdS = Math.max(0, durationMs / 1000 - rampS * 2);

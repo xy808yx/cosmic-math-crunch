@@ -793,7 +793,9 @@ export class WorldMapScene extends Phaser.Scene {
     this.shipPet.x = hostPos.x;
     this.shipPet.y = hostPos.y - 30;
     this.shipPet.rotation = 0;
-    this.input.enabled = false;
+    // NB: scene input stays ENABLED — the full-screen skipHit overlay below
+    // (created at depth 900) both captures the tap-to-skip and shields the map
+    // nodes. Disabling input here previously killed the skip entirely.
 
     // Glitch path: GameScene swaps to bossTheme on arrival. Pause the home
     // theme here so the brief travel beat isn't backed by the wrong music.
@@ -808,12 +810,15 @@ export class WorldMapScene extends Phaser.Scene {
       .setInteractive().setDepth(900);
 
     // Guard against the natural-completion path and the tap-skip path both
-    // firing in the same frame — without the `arrived` flag, skipHit gets
-    // destroyed twice and the tooltip / dwell timer fire twice.
+    // firing in the same frame — without the `arrived` flag the tooltip and
+    // dwell timer would fire twice.
     const finishArrival = () => {
       if (arrived) return;
       arrived = true;
-      skipHit.destroy();
+      // Keep skipHit alive (it's invisible) as an input shield through the
+      // arrival dwell so a stray tap can't hit a map node and race the scene
+      // swap below; the `arrived` guard makes further taps no-ops, and
+      // scene.start in _enterHiddenDestination tears the overlay down.
       this._showArrivalTooltip(this._arrivalTooltipConfig(hiddenId, hiddenPos));
       const dwell = skipped ? 900 : 1600;
       this.time.delayedCall(dwell, () => this._enterHiddenDestination(hiddenId));

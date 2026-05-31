@@ -88,7 +88,7 @@ export class SettingsScene extends Phaser.Scene {
       color: audio.enabled ? 0xb6e0ff : 0x4a4a5a,
       textOverrides: { fontSize: '34px', fill: '#0a0a1a', fontStyle: '900' },
       onClick: () => {
-        audio.toggleEnabled?.();
+        audio.setEnabled?.(!audio.enabled);
         this.renderToggles(cardX, cardY);
       }
     });

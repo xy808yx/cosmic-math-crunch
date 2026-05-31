@@ -175,18 +175,29 @@ export class AudioManager {
     osc.stop(this.context.currentTime + 0.2);
   }
 
-  _playNoiseBurst({ duration = 0.35, startOffset = 0, peakGain = 0.3, amplitude = 1, filter = null } = {}) {
-    const bufferSize = Math.floor(this.context.sampleRate * duration);
-    const buffer = this.context.createBuffer(1, bufferSize, this.context.sampleRate);
-    const data = buffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * amplitude * (1 - i / bufferSize);
+  // One shared white-noise buffer (raw, amplitude 1), generated lazily and
+  // reused by every burst. The glitch boss fires _playNoiseBurst on a recurring
+  // loop, so re-allocating + Math.random()-filling a buffer per call was needless
+  // churn. 2s long and looped at playback, so any burst duration is covered.
+  _getNoiseBuffer() {
+    if (!this._noiseBuffer || this._noiseBuffer.sampleRate !== this.context.sampleRate) {
+      const len = Math.floor(this.context.sampleRate * 2);
+      const buf = this.context.createBuffer(1, len, this.context.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = Math.random() * 2 - 1;
+      this._noiseBuffer = buf;
     }
+    return this._noiseBuffer;
+  }
+
+  _playNoiseBurst({ duration = 0.35, startOffset = 0, peakGain = 0.3, amplitude = 1, filter = null } = {}) {
     const noise = this.context.createBufferSource();
-    noise.buffer = buffer;
+    noise.buffer = this._getNoiseBuffer();
+    noise.loop = true;
     const gain = this.context.createGain();
     const startAt = this.context.currentTime + startOffset;
-    gain.gain.setValueAtTime(peakGain, startAt);
+    // amplitude (previously baked into the buffer samples) folds into the peak.
+    gain.gain.setValueAtTime(peakGain * amplitude, startAt);
     gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
     if (filter) {
       const f = this.context.createBiquadFilter();
@@ -200,6 +211,7 @@ export class AudioManager {
     }
     gain.connect(this.sfxGain);
     noise.start(startAt);
+    noise.stop(startAt + duration);
   }
 
   // Asteroid explosion — noise burst + low rumble + sub-bass reverb tail
@@ -584,8 +596,20 @@ export class AudioManager {
     }
   }
 
+  // SFX on/off only — does NOT touch music. Used by the independent "Sound"
+  // toggle in Settings and the pause menu, where Music has its own toggle.
+  setEnabled(enabled) {
+    this.enabled = !!enabled;
+    return this.enabled;
+  }
+
+  // Master mute for the standalone speaker icons (LevelSelect, Parent Dashboard):
+  // flips SFX and forces music to match, so one tap silences — or restores — all
+  // audio. Granular Sound/Music control lives in Settings and the pause menu.
   toggleEnabled() {
-    this.enabled = !this.enabled;
+    // Master toggle: flip SFX through the canonical setter, then mirror to music
+    // so the enable-flag mutation lives in exactly one place (setEnabled).
+    this.setEnabled(!this.enabled);
     music.setEnabled(this.enabled);
     return this.enabled;
   }
