@@ -913,6 +913,11 @@ export class GameScene extends Phaser.Scene {
     this.fireLaserAt(asteroid);
 
     if (asteroid._isWarp) {
+      // Lock into the warp BEFORE removing the asteroid. removeAsteroid re-arms
+      // warpState to 'ready' for any removal where state !== 'warp' (its
+      // mis-tap / timeout recovery path); without setting state first, a
+      // SUCCESSFUL warp would wrongly re-arm the gateway too.
+      this.state = 'warp';
       this.removeAsteroid(asteroid);
       this.triggerWarp(asteroid);
       return;

@@ -85,10 +85,16 @@ export function createStreakHUD(scene, opts = {}) {
   }
 
   function killTween(key) {
-    if (tweens[key]) {
-      tweens[key].stop();
-      tweens[key] = null;
-    }
+    const t = tweens[key];
+    if (!t) return;
+    // Most entries are tweens (.stop), but emberSpawn is a Time.TimerEvent
+    // (.remove, no .stop). Calling .stop() on it throws and — because
+    // setStreak() runs early in handleCorrect — aborts the whole correct-answer
+    // flow (no explosion, no respawn) every time the streak re-enters a higher
+    // tier (10/20/30). Handle both shapes.
+    if (typeof t.stop === 'function') t.stop();
+    else if (typeof t.remove === 'function') t.remove(false);
+    tweens[key] = null;
   }
 
   function drawFlameOutline() {
