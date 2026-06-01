@@ -1,7 +1,7 @@
 // Procedural audio using Web Audio API
 // No external files needed - generates all sounds programmatically
 
-export class AudioManager {
+class AudioManager {
   constructor() {
     this.context = null;
     this.masterGain = null;
@@ -59,25 +59,6 @@ export class AudioManager {
 
     osc.start(this.context.currentTime + delay);
     osc.stop(this.context.currentTime + delay + duration);
-  }
-
-  // Tile select sound - soft blip
-  playSelect() {
-    this.playTone(600, 0.1, 'sine', 0.2);
-  }
-
-  // Tile swap sound - two quick tones
-  playSwap() {
-    this.playTone(400, 0.08, 'sine', 0.25);
-    this.playTone(500, 0.08, 'sine', 0.25, 0.05);
-  }
-
-  // Correct match - happy ascending arpeggio
-  playMatch() {
-    const notes = [523, 659, 784]; // C5, E5, G5
-    notes.forEach((freq, i) => {
-      this.playTone(freq, 0.15, 'sine', 0.3, i * 0.08);
-    });
   }
 
   // Wrong answer - descending "bwah" sound

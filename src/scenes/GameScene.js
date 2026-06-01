@@ -44,6 +44,7 @@ const ASTEROID_TOP_Y = TOP_BAR_H + 60;
 const ASTEROID_IMPACT_Y = 1240;
 const SHIP_Y = 1370;
 const ASTEROID_RADIUS = 110;
+const IMPACT_GRACE_MS = 120;
 
 export class GameScene extends Phaser.Scene {
   constructor() {
@@ -73,7 +74,7 @@ export class GameScene extends Phaser.Scene {
     this.bestStreak = 0;
     this.stardustEarned = 0;
     this.history = [];
-    this.problemStartedAtMs = 0;
+    this.pendingEvolution = null;
 
     this.shipHp = SHIP_HP_MAX;
     this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
@@ -116,18 +117,18 @@ export class GameScene extends Phaser.Scene {
           audio.playBossRumble?.();
           this.cameras.main.flash(280, 90, 0, 0);
           this.cameras.main.shake(420, 0.008);
+          this.state = 'playing';
           this.spawnAsteroid();
-          this.time.delayedCall(700, () => { this.state = 'playing'; });
         });
       });
     } else {
+      this.state = 'playing';
       for (let i = 0; i < this.asteroidSlots; i++) {
         this.time.delayedCall(i * 600, () => {
           if (this.state === 'failed' || this.state === 'ended') return;
           this.spawnAsteroid();
         });
       }
-      this.time.delayedCall(450, () => { this.state = 'playing'; });
     }
   }
 
@@ -370,6 +371,7 @@ export class GameScene extends Phaser.Scene {
       problem,
       slotIdx,
       lockedOut: false,
+      impactPending: false,
       fallTween: null,
       startedAtMs: performance.now(),
       isBoss: this.isBoss
@@ -489,11 +491,32 @@ export class GameScene extends Phaser.Scene {
     container.add(g);
   }
 
-  targetAsteroid(asteroid) {
-    if (!asteroid || !this.activeAsteroids.includes(asteroid)) return;
+  isSelectableAsteroid(asteroid) {
+    return !!(
+      asteroid &&
+      this.activeAsteroids.includes(asteroid) &&
+      !asteroid.lockedOut &&
+      asteroid.container?.active
+    );
+  }
+
+  getNextTargetAsteroid() {
+    return this.activeAsteroids
+      .filter(a => this.isSelectableAsteroid(a))
+      .sort((a, b) => b.container.y - a.container.y)[0] || null;
+  }
+
+  findAsteroidForAnswer(value) {
+    return this.activeAsteroids
+      .filter(a => this.isSelectableAsteroid(a) && a.problem?.answer === value)
+      .sort((a, b) => b.container.y - a.container.y)[0] || null;
+  }
+
+  targetAsteroid(asteroid, opts = {}) {
+    if (!this.isSelectableAsteroid(asteroid)) return;
+    const { refreshButtons = true } = opts;
     this.targetedAsteroid = asteroid;
-    this.problemStartedAtMs = asteroid.startedAtMs;
-    this.refreshMcButtons(asteroid.problem);
+    if (refreshButtons) this.refreshMcButtons(asteroid.problem);
 
     if (this.targetReticle) this.targetReticle.destroy();
     if (this.asteroidSlots > 1) {
@@ -556,7 +579,7 @@ export class GameScene extends Phaser.Scene {
       this.tweens.add({ targets: c, scale: 1, duration: 110 });
     });
     hit.on('pointerdown', () => {
-      if (this.state !== 'playing') return;
+      if (!this.canAcceptAnswerInput()) return;
       this.tweens.add({ targets: c, scaleX: 0.94, scaleY: 0.94, duration: 70, yoyo: true });
       this.handleMcChoice(index);
     });
@@ -620,8 +643,12 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   // INPUT
   // ============================================================
+  canAcceptAnswerInput() {
+    return this.state === 'playing';
+  }
+
   onKeyDown(event) {
-    if (this.state !== 'playing') return;
+    if (!this.canAcceptAnswerInput()) return;
     const map = { '1': 0, '2': 1, '3': 2, '4': 3, '5': 4, '6': 5 };
     const idx = map[event.key];
     if (idx !== undefined && idx < this.mcButtons.length) {
@@ -630,28 +657,49 @@ export class GameScene extends Phaser.Scene {
   }
 
   handleMcChoice(index) {
-    if (this.state !== 'playing') return;
+    if (!this.canAcceptAnswerInput()) return;
     const btn = this.mcButtons[index];
     if (!btn || btn.value === null) return;
-    const asteroid = this.targetedAsteroid;
-    if (!asteroid) return;
+    const pickedValue = btn.value;
+    let asteroid = this.isSelectableAsteroid(this.targetedAsteroid) ? this.targetedAsteroid : null;
 
-    const correct = btn.value === asteroid.problem.answer;
+    let correct = asteroid && pickedValue === asteroid.problem.answer;
+    if (!correct && !this.isBoss && this.asteroidSlots > 1) {
+      const matchingAsteroid = this.findAsteroidForAnswer(pickedValue);
+      if (matchingAsteroid) {
+        asteroid = matchingAsteroid;
+        correct = true;
+      }
+    }
+
+    if (!asteroid) {
+      const next = this.getNextTargetAsteroid();
+      if (next) this.targetAsteroid(next);
+      return;
+    }
+
+    if (asteroid !== this.targetedAsteroid) {
+      this.targetAsteroid(asteroid, { refreshButtons: !correct });
+    }
+
     if (correct) {
-      this.handleCorrect(asteroid, btn);
+      this.handleCorrect(asteroid, btn, pickedValue);
     } else {
-      this.handleWrong(asteroid, btn);
+      this.handleWrong(asteroid, btn, pickedValue);
     }
   }
 
   // ============================================================
   // ANSWER FLOW
   // ============================================================
-  handleCorrect(asteroid, btn) {
-    this.state = 'feedback';
+  handleCorrect(asteroid, btn, pickedValue = btn.value) {
+    if (asteroid.isBoss) this.state = 'feedback';
+    asteroid.lockedOut = true;
+    if (asteroid.fallTween) asteroid.fallTween.stop();
+
     this.attempts++;
     const elapsed = performance.now() - asteroid.startedAtMs;
-    this.history.push({ problem: asteroid.problem, userAnswer: btn.value, correct: true });
+    this.history.push({ problem: asteroid.problem, userAnswer: pickedValue, correct: true });
     progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, true);
     records.recordAnswer(asteroid.problem, true, elapsed);
 
@@ -671,7 +719,10 @@ export class GameScene extends Phaser.Scene {
     this.flashMcButton(btn, 0x58d68d);
 
     this.cockpitPet?.bounceHappy?.();
-    companion.feed();
+    const evolvedTo = companion.feed();
+    if (evolvedTo && !this.pendingEvolution) {
+      this.pendingEvolution = evolvedTo;
+    }
     if (this.streak === 3 || this.streak === 7 || this.streak % 10 === 0) {
       audio.playPetChirp?.();
       // Streak-triggered cosmetic animations
@@ -703,6 +754,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    const next = this.getNextTargetAsteroid();
+    if (next) this.targetAsteroid(next);
+
     this.time.delayedCall(220, () => {
       audio.playAsteroidBoom?.();
       this.explodeAsteroid(asteroid);
@@ -718,8 +772,7 @@ export class GameScene extends Phaser.Scene {
 
   // Wrong answer on a normal asteroid → instant impact (no retry on the same
   // asteroid). Boss problems instead cost ship HP and let the boss counter-attack.
-  handleWrong(asteroid, btn) {
-    const pickedValue = btn.value;
+  handleWrong(asteroid, btn, pickedValue = btn.value) {
     this.flashMcButton(btn, 0xff6b6b);
     audio.playWrong?.();
 
@@ -753,6 +806,18 @@ export class GameScene extends Phaser.Scene {
   onAsteroidImpact(asteroid, opts = {}) {
     if (this.state === 'ended' || this.state === 'failed') return;
     if (asteroid.lockedOut) return;
+
+    if (!opts.fromWrongAnswer && !opts.afterGrace) {
+      if (asteroid.impactPending) return;
+      asteroid.impactPending = true;
+      this.time.delayedCall(IMPACT_GRACE_MS, () => {
+        if (asteroid.lockedOut || !asteroid.container?.active) return;
+        this.onAsteroidImpact(asteroid, { ...opts, afterGrace: true });
+      });
+      return;
+    }
+
+    asteroid.impactPending = false;
     asteroid.lockedOut = true;
 
     this.attempts++;
@@ -789,6 +854,8 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.state = 'feedback';
+
     // Stop the asteroid's fall and snap it to the ship (the "crash") for
     // a cleaner visual when the player tapped wrong well above the impact line.
     if (asteroid.fallTween) asteroid.fallTween.stop();
@@ -815,6 +882,7 @@ export class GameScene extends Phaser.Scene {
 
     this.time.delayedCall(450, () => {
       if (this.state === 'playing' || this.state === 'feedback') {
+        this.state = 'playing';
         this.spawnAsteroid();
       }
     });
@@ -859,6 +927,8 @@ export class GameScene extends Phaser.Scene {
 
     const newProblem = getProblemForWorld(this.worldId, this.mode);
     asteroid.problem = newProblem;
+    asteroid.lockedOut = false;
+    asteroid.impactPending = false;
     asteroid.startedAtMs = performance.now();
     asteroid.text?.setText(newProblem.display);
 
@@ -872,7 +942,6 @@ export class GameScene extends Phaser.Scene {
     });
 
     this.refreshMcButtons(newProblem);
-    this.problemStartedAtMs = asteroid.startedAtMs;
     bossTwistOn(this, 'onSpawn', asteroid);
   }
 
@@ -1000,8 +1069,12 @@ export class GameScene extends Phaser.Scene {
     this.activeAsteroids = this.activeAsteroids.filter(a => a !== asteroid);
     if (this.targetedAsteroid === asteroid) {
       this.targetedAsteroid = null;
-      const next = this.activeAsteroids[0];
+      const next = this.getNextTargetAsteroid();
       if (next) this.targetAsteroid(next);
+      else if (this.targetReticle) {
+        this.targetReticle.destroy();
+        this.targetReticle = null;
+      }
     }
   }
 
@@ -1172,24 +1245,31 @@ export class GameScene extends Phaser.Scene {
 
     records.recordLevelComplete(this.bestStreak);
 
-    // Check for evolution after this round
-    const evolvedTo = companion.checkEvolutionEligibility();
+    // Evolution can become eligible mid-round from lifetime-correct gates, or
+    // after completeLevel unlocks a world-clear gate. Preserve either case.
+    const evolvedTo = this.pendingEvolution || companion.checkEvolutionEligibility();
 
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
 
     const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus };
 
-    if (bossWin && this.worldId === 11 && worldFullyCleared) {
-      this.showFinalCinematic();
-    } else if (bossWin && worldFullyCleared) {
-      this.showStoryCard({ stars });
-    } else if (evolvedTo) {
+    const showPostRound = () => {
+      if (bossWin && this.worldId === 11 && worldFullyCleared) {
+        this.showFinalCinematic();
+      } else if (bossWin && worldFullyCleared) {
+        this.showStoryCard({ stars });
+      } else {
+        this.showSummary(summaryArgs);
+      }
+    };
+
+    if (evolvedTo) {
       // Evolution gets a full-screen cinematic before the summary.
       import('../EvolutionCinematic.js').then(({ playEvolutionCinematic }) => {
-        playEvolutionCinematic(this, evolvedTo, () => this.showSummary(summaryArgs));
+        playEvolutionCinematic(this, evolvedTo, showPostRound);
       });
     } else {
-      this.showSummary(summaryArgs);
+      showPostRound();
     }
   }
 

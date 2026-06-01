@@ -288,7 +288,7 @@ export class LevelSelectScene extends Phaser.Scene {
     }
     const avg = count > 0 ? Math.round(masterySum / count) : 0;
 
-    this.add.text(W / 2, y, 'OVERALL MASTERY', style('subhead', {
+    this.add.text(W / 2, y, 'FACT MASTERY', style('subhead', {
       fontSize: '44px',
       fill: '#cfcfe0',
       fontStyle: '900'
@@ -311,7 +311,7 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     const totalStars = Object.values(this.worldProgress.levelStars).reduce((s, v) => s + v, 0);
-    this.add.text(W / 2, barY + barH / 2 + 60, `${totalStars} / 12 stars in this world`, style('subhead', {
+    this.add.text(W / 2, barY + barH / 2 + 60, `${totalStars} / 12 stars in ${this.world.name}`, style('subhead', {
       fontSize: '34px',
       fill: '#aaaac0'
     })).setOrigin(0.5).setDepth(11);
