@@ -53,6 +53,26 @@ const SHIP_Y = 1370;
 const ASTEROID_RADIUS = 110;
 const IMPACT_GRACE_MS = 120;
 
+// Round-flow state machine. `this.state` is one of these phases; the only
+// legal way to change it is setState(), which validates against this table.
+// Edges encode the REAL per-round flow (see ROUND_FLOW_REFACTOR_SPEC §2a):
+//   ready      → game just booted; about to intro (boss) or play (normal)
+//   intro      → boss intro cinematic running
+//   playing    → an asteroid is live and answerable
+//   feedback   → answer landed; brief explode / glance / cycle window
+//   correction → boss correction card up, waiting for a tap (timer paused)
+//   warp/failed/ended → terminal; only a scene change leaves them
+const ROUND_TRANSITIONS = {
+  ready:      ['intro', 'playing'],
+  intro:      ['playing', 'failed', 'ended'],
+  playing:    ['feedback', 'correction', 'warp', 'failed', 'ended'],
+  feedback:   ['playing', 'correction', 'warp', 'failed', 'ended'],
+  correction: ['playing', 'feedback', 'failed', 'ended'],
+  warp:       [],
+  failed:     [],
+  ended:      [],
+};
+
 export class GameScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameScene' });
@@ -110,7 +130,23 @@ export class GameScene extends Phaser.Scene {
     this.activeAsteroids = [];
     this.targetedAsteroid = null;
 
+    // Seed the state machine directly (not via setState): init() is the reset
+    // point, and on a Phaser scene restart `this.state` still holds the prior
+    // run's terminal value — routing that through setState would warn on a
+    // (terminal → ready) "transition" that is really a fresh start.
     this.state = 'ready';
+  }
+
+  // The ONLY way to change round phase. Validates against ROUND_TRANSITIONS and
+  // logs (without crashing) any edge the table doesn't allow — an illegal
+  // transition firing means a caller is wrong, so fix the caller, not the table.
+  setState(next) {
+    const from = this.state;
+    if (from === next) return;
+    if (!ROUND_TRANSITIONS[from]?.includes(next)) {
+      console.warn(`[GameScene] illegal round transition ${from} -> ${next}`);
+    }
+    this.state = next;
   }
 
   create() {
@@ -152,7 +188,7 @@ export class GameScene extends Phaser.Scene {
     new TransitionManager(this).fadeIn(280);
 
     if (this.isBoss) {
-      this.state = 'intro';
+      this.setState('intro');
       applyBossTwist(this, this.world.id);
       import('../BossIntro.js').then(({ playBossIntro }) => {
         playBossIntro(this, this.world.id, () => {
@@ -160,12 +196,12 @@ export class GameScene extends Phaser.Scene {
           audio.playBossRumble?.();
           this.cameras.main.flash(280, 90, 0, 0);
           this.cameras.main.shake(420, 0.008);
-          this.state = 'playing';
+          this.setState('playing');
           this.spawnAsteroid();
         });
       });
     } else {
-      this.state = 'playing';
+      this.setState('playing');
       this.time.delayedCall(0, () => {
         if (this._isOver()) return;
         this.spawnAsteroid();
@@ -884,7 +920,7 @@ export class GameScene extends Phaser.Scene {
     asteroid.lockedOut = true;
     asteroid.impactPending = false;
     if (asteroid.fallTween) asteroid.fallTween.stop();
-    this.state = 'feedback';
+    this.setState('feedback');
     this.attempts++;
     if (this._tutorialHint) this.dismissTutorialHint();
     const elapsed = performance.now() - asteroid.startedAtMs;
@@ -917,7 +953,7 @@ export class GameScene extends Phaser.Scene {
       // warpState to 'ready' for any removal where state !== 'warp' (its
       // mis-tap / timeout recovery path); without setting state first, a
       // SUCCESSFUL warp would wrongly re-arm the gateway too.
-      this.state = 'warp';
+      this.setState('warp');
       this.removeAsteroid(asteroid);
       this.triggerWarp(asteroid);
       return;
@@ -939,7 +975,7 @@ export class GameScene extends Phaser.Scene {
           this.defeatBoss(asteroid);
         } else {
           this.cycleBossProblem(asteroid);
-          this.state = 'playing';
+          this.setState('playing');
         }
       });
       return;
@@ -994,7 +1030,7 @@ export class GameScene extends Phaser.Scene {
       this.explodeAsteroid(asteroid, { big: true });
       this.removeAsteroid(asteroid);
       if (this.state === 'feedback' || this.state === 'playing') {
-        this.state = 'playing';
+        this.setState('playing');
         this.spawnAsteroid();
       }
     });
@@ -1023,7 +1059,7 @@ export class GameScene extends Phaser.Scene {
     this._startAsteroidFall(asteroid, ASTEROID_IMPACT_Y, remainingMs);
 
     this.refreshMcButtons(newProblem);
-    this.state = 'playing';
+    this.setState('playing');
     this.targetAsteroid(asteroid);
   }
 
@@ -1032,7 +1068,7 @@ export class GameScene extends Phaser.Scene {
   handleWrong(asteroid, btn) {
     const pickedValue = btn.value;
     asteroid.lockedOut = true;
-    this.state = 'feedback';
+    this.setState('feedback');
     this.flashMcButton(btn, COLORS.error);
     audio.playWrong?.();
 
@@ -1111,7 +1147,7 @@ export class GameScene extends Phaser.Scene {
     // handleWrong already set lockedOut + state; re-entering with
     // fromWrongAnswer is a continuation of the same answer flow, not a retap.
     asteroid.lockedOut = true;
-    this.state = 'feedback';
+    this.setState('feedback');
 
     this.attempts++;
     this.history.push({
@@ -1140,7 +1176,7 @@ export class GameScene extends Phaser.Scene {
         this.failLevel();
         return;
       }
-      this.state = 'feedback';
+      this.setState('feedback');
       this.bossAttackBack(asteroid);
       const correctionProblem = asteroid.problem;
       this.time.delayedCall(220, () => {
@@ -1159,7 +1195,7 @@ export class GameScene extends Phaser.Scene {
     // still uses it where the kid genuinely needs the answer flashed.
     const queueNext = () => {
       if (this.state !== 'playing' && this.state !== 'feedback') return;
-      this.state = 'playing';
+      this.setState('playing');
       this.spawnAsteroid();
     };
 
@@ -1437,7 +1473,7 @@ export class GameScene extends Phaser.Scene {
   // so a second slot can't crash mid-read.
   showCorrectionFlash(problem, onContinue) {
     if (!problem) { onContinue?.(); return; }
-    this.state = 'correction';
+    this.setState('correction');
 
     const pausedTweens = [];
     this.activeAsteroids.forEach(a => {
@@ -1537,7 +1573,7 @@ export class GameScene extends Phaser.Scene {
           if (card?.active) card.destroy();
         }
       });
-      this.state = 'playing';
+      this.setState('playing');
       onContinue?.();
     };
 
@@ -1560,7 +1596,7 @@ export class GameScene extends Phaser.Scene {
 
   defeatBoss(asteroid) {
     this.bossDefeated = true;
-    this.state = 'feedback';
+    this.setState('feedback');
     if (asteroid.fallTween) asteroid.fallTween.stop();
     this.tweens.killTweensOf(asteroid.container);
 
@@ -1971,7 +2007,7 @@ export class GameScene extends Phaser.Scene {
         && a.container.alpha > 0.9
         && a.container.y < ASTEROID_IMPACT_Y);
     this._tickWatchdog('_stuckMs', trulyStuck, 1500, delta, () => {
-      this.state = 'playing';
+      this.setState('playing');
       this.activeAsteroids.slice().forEach(a => this.removeAsteroid(a));
       this.spawnAsteroid();
     });
@@ -1982,7 +2018,7 @@ export class GameScene extends Phaser.Scene {
       && this.activeAsteroids.length === 0
       && this.state !== 'warp';
     this._tickWatchdog('_emptySlotMs', emptyPlayableSlot, 650, delta, () => {
-      this.state = 'playing';
+      this.setState('playing');
       this.spawnAsteroid();
     });
 
@@ -1999,7 +2035,7 @@ export class GameScene extends Phaser.Scene {
     this._tickWatchdog('_bossStuckMs', bossLockedTooLong, 3000, delta, () => {
       const stuck = this.activeAsteroids.find(a => a.container?.active);
       if (stuck) {
-        this.state = 'playing';
+        this.setState('playing');
         this.cycleBossProblem(stuck);
       }
     });
@@ -2039,7 +2075,7 @@ export class GameScene extends Phaser.Scene {
   // FAIL
   // ============================================================
   failLevel() {
-    this.state = 'failed';
+    this.setState('failed');
     audio.playLevelFailed?.();
 
     this.activeAsteroids.forEach(a => {
@@ -2161,7 +2197,7 @@ export class GameScene extends Phaser.Scene {
   // END OF ROUND
   // ============================================================
   endRound({ bossWin, bossAsteroid } = {}) {
-    this.state = 'ended';
+    this.setState('ended');
     audio.playRoundComplete?.();
 
     this.activeAsteroids.forEach(a => {
@@ -2973,7 +3009,9 @@ export class GameScene extends Phaser.Scene {
     this.targetAsteroid(asteroid);
     // Belt + braces: if a delayed callback or correction card left state in
     // a non-playing mode, the warp's arrival is the moment to unlock input.
-    if (this.state !== 'playing') this.state = 'playing';
+    // setState self-guards on from===next, so the bare call is a no-op when
+    // already 'playing'.
+    this.setState('playing');
 
     this.playPetFreakout();
   }
@@ -3042,7 +3080,7 @@ export class GameScene extends Phaser.Scene {
   triggerWarp(asteroid) {
     // Lock the scene and play a hyperspace warp animation, then load the
     // hidden world. Marks discovery so it doesn't re-spawn here next time.
-    this.state = 'warp';
+    this.setState('warp');
     if (this.warpTargetId) {
       progress.discoverHiddenWorld(this.warpTargetId);
     }
