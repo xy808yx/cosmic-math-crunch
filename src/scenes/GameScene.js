@@ -954,8 +954,9 @@ export class GameScene extends Phaser.Scene {
       // warpState to 'ready' for any removal where state !== 'warp' (its
       // mis-tap / timeout recovery path); without setting state first, a
       // SUCCESSFUL warp would wrongly re-arm the gateway too.
+      // (The ordering trick is removed in step 4, which single-sources warp.)
       this.setState('warp');
-      this.removeAsteroid(asteroid);
+      this.teardownAsteroid(asteroid);   // no thenSpawn — the warp owns the swap
       this.triggerWarp(asteroid);
       return;
     }
@@ -1029,11 +1030,7 @@ export class GameScene extends Phaser.Scene {
     this.time.delayedCall(220, () => {
       audio.playAsteroidBoom?.();
       this.explodeAsteroid(asteroid, { big: true });
-      this.removeAsteroid(asteroid);
-      if (this.state === 'feedback' || this.state === 'playing') {
-        this.setState('playing');
-        this.spawnAsteroid();
-      }
+      this.teardownAsteroid(asteroid, { thenSpawn: true });
     });
   }
 
@@ -1197,17 +1194,14 @@ export class GameScene extends Phaser.Scene {
     // correction card was creating deadlocks (paused fall-tweens not resuming,
     // dismiss handlers missing the tap in multi-slot worlds) — boss combat
     // still uses it where the kid genuinely needs the answer flashed.
-    const queueNext = () => {
-      if (this.state !== 'playing' && this.state !== 'feedback') return;
-      this.setState('playing');
-      this.spawnAsteroid();
-    };
-
-    // Wrong-answer taps (and timeouts) now glance off the shield and drift
-    // past instead of yanking down to the ship. Pass-through impacts on the
-    // ship (asteroid timed out) still play the crash visual.
+    //
+    // Wrong-answer taps (and timeouts) glance off the shield and drift past
+    // instead of yanking down to the ship; pass-through impacts on the ship
+    // (asteroid timed out) still play the crash visual. Each exit routes
+    // through teardownAsteroid, which brings on the next asteroid exactly once
+    // (thenSpawn only when the ship survived — a fatal hit ends the round).
     if (opts.fromWrongAnswer) {
-      this.playGlanceMiss(asteroid, queueNext);
+      this.playGlanceMiss(asteroid, () => this.teardownAsteroid(asteroid, { thenSpawn: this.shipHp > 0 }));
     } else if (asteroid.container?.active) {
       if (asteroid.fallTween) asteroid.fallTween.stop();
       this.tweens.add({
@@ -1217,14 +1211,12 @@ export class GameScene extends Phaser.Scene {
         ease: 'Quad.easeIn',
         onComplete: () => {
           this.explodeAsteroid(asteroid, { onShip: true });
-          this.removeAsteroid(asteroid);
-          if (this.shipHp > 0) queueNext();
+          this.teardownAsteroid(asteroid, { thenSpawn: this.shipHp > 0 });
         }
       });
     } else {
       this.explodeAsteroid(asteroid, { onShip: true });
-      this.removeAsteroid(asteroid);
-      if (this.shipHp > 0) queueNext();
+      this.teardownAsteroid(asteroid, { thenSpawn: this.shipHp > 0 });
     }
 
     if (this.shipHp <= 0) {
@@ -1235,10 +1227,10 @@ export class GameScene extends Phaser.Scene {
 
   // Wrong-answer glance: small spark where the asteroid would have hit the
   // shield, then the asteroid drifts past the ship (downward + outward,
-  // fading) instead of crashing into it. Ship gets a 16px recoil. `onRemoved`
-  // fires AFTER the asteroid is removed from `activeAsteroids` so callers can
-  // safely schedule a follow-up spawn against the slot-count check.
-  playGlanceMiss(asteroid, onRemoved) {
+  // fading) instead of crashing into it. Ship gets a 16px recoil. `onExit`
+  // fires once the drift finishes and owns the teardown (it calls
+  // teardownAsteroid, which removes this asteroid and brings on the next).
+  playGlanceMiss(asteroid, onExit) {
     if (asteroid.fallTween) asteroid.fallTween.stop();
 
     const ax = asteroid.container?.x ?? W / 2;
@@ -1268,14 +1260,10 @@ export class GameScene extends Phaser.Scene {
         alpha: 0,
         duration: 400,
         ease: 'Quad.easeIn',
-        onComplete: () => {
-          this.removeAsteroid(asteroid);
-          onRemoved?.();
-        }
+        onComplete: () => onExit?.()
       });
     } else {
-      this.removeAsteroid(asteroid);
-      onRemoved?.();
+      onExit?.();
     }
 
     this.recoilShip();
@@ -1899,6 +1887,22 @@ export class GameScene extends Phaser.Scene {
     // Streak shake: only on hot streaks. Gentler than damageShip's 280/0.012.
     if (this.streak >= 10) {
       this.cameras.main.shake(120, 0.004);
+    }
+  }
+
+  // The single asteroid exit. Every way an asteroid finishes (correct explode,
+  // wrong glance, timeout crash, warp) routes through here so "remove this one,
+  // then bring on exactly the next" lives in ONE place and cannot be
+  // half-implemented (the freeze / double-spawn bug class — spec §2b).
+  //   thenSpawn — refill the slot with the next asteroid once this one is gone.
+  // The respawn is gated exactly like spawnAsteroid's own guards (not over, not
+  // warping, a slot is free) and flips the round back to 'playing'.
+  teardownAsteroid(asteroid, { thenSpawn = false } = {}) {
+    this.removeAsteroid(asteroid);
+    if (thenSpawn && !this._isOver() && this.state !== 'warp'
+        && this.activeAsteroids.length < this.asteroidSlots) {
+      this.setState('playing');
+      this.spawnAsteroid();
     }
   }
 
