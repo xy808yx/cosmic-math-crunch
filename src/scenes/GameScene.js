@@ -950,13 +950,11 @@ export class GameScene extends Phaser.Scene {
     this.fireLaserAt(asteroid);
 
     if (asteroid._isWarp) {
-      // Lock into the warp BEFORE removing the asteroid. removeAsteroid re-arms
-      // warpState to 'ready' for any removal where state !== 'warp' (its
-      // mis-tap / timeout recovery path); without setting state first, a
-      // SUCCESSFUL warp would wrongly re-arm the gateway too.
-      // (The ordering trick is removed in step 4, which single-sources warp.)
-      this.setState('warp');
-      this.teardownAsteroid(asteroid);   // no thenSpawn — the warp owns the swap
+      // Successful warp: tear down the gateway asteroid without re-arming
+      // (rearmWarp:false — we consumed it) and without spawning a replacement;
+      // triggerWarp owns the scene swap and sets state='warp'. No ordering
+      // trick: the re-arm decision is explicit intent, not a state read.
+      this.teardownAsteroid(asteroid, { rearmWarp: false });
       this.triggerWarp(asteroid);
       return;
     }
@@ -1895,10 +1893,19 @@ export class GameScene extends Phaser.Scene {
   // then bring on exactly the next" lives in ONE place and cannot be
   // half-implemented (the freeze / double-spawn bug class — spec §2b).
   //   thenSpawn — refill the slot with the next asteroid once this one is gone.
+  //   rearmWarp — if this was a LIVE warp asteroid, restore the gateway so it
+  //     respawns. Defaults true; the warp-SUCCESS path opts out (rearmWarp:false)
+  //     because it consumed the gateway. This is the single source of truth for
+  //     warp liveness (spec §2d) — re-arm is decided by explicit caller intent,
+  //     NEVER by reading this.state.
   // The respawn is gated exactly like spawnAsteroid's own guards (not over, not
   // warping, a slot is free) and flips the round back to 'playing'.
-  teardownAsteroid(asteroid, { thenSpawn = false } = {}) {
+  teardownAsteroid(asteroid, { thenSpawn = false, rearmWarp = true } = {}) {
+    const rearm = rearmWarp && asteroid._isWarp && this.warpState === 'spawned';
     this.removeAsteroid(asteroid);
+    // Re-arm BEFORE the respawn below, so spawnAsteroid sees warpState 'ready'
+    // and brings the warp asteroid back instead of a normal one.
+    if (rearm) this.warpState = 'ready';
     if (thenSpawn && !this._isOver() && this.state !== 'warp'
         && this.activeAsteroids.length < this.asteroidSlots) {
       this.setState('playing');
@@ -1933,15 +1940,8 @@ export class GameScene extends Phaser.Scene {
       const next = this.getAnswerableAsteroid();
       if (next) this.targetAsteroid(next);
     }
-
-    // Warp asteroid recovery: if a warp asteroid is removed for any reason
-    // OTHER than a successful triggerWarp (state would be 'warp' in that case),
-    // restore the warp opportunity so the next spawn brings it back. Without
-    // this, a single mis-tap or timeout permanently consumed the gateway and
-    // the kid never saw the hidden world.
-    if (asteroid._isWarp && this.warpState === 'spawned' && this.state !== 'warp') {
-      this.warpState = 'ready';
-    }
+    // (Warp-gateway re-arm lives in teardownAsteroid now, decided by explicit
+    // caller intent rather than by reading this.state — see spec §2d.)
   }
 
   damageShip() {
