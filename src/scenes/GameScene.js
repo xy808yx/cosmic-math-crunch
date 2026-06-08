@@ -1468,7 +1468,18 @@ export class GameScene extends Phaser.Scene {
     const cardHit = this.add.rectangle(0, 0, cardW, cardH, 0x000000, 0).setInteractive();
     card.add(cardHit);
 
-    const equation = `${problem.display} = ${problem.answer}`;
+    // Glitch-boss problems already bake the full equation into `display` with a
+    // blanked digit (▓) or operand (?); fill the blank with the answer instead
+    // of appending a second "= answer" (which rendered "7 × 8 = 5▓ = 6").
+    // Normal problems have a bare "a × b" and get the "= answer" suffix.
+    let equation;
+    if (problem.display.includes('▓')) {
+      equation = problem.display.replace('▓', problem.answer);
+    } else if (problem.display.includes('?')) {
+      equation = problem.display.replace('?', problem.answer);
+    } else {
+      equation = `${problem.display} = ${problem.answer}`;
+    }
     const eqText = this.add.text(0, -30, equation, style('display', {
       fontSize: '108px',
       fill: '#ffffff'
@@ -1929,6 +1940,12 @@ export class GameScene extends Phaser.Scene {
   // UPDATE
   // ============================================================
   update(_time, delta) {
+    // While the pause menu is open the clock/tweens/physics are paused, but
+    // update() itself still runs every frame — gate the whole loop so the
+    // countdown doesn't keep ticking (timeLeft -= delta) and the watchdogs
+    // don't spawn/cycle asteroids behind the modal.
+    if (this._pauseOpen) return;
+
     // Tap-feedback runs in ALL states (including 'intro', 'correction',
     // 'warp', 'ended') so the buttons always reflect whether they would do
     // anything if tapped — no "looks enabled, behaves dead" frames.
@@ -2224,6 +2241,11 @@ export class GameScene extends Phaser.Scene {
     // the full endgame finale (cinematic → credits → personalized shout-out).
     // After that, beating it again skips to the normal summary panel.
     if (bossWin && isFinalVisibleWorld(this.worldId) && worldFullyCleared && !progress.endingSeen) {
+      // Persist endingSeen NOW, before the long credits roll — otherwise closing
+      // the tab mid-credits leaves it unset, so the finale replays on the next
+      // win and the Arcade stays locked. CreditsScene.exitFinale also calls this
+      // (idempotent), so the normal "Onward" path is unchanged.
+      progress.markEndingSeen();
       this.registry.set('currentWorldId', this.worldId);
       this.scene.start('CreditsScene');
       return;
@@ -2750,6 +2772,9 @@ export class GameScene extends Phaser.Scene {
   }
 
   exitToLevelSelect() {
+    // Ignore the top-bar back arrow mid-warp — the warp animation owns the
+    // scene transition, so a stray tap here would abort it and skip the payoff.
+    if (this.state === 'warp') return;
     // If a world clear is pending auto-advance, jump straight to the map
     // so the ship animates to the next world.
     if (progress.justClearedWorld) {

@@ -10,6 +10,11 @@ export class AudioManager {
     this.masterGain = null;
     this.sfxGain = null;
     this.enabled = true;
+    // Persisted across reloads so a "Sound: OFF" choice sticks between sessions.
+    try {
+      const saved = localStorage.getItem('cosmicMathSfxEnabled');
+      if (saved !== null) this.enabled = saved === '1';
+    } catch (e) { /* localStorage unavailable — default on */ }
 
     // Will be initialized on first user interaction
     this.initialized = false;
@@ -66,6 +71,7 @@ export class AudioManager {
 
   // Correct match - happy ascending arpeggio
   playMatch() {
+    if (!this.enabled || !this.initialized) return;
     music.musicDuck();
     const notes = [523, 659, 784]; // C5, E5, G5
     notes.forEach((freq, i) => {
@@ -600,6 +606,7 @@ export class AudioManager {
   // toggle in Settings and the pause menu, where Music has its own toggle.
   setEnabled(enabled) {
     this.enabled = !!enabled;
+    try { localStorage.setItem('cosmicMathSfxEnabled', this.enabled ? '1' : '0'); } catch (e) { /* ignore */ }
     return this.enabled;
   }
 

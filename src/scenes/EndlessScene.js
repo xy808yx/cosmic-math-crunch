@@ -1,5 +1,5 @@
-// 60-second timed sprint. Random 1×12 facts, escalating speed. Pure score
-// chase, no lives. Persists best score per save into progress.arcade.endlessBest.
+// 60-second timed sprint. Random 1×12 facts, pure score chase, no lives.
+// Persists best score per save into progress.arcade.endlessBest.
 
 import Phaser from 'phaser';
 import { progress, getProblemForWorld, getDistractors } from '../GameData.js';
@@ -120,7 +120,6 @@ export class EndlessScene extends Phaser.Scene {
       audio.playWrong?.();
       this.cameras.main.shake(100, 0.005);
     }
-    // Escalate: shrink time slightly more aggressively as score climbs
     this.nextProblem();
   }
 

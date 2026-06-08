@@ -75,12 +75,13 @@ export class LevelSelectScene extends Phaser.Scene {
       fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
     })).setOrigin(0.5).setDepth(15);
 
-    createIconButton(this, {
+    const soundBtn = createIconButton(this, {
       x: W - 80, y: 110, radius: 44,
       accentColor: this.world.accentColor,
       drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
-      onClick: () => audio.toggleEnabled()
-    }).setDepth(15);
+      onClick: () => { audio.toggleEnabled(); soundBtn.redrawIcon(); }
+    });
+    soundBtn.setDepth(15);
   }
 
   createWorldHero() {

@@ -7,6 +7,11 @@ class MusicManager {
   constructor() {
     this.tracks = {};        // key -> Phaser sound instance
     this.enabled = true;
+    // Persisted across reloads so a "Music: OFF" choice sticks between sessions.
+    try {
+      const saved = localStorage.getItem('cosmicMathMusicEnabled');
+      if (saved !== null) this.enabled = saved === '1';
+    } catch (e) { /* localStorage unavailable — default on */ }
     this.volume = 0.35;
     // Current fade level as a fraction of `volume` (1 = full). setVolume/fadeVolume
     // update it; ducks dip below and restore to `volume * volumeMultiplier`, so an
@@ -21,7 +26,8 @@ class MusicManager {
   ensurePlaying(scene, key = 'homeTheme') {
     // Switching to a different track starts it at its natural full volume —
     // drop any stale fade level so it doesn't inherit a previous track's dip.
-    if (this.currentKey !== key) this.volumeMultiplier = 1;
+    const switched = this.currentKey !== key;
+    if (switched) this.volumeMultiplier = 1;
     if (!scene.cache.audio.exists(key)) {
       if (this.currentKey && this.currentKey !== key) this._stopCurrent();
       this.currentKey = key;
@@ -37,6 +43,15 @@ class MusicManager {
     const t = this.tracks[key];
     if (t.isPaused) t.resume();
     else if (!t.isPlaying) t.play();
+    // A cached track keeps whatever playbackRate a previous scene set on it
+    // (e.g. a pitched per-world level theme). On a switch, reset to natural
+    // pitch so a consumer that doesn't set its own rate (map / endless / boss
+    // rush) isn't left flat or sharp. GameScene re-applies its per-world rate
+    // immediately after this call.
+    if (switched) {
+      if (typeof t.setRate === 'function') t.setRate(1);
+      else t.rate = 1;
+    }
     this.currentKey = key;
   }
 
@@ -157,6 +172,7 @@ class MusicManager {
 
   setEnabled(bool) {
     this.enabled = bool;
+    try { localStorage.setItem('cosmicMathMusicEnabled', bool ? '1' : '0'); } catch (e) { /* ignore */ }
     for (const t of Object.values(this.tracks)) this._applyMuteToTrack(t);
   }
 

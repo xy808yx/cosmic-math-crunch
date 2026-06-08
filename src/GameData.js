@@ -764,6 +764,19 @@ class PlayerProgress {
     }
     delete parts.decal;
     if (!('addon' in parts)) parts.addon = null;
+    // Migration: retired hull/trail ids whose art was removed. An unknown hull
+    // id silently renders the default silhouette (ShipRenderer falls through to
+    // HULL_STANDARD), so reset the equipped slot and drop the dead ids from
+    // owned — same treatment retired cosmetics get in mergeCosmetics.
+    const RETIRED_HULLS = new Set(['hull_vortex']);
+    const RETIRED_TRAILS = new Set(['trail_starlight']);
+    if (RETIRED_HULLS.has(parts.hull)) parts.hull = 'hull_default';
+    if (RETIRED_TRAILS.has(parts.trail)) parts.trail = 'trail_default_flame';
+    for (let i = ownedParts.length - 1; i >= 0; i--) {
+      if (RETIRED_HULLS.has(ownedParts[i]) || RETIRED_TRAILS.has(ownedParts[i])) {
+        ownedParts.splice(i, 1);
+      }
+    }
     return { parts, ownedParts };
   }
 
@@ -974,8 +987,10 @@ class PlayerProgress {
   recordBossRushResult({ won, timeMs, correct, total }) {
     const accuracy = total > 0 ? correct / total : 0;
     const prev = this.arcade.bossRushBest;
-    const isBest = !prev || (won && (!prev.won || accuracy > prev.accuracy
-      || (accuracy === prev.accuracy && timeMs < prev.timeMs)));
+    // Only a WIN can be a "best". A first-ever run that was a loss must NOT be
+    // stored (otherwise `!prev` would record the defeat and flash "NEW BEST!").
+    const isBest = won && (!prev || !prev.won || accuracy > prev.accuracy
+      || (accuracy === prev.accuracy && timeMs < prev.timeMs));
     if (isBest) {
       this.arcade.bossRushBest = { won, timeMs, correct, total, accuracy };
       this.save();

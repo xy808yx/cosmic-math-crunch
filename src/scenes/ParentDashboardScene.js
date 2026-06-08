@@ -190,12 +190,13 @@ export class ParentDashboardScene extends Phaser.Scene {
       fill: '#ffffff'
     })).setOrigin(0.5).setDepth(15);
 
-    createIconButton(this, {
+    const soundBtn = createIconButton(this, {
       x: W - 80, y: 80, radius: 36,
       accentColor: ACCENT,
       drawIcon: (g, size) => drawSoundIcon(g, 0, 0, size, 0xffffff, audio.enabled),
-      onClick: () => audio.toggleEnabled()
-    }).setDepth(15);
+      onClick: () => { audio.toggleEnabled(); soundBtn.redrawIcon(); }
+    });
+    soundBtn.setDepth(15);
 
     this.contentContainer = this.add.container(0, 0).setDepth(11);
     this.createTabs();

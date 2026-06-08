@@ -102,6 +102,7 @@ export class BossRushScene extends Phaser.Scene {
       this.endRun(true);
       return;
     }
+    this._transitioning = false;
     this.currentBoss = this.queue[this.queueIndex];
     this.bossHp = BOSS_HP;
     this.bossTitle.setText(this.currentBoss.villain || this.currentBoss.name);
@@ -154,6 +155,10 @@ export class BossRushScene extends Phaser.Scene {
   }
 
   handleAnswer(v) {
+    // Input is locked between a boss dying and the next boss starting (and once
+    // the run is over) so a second tap can't re-process the already-answered
+    // problem — which would drive bossHp negative or double-advance the queue.
+    if (this._transitioning) return;
     this.totalAttempts++;
     if (v === this.problem.answer) {
       this.correct++;
@@ -162,6 +167,7 @@ export class BossRushScene extends Phaser.Scene {
       this.drawHp();
       if (this.bossHp <= 0) {
         // Boss down, next boss.
+        this._transitioning = true;
         audio.playWorldClearFanfare?.();
         this.queueIndex++;
         this.time.delayedCall(700, () => this.startBoss());
@@ -182,6 +188,7 @@ export class BossRushScene extends Phaser.Scene {
   }
 
   endRun(won) {
+    this._transitioning = true;
     const timeMs = Date.now() - this.startTimeMs;
     const wasBest = progress.recordBossRushResult({
       won, timeMs, correct: this.correct, total: this.totalAttempts

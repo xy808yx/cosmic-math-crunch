@@ -44,7 +44,10 @@ export class CreditsScene extends Phaser.Scene {
 
     // Credits soundtrack — plays once (not looped) under the cinematic cards
     // + pet evolution + roll + hero. Falls back silently if file is missing.
-    if (this.cache.audio.exists('creditsSong')) {
+    // Respect the Music toggle — creditsSong is played directly (not via
+    // MusicManager), so it must check music.enabled itself or it would play
+    // through a muted setting.
+    if (music.enabled && this.cache.audio.exists('creditsSong')) {
       this._creditsSong = this.sound.add('creditsSong', { volume: 0.5, loop: false });
       this._creditsSong.play();
     }

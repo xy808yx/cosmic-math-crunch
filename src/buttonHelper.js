@@ -108,6 +108,13 @@ export function createIconButton(scene, opts) {
     const icon = scene.add.graphics();
     drawIcon(icon, radius * 0.7);
     container.add(icon);
+    // Expose a redraw so callers can refresh a stateful icon (e.g. a speaker
+    // that flips mute on tap) without rebuilding the button. drawIcon reads its
+    // state at call time, so this picks up the new value.
+    container.redrawIcon = () => {
+      icon.clear();
+      drawIcon(icon, radius * 0.7);
+    };
   }
 
   bg.setInteractive({ useHandCursor: true });
