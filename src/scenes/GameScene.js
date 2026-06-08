@@ -55,19 +55,22 @@ const IMPACT_GRACE_MS = 120;
 
 // Round-flow state machine. `this.state` is one of these phases; the only
 // legal way to change it is setState(), which validates against this table.
-// Edges encode the REAL per-round flow (see ROUND_FLOW_REFACTOR_SPEC §2a):
-//   ready      → game just booted; about to intro (boss) or play (normal)
-//   intro      → boss intro cinematic running
-//   playing    → an asteroid is live and answerable
-//   feedback   → answer landed; brief explode / glance / cycle window
-//   correction → boss correction card up, waiting for a tap (timer paused)
+// Edges encode the REAL per-round flow (see ROUND_FLOW_REFACTOR_SPEC §2a) —
+// tightened to exactly the transitions the code performs:
+//   ready      → game just booted; → intro (boss) or → playing (normal)
+//   intro      → boss intro cinematic running; → playing when it finishes
+//   playing    → an asteroid is live; → feedback (answer/impact) or → ended (timer)
+//   feedback   → answer landed; → playing (next/cycle), correction (boss card),
+//                warp (gateway solved), failed (ship dead), or ended (timer/boss win)
+//   correction → boss correction card up (timer paused); → playing on dismiss
 //   warp/failed/ended → terminal; only a scene change leaves them
+// An illegal edge means a caller is wrong — setState logs it (without crashing).
 const ROUND_TRANSITIONS = {
   ready:      ['intro', 'playing'],
-  intro:      ['playing', 'failed', 'ended'],
-  playing:    ['feedback', 'correction', 'warp', 'failed', 'ended'],
+  intro:      ['playing'],
+  playing:    ['feedback', 'ended'],
   feedback:   ['playing', 'correction', 'warp', 'failed', 'ended'],
-  correction: ['playing', 'feedback', 'failed', 'ended'],
+  correction: ['playing'],
   warp:       [],
   failed:     [],
   ended:      [],
