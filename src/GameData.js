@@ -615,6 +615,7 @@ class PlayerProgress {
         this.petHelperUsed = !!data.petHelperUsed; // big-boss helper consumed
         this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
         this.tutorialSeen = !!data.tutorialSeen;
+        this.cosmicHintSeen = !!data.cosmicHintSeen;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
         this.checkWorldUnlock(null);
       } else {
@@ -642,6 +643,7 @@ class PlayerProgress {
     this.petHelperUsed = false;
     this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
     this.tutorialSeen = false;
+    this.cosmicHintSeen = false;
     this.save();
   }
 
@@ -845,7 +847,8 @@ class PlayerProgress {
         arcade: this.arcade,
         petHelperUsed: this.petHelperUsed,
         dadNoteState: this.dadNoteState,
-        tutorialSeen: this.tutorialSeen
+        tutorialSeen: this.tutorialSeen,
+        cosmicHintSeen: this.cosmicHintSeen
       }));
     } catch (e) {
       console.warn('Could not save progress');
@@ -948,6 +951,12 @@ class PlayerProgress {
   markTutorialSeen() {
     if (this.tutorialSeen) return;
     this.tutorialSeen = true;
+    this.save();
+  }
+
+  markCosmicHintSeen() {
+    if (this.cosmicHintSeen) return;
+    this.cosmicHintSeen = true;
     this.save();
   }
 

@@ -199,11 +199,9 @@ export class CreditsScene extends Phaser.Scene {
           onComplete: () => ring.destroy()
         });
 
-        // Set cosmicForm before redraw so other renders see it.
-        if (progress.companion && progress.companion.stage === 'adult') {
-          progress.companion.cosmicForm = true;
-          progress.save();
-        }
+        // Grant + persist the Cosmic form (idempotent). Decoupled from the old
+        // stage==='adult' gate so the saved state always matches this cinematic.
+        companion.unlockCosmic();
         pet.destroy();
         pet = drawCompanion(this, cx, cy, { stage: 'cosmic', scale: 1.6 }).setDepth(16);
 

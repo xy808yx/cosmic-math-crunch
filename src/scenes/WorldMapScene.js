@@ -51,6 +51,13 @@ export class WorldMapScene extends Phaser.Scene {
     // normal tap into a level plays for progression as usual.
     this.registry.set('freePlay', false);
 
+    // Heal saves bitten by the old cosmic-unlock bug: if the kid already beat
+    // the final boss (endingSeen) but never got the permanent Cosmic form,
+    // grant it now — runs before the pet badge is drawn so it renders cosmic.
+    if (progress.endingSeen && companion.hasStarter() && !progress.companion?.cosmicForm) {
+      companion.unlockCosmic();
+    }
+
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
     this.path = buildMapPath();
@@ -81,6 +88,21 @@ export class WorldMapScene extends Phaser.Scene {
       this.events.off('wake', this.onSceneWake, this);
       this.events.off('resume', this.onSceneWake, this);
     });
+
+    // One-time nudge after the pet reaches its Cosmic form: point kids at the
+    // pet badge (top-right), which now opens the form picker where they can
+    // choose & keep ANY unlocked form. Fires once (healed or freshly earned).
+    if (progress.companion?.cosmicForm && !progress.cosmicHintSeen) {
+      progress.markCosmicHintSeen();
+      this.showToast('Your pet went Cosmic! Tap it ↗ to pick its look');
+      if (this.petBadge) {
+        this.tweens.add({
+          targets: this.petBadge,
+          scale: { from: 1, to: 1.18 },
+          duration: 420, yoyo: true, repeat: 3, ease: 'Sine.easeInOut',
+        });
+      }
+    }
 
     new TransitionManager(this).fadeIn(300);
   }

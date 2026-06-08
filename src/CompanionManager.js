@@ -229,6 +229,23 @@ class CompanionManager {
     return null;
   }
 
+  // Beating the final boss grants the permanent Cosmic form, independent of the
+  // numeric evolution gates (worlds / lifetime correct / accuracy). Idempotent —
+  // safe to call on every final-boss win and on a heal pass for older saves.
+  // Returns true only on the FIRST unlock so callers can fire a one-time hint.
+  unlockCosmic() {
+    const cmp = progress.companion;
+    if (!cmp || !cmp.speciesId) return false;
+    const firstTime = !cmp.cosmicForm;
+    cmp.stage = 'adult';     // complete the chain so getActiveStage()/isStageUnlocked('cosmic') resolve to cosmic
+    cmp.cosmicForm = true;
+    // First unlock shows off the cosmic form; later replays keep whatever form
+    // the kid chose in the wardrobe (don't clobber their displayStage).
+    if (firstTime) cmp.displayStage = null;
+    progress.save();
+    return firstTime;
+  }
+
   getStage() {
     return progress.companion.stage;
   }

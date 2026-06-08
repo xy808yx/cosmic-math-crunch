@@ -2213,6 +2213,13 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
+    // Beating the final boss permanently grants the pet's Cosmic form,
+    // independent of the numeric evolution gates. Idempotent + runs on EVERY
+    // win (including replays), so the pet never "snaps back" to a lower stage.
+    if (bossWin && isFinalVisibleWorld(this.worldId)) {
+      companion.unlockCosmic();
+    }
+
     // Final boss of the entire game (W11 Void Devourer): first time triggers
     // the full endgame finale (cinematic → credits → personalized shout-out).
     // After that, beating it again skips to the normal summary panel.
