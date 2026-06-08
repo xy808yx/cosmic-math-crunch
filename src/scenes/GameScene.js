@@ -505,8 +505,10 @@ export class GameScene extends Phaser.Scene {
       container,
       text,
       problem,
-      lockedOut: false,
-      impactPending: false,
+      // Per-asteroid lifecycle: falling → impactGrace → resolving → gone.
+      // Answerable iff phase ∈ {falling, impactGrace}. Single source of truth —
+      // replaces the old lockedOut/impactPending flag soup (see spec §2c).
+      phase: 'falling',
       fallTween: null,
       startedAtMs: performance.now(),
       isBoss: this.isBoss,
@@ -689,7 +691,7 @@ export class GameScene extends Phaser.Scene {
     return !!(
       asteroid &&
       this.activeAsteroids.includes(asteroid) &&
-      !asteroid.lockedOut &&
+      (asteroid.phase === 'falling' || asteroid.phase === 'impactGrace') &&
       asteroid.container?.active
     );
   }
@@ -857,8 +859,8 @@ export class GameScene extends Phaser.Scene {
   // Input is allowed during 'playing' and 'feedback'; the 'feedback' window
   // is the 220+180ms after a correct answer where the previous asteroid is
   // still exploding. In multi-slot worlds the kid needs to keep tapping the
-  // remaining asteroids during that window — the per-asteroid lockedOut flag
-  // prevents double-credit on the just-answered one.
+  // remaining asteroids during that window — the just-answered one is already
+  // in phase 'resolving' (not answerable), which prevents double-credit.
   _inputUnlocked() {
     return this.state === 'playing' || this.state === 'feedback';
   }
@@ -917,8 +919,7 @@ export class GameScene extends Phaser.Scene {
   // ANSWER FLOW
   // ============================================================
   handleCorrect(asteroid, btn) {
-    asteroid.lockedOut = true;
-    asteroid.impactPending = false;
+    asteroid.phase = 'resolving';
     if (asteroid.fallTween) asteroid.fallTween.stop();
     this.setState('feedback');
     this.attempts++;
@@ -1044,8 +1045,7 @@ export class GameScene extends Phaser.Scene {
     if (!asteroid?.container?.active) return;
     if (this._isOver()) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
-    asteroid.lockedOut = false;
-    asteroid.impactPending = false;
+    asteroid.phase = 'falling';
 
     const newProblem = getProblemForWorld(this.worldId, this.mode);
     asteroid.problem = newProblem;
@@ -1067,7 +1067,7 @@ export class GameScene extends Phaser.Scene {
   // asteroid). Boss problems instead cost ship HP and let the boss counter-attack.
   handleWrong(asteroid, btn) {
     const pickedValue = btn.value;
-    asteroid.lockedOut = true;
+    asteroid.phase = 'resolving';
     this.setState('feedback');
     this.flashMcButton(btn, COLORS.error);
     audio.playWrong?.();
@@ -1131,22 +1131,24 @@ export class GameScene extends Phaser.Scene {
 
   onAsteroidImpact(asteroid, opts = {}) {
     if (this._isOver()) return;
-    if (asteroid.lockedOut && !opts.fromWrongAnswer) return;
+    if (asteroid.phase === 'resolving' && !opts.fromWrongAnswer) return;
 
     if (!opts.fromWrongAnswer && !opts.afterGrace) {
-      if (asteroid.impactPending) return;
-      asteroid.impactPending = true;
+      if (asteroid.phase === 'impactGrace') return;
+      // Reached the ship line; open the 120ms still-answerable grace window.
+      asteroid.phase = 'impactGrace';
       this.time.delayedCall(IMPACT_GRACE_MS, () => {
-        if (asteroid.lockedOut || !asteroid.container?.active) return;
+        // Only land the hit if the kid didn't answer (→ resolving) or the
+        // asteroid wasn't removed (→ gone) during the grace window.
+        if (asteroid.phase !== 'impactGrace' || !asteroid.container?.active) return;
         this.onAsteroidImpact(asteroid, { ...opts, afterGrace: true });
       });
       return;
     }
 
-    asteroid.impactPending = false;
-    // handleWrong already set lockedOut + state; re-entering with
+    // handleWrong already moved the asteroid to 'resolving'; re-entering with
     // fromWrongAnswer is a continuation of the same answer flow, not a retap.
-    asteroid.lockedOut = true;
+    asteroid.phase = 'resolving';
     this.setState('feedback');
 
     this.attempts++;
@@ -1171,7 +1173,9 @@ export class GameScene extends Phaser.Scene {
     this.setHp(this.shipHp - 1);
 
     if (asteroid.isBoss) {
-      asteroid.lockedOut = false;
+      // Boss impact doesn't remove the boss — it stays answerable for the
+      // counter-attack + correction beat, so put it back to 'falling'.
+      asteroid.phase = 'falling';
       if (this.shipHp <= 0) {
         this.failLevel();
         return;
@@ -1450,8 +1454,7 @@ export class GameScene extends Phaser.Scene {
     if (!asteroid?.container?.active || this.bossDefeated) return;
     if (asteroid.fallTween) asteroid.fallTween.stop();
 
-    asteroid.lockedOut = false;
-    asteroid.impactPending = false;
+    asteroid.phase = 'falling';
     const newProblem = this.isGlitchBoss
       ? getGlitchProblem()
       : getProblemForWorld(this.worldId, this.mode);
@@ -1900,6 +1903,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   removeAsteroid(asteroid) {
+    asteroid.phase = 'gone';
     if (asteroid.fallTween) asteroid.fallTween.stop();
     if (asteroid.container?.active) {
       // Kill any other tweens still acting on the container (the
@@ -2002,7 +2006,7 @@ export class GameScene extends Phaser.Scene {
     const trulyStuck = !this.isBoss
       && this.activeAsteroids.length > 0
       && this.activeAsteroids.every(a =>
-        a.lockedOut
+        a.phase === 'resolving'
         && a.container?.active
         && a.container.alpha > 0.9
         && a.container.y < ASTEROID_IMPACT_Y);
@@ -2031,7 +2035,7 @@ export class GameScene extends Phaser.Scene {
     const bossLockedTooLong = this.isBoss
       && !this.bossDefeated
       && this.activeAsteroids.length > 0
-      && this.activeAsteroids.every(a => a.lockedOut && a.container?.active);
+      && this.activeAsteroids.every(a => a.phase === 'resolving' && a.container?.active);
     this._tickWatchdog('_bossStuckMs', bossLockedTooLong, 3000, delta, () => {
       const stuck = this.activeAsteroids.find(a => a.container?.active);
       if (stuck) {
@@ -2997,8 +3001,7 @@ export class GameScene extends Phaser.Scene {
     const fallSeconds = this.problemSeconds * 2.4; // Falls much slower.
     const asteroid = {
       container, text, problem,
-      lockedOut: false,
-      impactPending: false,
+      phase: 'falling',
       fallTween: null,
       startedAtMs: performance.now(),
       isBoss: false,
