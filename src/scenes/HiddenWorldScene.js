@@ -257,7 +257,7 @@ export class HiddenWorldScene extends Phaser.Scene {
     cosmetics.addAndEquip('acc_dad_glasses');
     audio.playMatch?.();
 
-    const { card } = createModal(this, {
+    const { card, close } = createModal(this, {
       width: 880, height: 660,
       accentColor: 0xffd86b,
       showCloseHint: false
@@ -289,9 +289,12 @@ export class HiddenWorldScene extends Phaser.Scene {
       label: 'Sweet',
       color: 0xffd86b,
       textOverrides: { fontSize: '28px', fill: '#0a0a1a', fontStyle: '900' },
+      // Stay in the garage after finding the glasses — just dismiss the card.
+      // The kid keeps exploring and leaves on their own via the Leave button.
+      // Refresh the in-scene pet so it's wearing the freshly-equipped glasses.
       onClick: () => {
-        music.ensurePlaying(this, 'homeTheme');
-        this.scene.start('WorldMapScene');
+        this.refreshGaragePet();
+        close();
       }
     }));
     return card;
@@ -430,7 +433,9 @@ export class HiddenWorldScene extends Phaser.Scene {
     const start = spots[idx];
 
     const petContainer = this.add.container(start.x, start.y).setDepth(11);
-    petContainer.add(drawCompanion(this, 0, 0, { scale: 1.1 }));
+    this._garagePetContainer = petContainer;
+    this._garagePetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    petContainer.add(this._garagePetSprite);
 
     // Subtle idle bob
     this.tweens.add({
@@ -486,6 +491,17 @@ export class HiddenWorldScene extends Phaser.Scene {
         });
       }
     });
+  }
+
+  // Redraw the in-scene garage pet so a cosmetic equipped mid-visit (e.g. Dad's
+  // Glasses from the storage bins) shows up right away instead of next visit.
+  // No-op when there's no starter pet (createGaragePet bailed).
+  refreshGaragePet() {
+    if (!this._garagePetContainer?.active || !this._garagePetSprite) return;
+    this._garagePetSprite.destroy();
+    this._garagePetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    // addAt(…, 0) keeps the pet below the transparent tap hit-rect.
+    this._garagePetContainer.addAt(this._garagePetSprite, 0);
   }
 }
 
