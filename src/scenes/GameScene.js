@@ -1967,30 +1967,14 @@ export class GameScene extends Phaser.Scene {
     return this.state === 'failed' || this.state === 'ended';
   }
 
-  // Frame watchdog: accumulate `delta` while `cond` holds; once it crosses
-  // `thresholdMs`, reset the accumulator (stored on `this[key]`) and run
-  // `recover`. Releasing `cond` resets immediately. Collapses three identical
-  // stuck / empty-slot / boss-locked recovery loops in update() into one shape.
-  _tickWatchdog(key, cond, thresholdMs, delta, recover) {
-    if (cond) {
-      this[key] = (this[key] || 0) + delta;
-      if (this[key] > thresholdMs) {
-        this[key] = 0;
-        recover();
-      }
-    } else {
-      this[key] = 0;
-    }
-  }
-
   // ============================================================
   // UPDATE
   // ============================================================
   update(_time, delta) {
     // While the pause menu is open the clock/tweens/physics are paused, but
     // update() itself still runs every frame — gate the whole loop so the
-    // countdown doesn't keep ticking (timeLeft -= delta) and the watchdogs
-    // don't spawn/cycle asteroids behind the modal.
+    // countdown doesn't keep ticking (timeLeft -= delta) and the empty-field
+    // backstop doesn't spawn an asteroid behind the modal.
     if (this._pauseOpen) return;
 
     // Tap-feedback runs in ALL states (including 'intro', 'correction',
@@ -2000,56 +1984,35 @@ export class GameScene extends Phaser.Scene {
 
     if (this.state !== 'playing' && this.state !== 'feedback') return;
 
-    // Deadlock watchdog. If the live asteroid is locked (mid-cleanup) for too
-    // long — e.g. a delayedCall never fires because of an exception or a
-    // stranded paused clock — force a reset so the kid isn't stranded with
-    // unresponsive buttons. Boss rounds opt out (cycleBossProblem paces them).
+    // Single safety backstop (replaces the old _stuckMs / _emptySlotMs /
+    // _bossStuckMs trio). teardownAsteroid now owns the one asteroid exit and
+    // refills the slot the instant an asteroid resolves, so in normal play the
+    // field is never empty for more than a frame — this should NEVER fire.
     //
-    // Only counts an asteroid as "stuck" when it's still parked in the play
-    // field at full opacity. Asteroids mid-snap, mid-glance-drift, or
-    // mid-shrink are in legitimate cleanup animations — counting those would
-    // race the watchdog against the natural removeAsteroid path and produce a
-    // duplicate spawn.
-    const trulyStuck = !this.isBoss
-      && this.activeAsteroids.length > 0
-      && this.activeAsteroids.every(a =>
-        a.phase === 'resolving'
-        && a.container?.active
-        && a.container.alpha > 0.9
-        && a.container.y < ASTEROID_IMPACT_Y);
-    this._tickWatchdog('_stuckMs', trulyStuck, 1500, delta, () => {
-      this.setState('playing');
-      this.activeAsteroids.slice().forEach(a => this.removeAsteroid(a));
-      this.spawnAsteroid();
-    });
-
-    const emptyPlayableSlot = !this.isBoss
+    // It exists only to self-heal the one catastrophic state: an EMPTY field
+    // with nothing scheduled to refill it, which can only happen if an async
+    // exit callback (an explode/glance/snap tween onComplete, or a delayedCall)
+    // throws before its teardownAsteroid runs. A live kids' game must never
+    // hard-freeze. Unlike the old _stuckMs watchdog it only ADDS an asteroid
+    // when the field is genuinely empty — it never wipes anything, so it cannot
+    // nuke an in-progress mini-boss, and spawnAsteroid self-guards against a
+    // double-spawn. Boss rounds are excluded: the boss asteroid cycles in place
+    // and is never removed mid-fight, so a boss field cannot go empty.
+    const fieldEmpty = !this.isBoss
       && !this.bossDefeated
       && this.asteroidSlots > 0
       && this.activeAsteroids.length === 0
       && this.state !== 'warp';
-    this._tickWatchdog('_emptySlotMs', emptyPlayableSlot, 650, delta, () => {
-      this.setState('playing');
-      this.spawnAsteroid();
-    });
-
-    // Boss recovery watchdog. trulyStuck / emptyPlayableSlot both exclude
-    // boss because the boss flow paces itself with cycleBossProblem after a
-    // delayedCall. But if THAT callback ever silently bails (asteroid
-    // container destroyed, exception swallowed, paused clock), the kid would
-    // be stuck on a frozen boss with dimmed unanswerable buttons. After 3s
-    // of a locked boss asteroid with no answerable problem, force-cycle it.
-    const bossLockedTooLong = this.isBoss
-      && !this.bossDefeated
-      && this.activeAsteroids.length > 0
-      && this.activeAsteroids.every(a => a.phase === 'resolving' && a.container?.active);
-    this._tickWatchdog('_bossStuckMs', bossLockedTooLong, 3000, delta, () => {
-      const stuck = this.activeAsteroids.find(a => a.container?.active);
-      if (stuck) {
+    if (fieldEmpty) {
+      this._emptyFieldMs = (this._emptyFieldMs || 0) + delta;
+      if (this._emptyFieldMs > 1000) {
+        this._emptyFieldMs = 0;
         this.setState('playing');
-        this.cycleBossProblem(stuck);
+        this.spawnAsteroid();
       }
-    });
+    } else {
+      this._emptyFieldMs = 0;
+    }
 
     if (this.bossHpBar?.active && this.bossContainer?.active) {
       this.bossHpBar.x = this.bossContainer.x;
