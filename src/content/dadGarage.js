@@ -11,7 +11,8 @@
 //            breaks. Wrap quotes around speech-style lines if you like.
 //
 // DAILY_NOTES — strings shown on the workshop whiteboard, one per real-life
-// day. Cycles sequentially. Once per day the kid taps it for +10 stardust.
+// day. Shown in random order, but every note appears once before any repeat.
+// Once per day the kid taps it for +10 stardust.
 // Add as many as you like; longer list = longer time before repeats.
 
 export const GARAGE_ITEMS = [
@@ -58,8 +59,8 @@ export const GARAGE_ITEMS = [
 ];
 
 // Daily Dad notes — one shown per real-life day on the workshop whiteboard.
-// Tapped once per day for +10 stardust. The order is fixed so every line gets
-// seen before any repeats.
+// Tapped once per day for +10 stardust. Shown in random order, reshuffled each
+// cycle, so every line gets seen before any repeats.
 export const DAILY_NOTES = [
 "Being brave doesn't mean you're not scared. It means you're scared and you do it anyway.",
 "Don't rush. Slow and steady beats standing still every single time.",

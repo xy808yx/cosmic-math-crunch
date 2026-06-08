@@ -936,7 +936,9 @@ class PlayerProgress {
 
   // Dad's Garage daily note. Returns { isNewDay, message, index } where
   // isNewDay=true means caller should award the daily stardust and show
-  // the note as "today's". Cycles sequentially through the notes array.
+  // the note as "today's". Draws notes in RANDOM order from a shuffled deck:
+  // every note is shown once before any repeats, and the deck reshuffles each
+  // cycle — so it's unpredictable but never skips a note.
   claimDailyDadNoteIfDue(notes) {
     if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
     // Local calendar date (YYYY-MM-DD) — must match EconomyManager.todayString so
@@ -944,21 +946,47 @@ class PlayerProgress {
     // here rolled the note over hours early/late for non-UTC players.
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    const state = this.dadNoteState || { lastClaimDate: null, nextIndex: 0 };
     const N = notes.length;
+    const state = this.dadNoteState || {};
     const isNewDay = state.lastClaimDate !== today;
-    if (isNewDay) {
-      const index = ((state.nextIndex % N) + N) % N;
-      this.dadNoteState = {
-        lastClaimDate: today,
-        nextIndex: (index + 1) % N
-      };
-      this.save();
-      return { isNewDay: true, message: notes[index], index };
+
+    if (!isNewDay) {
+      // Same day — re-show the note already claimed today. (nextIndex is the
+      // legacy sequential field; honored here so a same-day upgrade keeps
+      // showing the note the kid already saw.)
+      let index = 0;
+      if (Number.isInteger(state.lastIndex)) index = ((state.lastIndex % N) + N) % N;
+      else if (Number.isInteger(state.nextIndex)) index = (((state.nextIndex - 1) % N) + N) % N;
+      return { isNewDay: false, message: notes[index], index };
     }
-    // Same day — re-show the note already claimed today (nextIndex - 1).
-    const index = ((state.nextIndex - 1) % N + N) % N;
-    return { isNewDay: false, message: notes[index], index };
+
+    // New day: deal the next index off a shuffled deck. Rebuild + reshuffle when
+    // the deck is missing/exhausted or the notes list changed length, so every
+    // note is seen once per cycle in a fresh random order. The reshuffle avoids
+    // dealing yesterday's note first (no back-to-back repeat across cycles).
+    let deck = Array.isArray(state.deck) ? state.deck.slice() : [];
+    if (deck.length === 0 || state.deckN !== N) {
+      deck = this._shuffledNoteDeck(N, state.lastIndex);
+    }
+    const index = deck.shift();
+    this.dadNoteState = { lastClaimDate: today, deck, deckN: N, lastIndex: index };
+    this.save();
+    return { isNewDay: true, message: notes[index], index };
+  }
+
+  // Fisher-Yates shuffle of [0..N). When `avoidFirst` is a valid index, makes
+  // sure the deck doesn't start with it (prevents the same note two days in a
+  // row across a deck boundary).
+  _shuffledNoteDeck(N, avoidFirst) {
+    const deck = Array.from({ length: N }, (_, i) => i);
+    for (let i = N - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+    if (N > 1 && deck[0] === avoidFirst) {
+      [deck[0], deck[1]] = [deck[1], deck[0]];
+    }
+    return deck;
   }
 
   markTutorialSeen() {
