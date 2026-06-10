@@ -14,7 +14,7 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { companion, drawCompanion, CAROUSEL_STAGE_ORDER } from '../CompanionManager.js';
+import { companion, drawCompanion, CAROUSEL_STAGE_ORDER, SPECIES } from '../CompanionManager.js';
 import { economy } from '../EconomyManager.js';
 import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
@@ -51,10 +51,14 @@ export class WorldMapScene extends Phaser.Scene {
     // normal tap into a level plays for progression as usual.
     this.registry.set('freePlay', false);
 
-    // Heal saves bitten by the old cosmic-unlock bug: if the kid already beat
-    // the final boss (endingSeen) but never got the permanent Cosmic form,
-    // grant it now — runs before the pet badge is drawn so it renders cosmic.
-    if (progress.endingSeen && companion.hasStarter() && !progress.companion?.cosmicForm) {
+    // Heal saves bitten by the old cosmic-unlock bug: a pet that beat the final
+    // boss but never got the permanent Cosmic form is always sitting at 'adult',
+    // so grant it now — runs before the pet badge is drawn so it renders cosmic.
+    // Gate on 'adult' so a deliberately fresh post-game pet (hatched via "raise a
+    // brand-new pet") starts as an egg and grows instead of snapping to cosmic;
+    // once it reaches adult through play, this same pass blossoms it next visit.
+    if (progress.endingSeen && companion.hasStarter()
+      && progress.companion?.stage === 'adult' && !progress.companion?.cosmicForm) {
       companion.unlockCosmic();
     }
 
@@ -1132,11 +1136,127 @@ export class WorldMapScene extends Phaser.Scene {
 
   showLoreCard() {
     audio.playClick();
-    if (progress.companion?.cosmicForm) {
+    if (progress.endingSeen) {
+      // Post-game: the badge opens the companion gallery (switch pet + form,
+      // or raise a brand-new one). Pre-ending kids keep the single-pet flow.
+      this.showCompanionCollection();
+    } else if (progress.companion?.cosmicForm) {
       this.showStageCarousel();
     } else {
       this.showEvolutionLoreCard();
     }
+  }
+
+  // Post-game pet gallery. Shows all three companions (each at its grown cosmic
+  // form). Tapping one makes it the active pet and chains into the form picker
+  // (showStageCarousel) so the kid can choose its exact stage. A "raise a
+  // brand-new pet" button drops into the normal egg-hatch flow.
+  showCompanionCollection() {
+    const ids = ['ember', 'tide', 'sprout'];
+    const cw = 980;
+    const ch = 1320;
+    const { card, close } = createModal(this, {
+      width: cw, height: ch,
+      accentColor: COLORS.accentWarm,
+      radius: 28, strokeWidth: 4,
+      overlayAlpha: 0.85,
+    });
+
+    card.add(this.add.text(0, -ch / 2 + 95, 'YOUR COMPANIONS', style('display', {
+      fontSize: '60px',
+      fill: '#ffffff',
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -ch / 2 + 175, 'Tap a friend to bring them out — then pick their form.', style('body', {
+      fontSize: '28px',
+      fill: '#cfcfe0',
+      align: 'center',
+      wordWrap: { width: cw - 120 },
+    })).setOrigin(0.5));
+
+    const activeId = progress.companion?.speciesId;
+    const cardW = 280;
+    const cardH = 760;
+    const gap = 36;
+    const totalW = cardW * 3 + gap * 2;
+    const startX = -totalW / 2 + cardW / 2;
+    const rowY = -ch / 2 + 270 + cardH / 2;
+
+    ids.forEach((id, i) => {
+      const sp = SPECIES[id];
+      const x = startX + i * (cardW + gap);
+      const isActive = id === activeId;
+      const sub = this.add.container(x, rowY);
+
+      const bg = this.add.graphics();
+      bg.fillStyle(COLORS.bgDark, 0.55);
+      bg.fillRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 20);
+      bg.lineStyle(isActive ? 5 : 3, sp.color, isActive ? 1 : 0.55);
+      bg.strokeRoundedRect(-cardW / 2, -cardH / 2, cardW, cardH, 20);
+      sub.add(bg);
+
+      // Clean species art (no equipped cosmetics) so the gallery reads as a
+      // species picker, not the active pet wearing the same hat three times.
+      const portrait = drawCompanion(this, 0, -cardH / 2 + 210, {
+        speciesId: id, stage: 'cosmic', scale: 1.2, cosmeticsOverride: {},
+      });
+      sub.add(portrait);
+
+      sub.add(this.add.text(0, -cardH / 2 + 420, sp.name, style('display', {
+        fontSize: '46px',
+        fill: '#' + sp.color.toString(16).padStart(6, '0'),
+      })).setOrigin(0.5));
+
+      sub.add(this.add.text(0, -cardH / 2 + 490, sp.tagline, style('caption', {
+        fontSize: '20px',
+        fill: '#cfcfe0',
+        align: 'center',
+        wordWrap: { width: cardW - 44 },
+      })).setOrigin(0.5));
+
+      if (isActive) {
+        const chip = this.add.container(0, cardH / 2 - 62);
+        const cbg = this.add.graphics();
+        cbg.fillStyle(0x58d68d, 0.95);
+        cbg.fillRoundedRect(-95, -26, 190, 52, 26);
+        chip.add(cbg);
+        chip.add(this.add.text(0, 0, '✓ ACTIVE', style('subhead', {
+          fontSize: '24px', fill: '#0a0a1a', fontStyle: '900',
+        })).setOrigin(0.5));
+        sub.add(chip);
+      } else {
+        sub.add(this.add.text(0, cardH / 2 - 62, 'Tap to choose', style('caption', {
+          fontSize: '22px', fill: '#9a9aae',
+        })).setOrigin(0.5));
+      }
+
+      const hit = this.add.rectangle(0, 0, cardW, cardH, 0x000000, 0)
+        .setInteractive({ useHandCursor: true });
+      sub.add(hit);
+      hit.on('pointerover', () => this.tweens.add({ targets: sub, scaleX: 1.04, scaleY: 1.04, duration: 120 }));
+      hit.on('pointerout', () => this.tweens.add({ targets: sub, scaleX: 1, scaleY: 1, duration: 120 }));
+      hit.on('pointerdown', () => {
+        audio.playClick();
+        companion.setActiveSpecies(id);
+        this.refreshPetBadge();
+        close();
+        this.showStageCarousel();
+      });
+
+      card.add(sub);
+    });
+
+    card.add(createButton(this, {
+      x: 0, y: ch / 2 - 95,
+      width: 580, height: 96,
+      label: '🥚 RAISE A BRAND-NEW PET',
+      color: COLORS.accentWarm,
+      textStyle: 'subhead',
+      textOverrides: { fontSize: '26px', fill: '#0a0a1a', fontStyle: '900' },
+      onClick: () => {
+        close();
+        this.scene.start('StarterPickerScene');
+      },
+    }));
   }
 
   showStageCarousel() {

@@ -162,6 +162,22 @@ class CompanionManager {
     return !!progress.companion.speciesId;
   }
 
+  // Post-game: switch the active companion to any species at its fully grown
+  // showcase form. Gated on endingSeen — choosing an old pet at any form is a
+  // reward for beating the game (cosmic forms require the final-boss win), so it
+  // can never be reached before the ending. Setting stage='adult' + cosmicForm
+  // makes isStageUnlocked() report every form unlocked, so the stage carousel
+  // then lets the kid pick any look via setDisplayStage().
+  setActiveSpecies(speciesId) {
+    if (!SPECIES[speciesId] || !progress.endingSeen) return false;
+    progress.companion.speciesId = speciesId;
+    progress.companion.stage = 'adult';
+    progress.companion.cosmicForm = true;
+    progress.companion.displayStage = null;
+    progress.save();
+    return true;
+  }
+
   // ---------------- Trophy shelf -------------------------------------------
   // Once a pet hits adult, the player can retire it and raise a new one.
   // Retired pets land in `progress.companion.completed[]` as a permanent
