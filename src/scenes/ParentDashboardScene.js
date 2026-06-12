@@ -20,6 +20,8 @@ const ACCENT = COLORS.accentTeal;
 const WARN = COLORS.error;
 const SUCCESS = COLORS.success;
 
+const DEFAULT_PIN = '8888';
+
 export class ParentDashboardScene extends Phaser.Scene {
   constructor() {
     super({ key: 'ParentDashboardScene' });
@@ -64,13 +66,6 @@ export class ParentDashboardScene extends Phaser.Scene {
       onClick: () => this.scene.start('WorldMapScene')
     });
     back.setDepth(10);
-
-    if (!localStorage.getItem('cosmicMathParentPin')) {
-      this.add.text(W / 2, H - 60, 'Default PIN: 0000', style('caption', {
-        fontSize: '22px',
-        fill: '#7a7a90'
-      })).setOrigin(0.5).setDepth(10);
-    }
   }
 
   createNumberPad() {
@@ -154,7 +149,7 @@ export class ParentDashboardScene extends Phaser.Scene {
 
   verifyPin() {
     const enteredPin = this.pinDigits.join('');
-    const savedPin = localStorage.getItem('cosmicMathParentPin') || '0000';
+    const savedPin = localStorage.getItem('cosmicMathParentPin') || DEFAULT_PIN;
     if (enteredPin === savedPin) {
       this.registry.set('parentPinVerified', true);
       this.scene.restart();
