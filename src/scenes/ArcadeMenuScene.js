@@ -45,7 +45,7 @@ export class ArcadeMenuScene extends Phaser.Scene {
 
     this.makeModeCard(W / 2, cy0, {
       title: 'ENDLESS',
-      subtitle: '60-second sprint',
+      subtitle: 'Asteroids never stop',
       detail: `Best score: ${bestEndless}`,
       accent: 0x4ecdc4,
       onClick: () => new TransitionManager(this).fadeToScene('EndlessScene')
@@ -53,7 +53,7 @@ export class ArcadeMenuScene extends Phaser.Scene {
 
     this.makeModeCard(W / 2, cy0 + gap, {
       title: 'BOSS RUSH',
-      subtitle: 'Random 5 bosses, 3 lives',
+      subtitle: '5 boss fights, one ship',
       detail: bestRush
         ? `Best: ${Math.round(bestRush.accuracy * 100)}% in ${(bestRush.timeMs / 1000).toFixed(1)}s`
         : 'No runs yet',
@@ -180,6 +180,10 @@ export class ArcadeMenuScene extends Phaser.Scene {
       hit.on('pointerout', () => this.tweens.add({ targets: chip, scale: 1, duration: 120 }));
       hit.on('pointerdown', () => {
         audio.playClick?.();
+        // Free Play is the campaign engine (freePlay), not an arcade mode —
+        // clear any arcadeMode left over from a Boss Rush / Endless run.
+        this.registry.set('arcadeMode', null);
+        this.registry.set('arcadeState', null);
         this.registry.set('freePlay', true);
         this.registry.set('selectedWorld', world.id);
         this.registry.set('shipParkedWorldId', world.id);

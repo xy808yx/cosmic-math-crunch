@@ -35,11 +35,15 @@ import { applyBossTwist, bossTwistOn } from '../BossMechanics.js';
 import { darken, lighten } from '../colorUtils.js';
 import { COLORS } from '../colorPalette.js';
 import { createTopBar, drawTimeBar } from '../GameTopBar.js';
+import { showArcadeResults } from '../ArcadeRun.js';
 
 const W = 1080;
 const H = 1920;
 
 const SHIP_HP_MAX = 5;
+// Boss Rush uses a lighter HP pool per boss than the campaign — five full-length
+// boss fights on a single shared ship would otherwise drag. Tunable.
+const ARCADE_BOSS_HP = 8;
 
 // New layout (1080×1920):
 //   0–340  : top bar (two rows of stats + HP + time bar)
@@ -92,6 +96,15 @@ export class GameScene extends Phaser.Scene {
     this.isGlitchBoss = this.isBoss && this.world?.kind === 'gauntlet';
     this.freePlay = !!this.registry.get('freePlay');
 
+    // Arcade modes (Endless, Boss Rush) run on THIS engine. The launcher scenes
+    // set arcadeMode + arcadeState in the registry. Treat arcade like free play
+    // (no warp asteroids, no progression writes), then short-circuit the
+    // campaign endRound/failLevel into the arcade handlers below. arcadeState
+    // carries cumulative run data across the per-boss scene.restart()s.
+    this.arcadeMode = this.registry.get('arcadeMode') || null;
+    this.arcadeState = this.registry.get('arcadeState') || null;
+    if (this.arcadeMode) this.freePlay = true;
+
     // Hidden-world warp asteroid: when the kid plays a host level (e.g. W5
     // div) for the first time, a warp asteroid will spawn ~30-45s in. State
     // moves null → 'pending' → 'ready' → 'spawned'. Suppressed for boss,
@@ -106,6 +119,7 @@ export class GameScene extends Phaser.Scene {
       }
     }
     this.bossMaxHp = getBossHpForWorld(this.worldId);
+    if (this.arcadeMode === 'bossRush') this.bossMaxHp = ARCADE_BOSS_HP;
 
     this.modeConfig = this.isBoss
       ? { label: this.world.villain || 'Boss', symbol: this.isGlitchBoss ? 'glitch' : 'skull', duration: 90, scoreThreshold: this.bossMaxHp }
@@ -124,7 +138,10 @@ export class GameScene extends Phaser.Scene {
     this.history = [];
     this.pendingEvolution = null;
 
-    this.shipHp = SHIP_HP_MAX;
+    // Boss Rush carries one ship's HP across the whole 5-boss gauntlet.
+    this.shipHp = (this.arcadeMode === 'bossRush' && this.arcadeState)
+      ? (this.arcadeState.shipHp ?? SHIP_HP_MAX)
+      : SHIP_HP_MAX;
     this.asteroidSlots = this.isBoss ? 1 : getAsteroidCountForWorld(this.worldId);
 
     this.bossHp = this.bossMaxHp;
@@ -177,6 +194,8 @@ export class GameScene extends Phaser.Scene {
     this.createPlayArea();
     this.createMcButtons();
 
+    if (this.arcadeMode) this._setupArcadeHud();
+
     this._onKeyDown = this.onKeyDown.bind(this);
     this.input.keyboard?.on('keydown', this._onKeyDown);
     this.events.once('shutdown', () => {
@@ -219,8 +238,9 @@ export class GameScene extends Phaser.Scene {
       }
 
       // First-time-player nudge: short hint near the answer buttons.
-      // Auto-dismisses on the first correct answer.
-      if (!progress.tutorialSeen) {
+      // Auto-dismisses on the first correct answer. Skipped in arcade modes
+      // (only reachable post-game, so the tutorial is long done).
+      if (!progress.tutorialSeen && !this.arcadeMode) {
         this.time.delayedCall(900, () => {
           if (this._isOver()) return;
           this.showTutorialHint();
@@ -2019,28 +2039,32 @@ export class GameScene extends Phaser.Scene {
       this.bossHpBar.y = this.bossContainer.y - ASTEROID_RADIUS * BOSS_CONFIG.asteroidScale - 60;
     }
 
-    this.timeLeft -= delta;
-    if (this.timeLeft <= 0) {
-      this.timeLeft = 0;
-      this.endRound();
-      return;
-    }
+    // Arcade modes have no round timer — Boss Rush ends on boss defeat / ship
+    // death, Endless runs until the ship is lost. The time bar stays static.
+    if (!this.arcadeMode) {
+      this.timeLeft -= delta;
+      if (this.timeLeft <= 0) {
+        this.timeLeft = 0;
+        this.endRound();
+        return;
+      }
 
-    const pct = this.timeLeft / (this.duration * 1000);
-    drawTimeBar(this, TOP_BAR_H, pct);
-    this.timeText.setText(this.formatTime(this.timeLeft));
+      const pct = this.timeLeft / (this.duration * 1000);
+      drawTimeBar(this, TOP_BAR_H, pct);
+      this.timeText.setText(this.formatTime(this.timeLeft));
 
-    if (this.timeLeft <= 5000) {
-      const sec = Math.ceil(this.timeLeft / 1000);
-      if (sec !== this.lastTickSec) {
-        this.lastTickSec = sec;
-        audio.playTick?.();
-        this.tweens.add({
-          targets: this.timeText,
-          scale: { from: 1.3, to: 1 },
-          duration: 250,
-          ease: 'Quad.easeOut'
-        });
+      if (this.timeLeft <= 5000) {
+        const sec = Math.ceil(this.timeLeft / 1000);
+        if (sec !== this.lastTickSec) {
+          this.lastTickSec = sec;
+          audio.playTick?.();
+          this.tweens.add({
+            targets: this.timeText,
+            scale: { from: 1.3, to: 1 },
+            duration: 250,
+            ease: 'Quad.easeOut'
+          });
+        }
       }
     }
   }
@@ -2049,6 +2073,7 @@ export class GameScene extends Phaser.Scene {
   // FAIL
   // ============================================================
   failLevel() {
+    if (this.arcadeMode) { this._arcadeShipDeath(); return; }
     this.setState('failed');
     audio.playLevelFailed?.();
 
@@ -2170,7 +2195,93 @@ export class GameScene extends Phaser.Scene {
   // ============================================================
   // END OF ROUND
   // ============================================================
+  // ============================================================
+  // ARCADE (Endless / Boss Rush) — runs on this engine instead of the campaign
+  // round flow. All entered only when this.arcadeMode is set.
+  // ============================================================
+  _setupArcadeHud() {
+    // Sync the HP hearts to the carried ship HP (Boss Rush) and kill the timer
+    // readout (arcade has no round clock).
+    this.setHp(this.shipHp);
+    if (this.timeText) this.timeText.setText('∞');
+    if (this.arcadeMode === 'bossRush' && this.arcadeState) {
+      const n = (this.arcadeState.index ?? 0) + 1;
+      const total = this.arcadeState.queue?.length ?? 5;
+      this.add.text(W / 2, TOP_BAR_H - 4, `BOSS ${n}/${total}`, style('caption', {
+        fontSize: '26px', fill: '#ff8b8b', fontStyle: '900'
+      })).setOrigin(0.5, 0).setDepth(45);
+    }
+  }
+
+  // Boss defeated in arcade Boss Rush → bank stats, run the real defeat
+  // cinematic, then advance to the next boss (fresh scene) or the results.
+  _arcadeRoundEnd({ bossWin, bossAsteroid } = {}) {
+    if (this.arcadeMode !== 'bossRush') return; // Endless never ends a round here
+    this.setState('ended');
+
+    const st = this.arcadeState || {
+      queue: [this.worldId], index: 0, correct: 0, attempts: 0, startMs: Date.now()
+    };
+    st.correct += this.score;
+    st.attempts += this.attempts;
+    st.shipHp = this.shipHp;
+    st.index += 1;
+
+    const advance = () => {
+      if (!this.scene.isActive()) return;
+      if (st.index >= st.queue.length) {
+        showArcadeResults(this, {
+          mode: 'bossRush', won: true,
+          correct: st.correct, attempts: st.attempts,
+          timeMs: Date.now() - st.startMs
+        });
+      } else {
+        this.registry.set('arcadeState', st);
+        this.registry.set('currentWorldId', st.queue[st.index]);
+        this.registry.set('levelMode', 'boss');
+        this.scene.restart();
+      }
+    };
+
+    if (bossWin && bossAsteroid) {
+      import('../BossDefeatCinematic.js').then(({ playBossDefeatCinematic }) => {
+        playBossDefeatCinematic(this, bossAsteroid, advance);
+      });
+    } else {
+      advance();
+    }
+  }
+
+  // Ship lost in arcade → end the run and show results.
+  _arcadeShipDeath() {
+    this.setState('failed');
+    audio.playLevelFailed?.();
+    this.activeAsteroids.forEach(a => {
+      if (a.fallTween) a.fallTween.stop();
+      if (a.container?.active) a.container.destroy();
+    });
+    this.activeAsteroids = [];
+    this.cameras.main.shake(500, 0.02);
+
+    const st = this.arcadeState;
+    let correct = this.score;
+    let attempts = this.attempts;
+    if (this.arcadeMode === 'bossRush' && st) {
+      correct = st.correct + this.score;
+      attempts = st.attempts + this.attempts;
+    }
+    const timeMs = st?.startMs ? Date.now() - st.startMs : 0;
+
+    this.time.delayedCall(600, () => {
+      showArcadeResults(this, {
+        mode: this.arcadeMode, won: false,
+        correct, attempts, timeMs, score: this.score
+      });
+    });
+  }
+
   endRound({ bossWin, bossAsteroid } = {}) {
+    if (this.arcadeMode) { this._arcadeRoundEnd({ bossWin, bossAsteroid }); return; }
     this.setState('ended');
     audio.playRoundComplete?.();
 
@@ -2785,6 +2896,12 @@ export class GameScene extends Phaser.Scene {
     // Ignore the top-bar back arrow mid-warp — the warp animation owns the
     // scene transition, so a stray tap here would abort it and skip the payoff.
     if (this.state === 'warp') return;
+    // Arcade runs (Endless / Boss Rush) live outside the campaign — back/quit
+    // returns to the arcade hub, not the world's level select.
+    if (this.arcadeMode) {
+      new TransitionManager(this).fadeToScene('ArcadeMenuScene');
+      return;
+    }
     // If a world clear is pending auto-advance, jump straight to the map
     // so the ship animates to the next world.
     if (progress.justClearedWorld) {

@@ -28,6 +28,11 @@ export class LevelSelectScene extends Phaser.Scene {
 
   create() {
     music.ensurePlaying(this);
+    // Defense-in-depth: LevelSelect is a campaign / free-play entry, never an
+    // arcade one. Clear any arcadeMode left over so a level tapped here can't
+    // accidentally launch GameScene in arcade mode.
+    this.registry.set('arcadeMode', null);
+    this.registry.set('arcadeState', null);
     const worldId = this.registry.get('selectedWorld') || 1;
     this.world = findWorld(worldId) || WORLDS[0];
     this.worldProgress = progress.getWorldProgress(worldId);

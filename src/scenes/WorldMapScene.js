@@ -47,9 +47,11 @@ export class WorldMapScene extends Phaser.Scene {
     audio.init();
     music.ensurePlaying(this);
 
-    // Returning to the map always ends a free-play session, so the next
+    // Returning to the map always ends a free-play / arcade session, so the next
     // normal tap into a level plays for progression as usual.
     this.registry.set('freePlay', false);
+    this.registry.set('arcadeMode', null);
+    this.registry.set('arcadeState', null);
 
     // Heal saves bitten by the old cosmic-unlock bug: a pet that beat the final
     // boss but never got the permanent Cosmic form is always sitting at 'adult',
