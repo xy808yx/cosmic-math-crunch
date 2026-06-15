@@ -241,6 +241,35 @@ export function getProblemSecondsForWorldAndMode(worldId, mode) {
   return mode === 'boss' ? base + BOSS_TIMER_BONUS_S : base;
 }
 
+// ── Automaticity ───────────────────────────────────────────────────────────
+// The whole point of the game is INSTANT recall, not just correctness. A fact
+// is "automatic" only when answered correctly AND fast, several times running.
+// FLUENCY_CAP_MS is a FIXED absolute threshold (independent of any kid's
+// baseline) so "automatic" means real fluency for every kid — a slow kid's
+// pace can never define mastery down. The per-kid adaptivity lives in the
+// fall-speed pressure (getAdaptiveProblemSeconds), not in this definition.
+// ~2500ms includes reading the problem + finding + tapping the button.
+export const FLUENCY_CAP_MS = 2500;
+const AUTOMATIC_FAST_STREAK = 3; // consecutive correct+fast reps to certify a fact
+
+// Adaptive per-problem fall window (seconds) derived from a kid's measured pace.
+// Pushes ~10% faster than their comfort, clamped so it never plateaus slow
+// (FLOOR keeps pulling toward true fluency) nor overwhelms a young kid (CEIL).
+// `paceMs` is the kid's EWMA correct response time (records.getPaceMs()).
+// Cold start (no pace yet) falls back to the world's designed pacing.
+// SCOPED by the caller (GameScene) to Chapter 2 + Arcade only — Chapter 1 keeps
+// its original hand-designed speed curve.
+const ADAPTIVE_PUSH = 0.9;
+const ADAPTIVE_FLOOR_S = 2.0;
+const ADAPTIVE_CEIL_S = 6.0;
+export function getAdaptiveProblemSeconds(worldId, mode, paceMs) {
+  if (!paceMs || paceMs <= 0) return getProblemSecondsForWorldAndMode(worldId, mode);
+  const target = (paceMs / 1000) * ADAPTIVE_PUSH;
+  let s = Math.min(ADAPTIVE_CEIL_S, Math.max(ADAPTIVE_FLOOR_S, target));
+  if (mode === 'boss') s += BOSS_TIMER_BONUS_S; // boss keeps its accuracy cushion
+  return s;
+}
+
 // Boss config — buttonCount/asteroidScale are fixed; HP scales by world
 // (see getBossHpForWorld). Boss is meant to be a real fight, not a 5-tap
 // formality, so even world 1 is 10 HP.
@@ -1029,8 +1058,10 @@ class PlayerProgress {
     return false;
   }
 
-  // Record a fact attempt with spaced repetition (Section 4.3)
-  recordFactAttempt(a, b, correct) {
+  // Record a fact attempt with spaced repetition (Section 4.3) + speed-based
+  // automaticity. `elapsedMs` is the kid's response time (from GameScene); pass
+  // null/undefined when timing isn't available (the speed fields then hold).
+  recordFactAttempt(a, b, correct, elapsedMs = null) {
     const key = `${Math.min(a, b)}x${Math.max(a, b)}`;
     if (!this.factMastery[key]) {
       this.factMastery[key] = {
@@ -1039,7 +1070,10 @@ class PlayerProgress {
         lastSeen: Date.now(),
         interval: 0,        // Days until next review (0 = immediate)
         nextReview: Date.now(), // When fact is due
-        streak: 0           // Consecutive correct answers
+        streak: 0,          // Consecutive correct answers
+        recentMs: 0,        // EWMA of correct response times (automaticity)
+        fastStreak: 0,      // Consecutive correct+fast (< fluency cap) answers
+        automatic: false    // True once fastStreak reaches AUTOMATIC_FAST_STREAK
       };
     }
 
@@ -1049,6 +1083,9 @@ class PlayerProgress {
     if (fact.streak === undefined) fact.streak = 0;
     if (fact.interval === undefined) fact.interval = 0;
     if (fact.nextReview === undefined) fact.nextReview = Date.now();
+    if (fact.recentMs === undefined) fact.recentMs = 0;
+    if (fact.fastStreak === undefined) fact.fastStreak = 0;
+    if (fact.automatic === undefined) fact.automatic = false;
 
     fact.total++;
     fact.lastSeen = Date.now();
@@ -1062,11 +1099,24 @@ class PlayerProgress {
       const intervalIndex = Math.min(fact.streak, intervals.length - 1);
       fact.interval = intervals[intervalIndex];
       fact.nextReview = Date.now() + (fact.interval * 24 * 60 * 60 * 1000);
+
+      // Speed-based automaticity. Only correct answers carry timing signal —
+      // a wrong answer's elapsed time reflects confusion, not recall speed.
+      if (typeof elapsedMs === 'number' && elapsedMs > 0) {
+        fact.recentMs = fact.recentMs > 0
+          ? fact.recentMs * 0.7 + elapsedMs * 0.3
+          : elapsedMs;
+        if (elapsedMs <= FLUENCY_CAP_MS) fact.fastStreak++;
+        else fact.fastStreak = 0; // correct but slow breaks the fast streak
+        fact.automatic = fact.fastStreak >= AUTOMATIC_FAST_STREAK;
+      }
     } else {
-      // Wrong answer - reset to immediate review
+      // Wrong answer - reset to immediate review and de-certify automaticity.
       fact.streak = 0;
       fact.interval = 0;
       fact.nextReview = Date.now(); // Due immediately
+      fact.fastStreak = 0;
+      fact.automatic = false;
     }
 
     this.save();
@@ -1136,23 +1186,55 @@ class PlayerProgress {
     }
   }
 
-  // Facts the player has attempted, sorted weakest-first (lowest accuracy,
-  // tie-broken by fewest attempts so we surface novel weak ones).
+  // How badly a fact needs practice — the automaticity NEED score (higher =
+  // more in need). Drives weak-fact targeting. Three signals, layered:
+  //   1. Inaccuracy — a fact you get wrong needs work most (dominant weight).
+  //   2. Accurate-but-slow — correct but over the fluency cap and not yet
+  //      automatic. THIS is the core automaticity signal the old engine
+  //      ignored: the kid who is right but counting on fingers.
+  //   3. Decay — a once-automatic fact whose spaced-repetition review is
+  //      overdue resurfaces so it stays sharp (activates the dormant
+  //      nextReview logic). Keeps the already-fluent kid's facts fresh.
+  _automaticityNeedScore(data) {
+    const accuracy = data.total > 0 ? data.correct / data.total : 0;
+    let score = (1 - accuracy) * 2;
+    if (accuracy >= 0.7 && !data.automatic) {
+      if (data.recentMs > 0) {
+        score += Math.min(1, Math.max(0, (data.recentMs - FLUENCY_CAP_MS) / FLUENCY_CAP_MS));
+      } else {
+        score += 0.5; // accurate but never timed → still worth a fast rep
+      }
+    }
+    if (data.automatic && data.nextReview && Date.now() > data.nextReview) {
+      score += 0.8;
+    }
+    return score;
+  }
+
+  // Facts the player has attempted, ranked most-in-need first by the
+  // automaticity need score, tie-broken by fewest attempts (surface novel ones).
   rankedWeakFacts(minTotal = 2) {
     const facts = [];
     for (const [key, data] of Object.entries(this.factMastery)) {
       if (!data || data.total < minTotal) continue;
       const [a, b] = key.split('x').map(Number);
       if (a < 1 || b < 1 || a > 12 || b > 12) continue;
-      facts.push({ a, b, accuracy: data.correct / data.total, total: data.total });
+      facts.push({
+        a, b,
+        accuracy: data.correct / data.total,
+        total: data.total,
+        recentMs: data.recentMs || 0,
+        automatic: !!data.automatic,
+        score: this._automaticityNeedScore(data)
+      });
     }
-    facts.sort((x, y) => x.accuracy - y.accuracy || x.total - y.total);
+    facts.sort((x, y) => y.score - x.score || x.total - y.total);
     return facts;
   }
 
   // Returns null on fresh saves so callers can fall back to random sampling.
-  // Bottom third of weakest facts, floor 3 / cap 8 — focused without becoming
-  // repetitive on a single fact.
+  // Top third by need, floor 3 / cap 8 — focused without becoming repetitive
+  // on a single fact.
   pickWeakFact() {
     const facts = this.rankedWeakFacts();
     if (facts.length === 0) return null;
@@ -1184,6 +1266,60 @@ class PlayerProgress {
     return Math.round((fact.correct / fact.total) * 100);
   }
 
+  // Has this fact been certified automatic (correct + fast, repeatedly)?
+  isAutomatic(a, b) {
+    const key = `${Math.min(a, b)}x${Math.max(a, b)}`;
+    return !!this.factMastery[key]?.automatic;
+  }
+
+  // Per-fact automaticity status for the parent dashboard grid:
+  //   'automatic'    — fast + accurate (gold)
+  //   'slow'         — accurate (>=70%) but not yet automatic (the gap to close)
+  //   'inaccurate'   — below 70% accuracy
+  //   'unseen'       — not yet attempted
+  getFactStatus(a, b) {
+    const key = `${Math.min(a, b)}x${Math.max(a, b)}`;
+    const fact = this.factMastery[key];
+    if (!fact || fact.total === 0) return 'unseen';
+    if (fact.automatic) return 'automatic';
+    return (fact.correct / fact.total) >= 0.7 ? 'slow' : 'inaccurate';
+  }
+
+  // Dashboard summary across the 78 unique facts (1..12, a<=b). Counts how many
+  // are automatic, accurate-but-slow, still inaccurate, and untouched.
+  getAutomaticityStats() {
+    let automatic = 0, slow = 0, inaccurate = 0, attempted = 0;
+    const totalFacts = 78; // 12*13/2 unique normalized facts
+    for (let a = 1; a <= 12; a++) {
+      for (let b = a; b <= 12; b++) {
+        const status = this.getFactStatus(a, b);
+        if (status === 'unseen') continue;
+        attempted++;
+        if (status === 'automatic') automatic++;
+        else if (status === 'slow') slow++;
+        else inaccurate++;
+      }
+    }
+    return { automatic, slow, inaccurate, attempted, totalFacts };
+  }
+
+  // Accurate-but-slow facts — the actionable automaticity gap for parents.
+  // Correct most of the time but still over the fluency cap (not automatic),
+  // ranked slowest-first.
+  getSlowFacts(count = 8) {
+    const out = [];
+    for (const [key, data] of Object.entries(this.factMastery)) {
+      if (!data || data.total < 2) continue;
+      const [a, b] = key.split('x').map(Number);
+      if (a < 1 || b < 1 || a > 12 || b > 12) continue;
+      if (data.automatic) continue;
+      if ((data.correct / data.total) < 0.7) continue; // that's an accuracy problem
+      out.push({ a, b, recentMs: Math.round(data.recentMs || 0), total: data.total });
+    }
+    out.sort((x, y) => y.recentMs - x.recentMs);
+    return out.slice(0, count);
+  }
+
   // SM-2 weakness predicate. Used by the wrong-answer flow to decide whether
   // to interrupt with a correction card. A fact qualifies as weak when the
   // player has seen it more than once and is averaging below 70% — i.e.
@@ -1196,14 +1332,21 @@ class PlayerProgress {
     return (fact.correct / fact.total) < 0.7;
   }
 
-  // Get most missed facts for analytics
+  // Get most missed facts for analytics — strictly lowest-accuracy first
+  // (rankedWeakFacts now sorts by overall need, which includes slow-but-correct
+  // facts; "most missed" must stay accuracy-based for the dashboard label).
   getMostMissedFacts(count = 5) {
-    return this.rankedWeakFacts(3).slice(0, count).map(f => ({
-      a: f.a,
-      b: f.b,
-      accuracy: Math.round(f.accuracy * 100),
-      total: f.total
-    }));
+    return this.rankedWeakFacts(3)
+      .filter(f => f.accuracy < 0.7) // accuracy problems only — slow-but-accurate
+                                     // facts belong to the speed list, not here
+      .sort((x, y) => x.accuracy - y.accuracy || y.total - x.total)
+      .slice(0, count)
+      .map(f => ({
+        a: f.a,
+        b: f.b,
+        accuracy: Math.round(f.accuracy * 100),
+        total: f.total
+      }));
   }
 }
 

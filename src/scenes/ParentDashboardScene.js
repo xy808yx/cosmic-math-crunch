@@ -19,6 +19,8 @@ const H = 1920;
 const ACCENT = COLORS.accentTeal;
 const WARN = COLORS.error;
 const SUCCESS = COLORS.success;
+const GOLD = 0xffd86b;       // automatic (fast + accurate)
+const SLOW_GREEN = 0x4f956b; // accurate but not yet fast — the automaticity gap
 
 const DEFAULT_PIN = '8888';
 
@@ -344,36 +346,68 @@ export class ParentDashboardScene extends Phaser.Scene {
   }
 
   // ----- ANALYTICS -----
+  // The goal is AUTOMATICITY (instant recall), not just correctness — so the
+  // grid is colored by recall status, and the lists separate the two kinds of
+  // work: facts that are slow (need speed) vs. facts that are missed (need
+  // accuracy). Gold = automatic, green = accurate-but-slow, amber/red = missed.
   showAnalyticsTab() {
-    const startY = 320;
-    this.contentContainer.add(this.add.text(W / 2, startY, 'Multiplication Mastery', style('subhead', {
+    const startY = 300;
+    this.contentContainer.add(this.add.text(W / 2, startY, 'Recall Speed & Mastery', style('subhead', {
       fontSize: '32px',
       fill: '#ffd86b'
     })).setOrigin(0.5));
-    this.createMasteryGrid(startY + 60);
 
-    const missedY = startY + 920;
-    this.contentContainer.add(this.add.text(W / 2, missedY, 'Most Missed Facts', style('subhead', {
-      fontSize: '32px',
-      fill: '#ff6b6b'
+    const stats = progress.getAutomaticityStats();
+    const pace = records.getPaceMs();
+    const summary = stats.attempted === 0
+      ? 'No data yet — keep playing!'
+      : `${stats.automatic} of ${stats.totalFacts} facts automatic`
+        + (pace > 0 ? `   ·   typical recall ${(pace / 1000).toFixed(1)}s` : '');
+    this.contentContainer.add(this.add.text(W / 2, startY + 46, summary, style('body', {
+      fontSize: '24px', fill: '#cfcfe0'
     })).setOrigin(0.5));
-    const missed = progress.getMostMissedFacts(5);
-    if (missed.length === 0) {
-      this.contentContainer.add(this.add.text(W / 2, missedY + 60, 'No data yet — keep playing!', style('caption', {
-        fontSize: '22px',
-        fill: '#7a7a90'
+
+    const gridY = startY + 108;
+    this.createMasteryGrid(gridY);
+    const legendY = gridY + 24 + 12 * 64 + 22;
+    this.createMasteryLegend(legendY);
+
+    let y = legendY + 64;
+
+    // Accurate-but-slow — the actionable automaticity gap.
+    this.contentContainer.add(this.add.text(W / 2, y, 'Not automatic yet (accurate but slow)', style('subhead', {
+      fontSize: '26px', fill: '#7ee08a'
+    })).setOrigin(0.5));
+    y += 42;
+    const slow = progress.getSlowFacts(4);
+    if (slow.length === 0) {
+      this.contentContainer.add(this.add.text(W / 2, y, stats.attempted ? 'Nothing slow right now — nice!' : '—', style('caption', {
+        fontSize: '22px', fill: '#7a7a90'
       })).setOrigin(0.5));
-      return;
+      y += 40;
+    } else {
+      slow.forEach((f, i) => {
+        this.contentContainer.add(this.add.text(W / 2, y + i * 42,
+          `${f.a} × ${f.b} = ${f.a * f.b}   (~${(f.recentMs / 1000).toFixed(1)}s)`,
+          style('body', { fontSize: '24px', fill: '#cfcfe0' })).setOrigin(0.5));
+      });
+      y += slow.length * 42 + 14;
     }
-    missed.forEach((fact, i) => {
-      const text = this.add.text(W / 2, missedY + 60 + i * 50,
-        `${fact.a} × ${fact.b} = ${fact.a * fact.b}  (${fact.accuracy}% accuracy)`,
-        style('body', {
-          fontSize: '24px',
-          fill: fact.accuracy < 50 ? '#ff6b6b' : '#f7dc6f'
-        })).setOrigin(0.5);
-      this.contentContainer.add(text);
-    });
+
+    // Most missed — accuracy, not speed.
+    const missed = progress.getMostMissedFacts(4);
+    if (missed.length > 0) {
+      y += 18;
+      this.contentContainer.add(this.add.text(W / 2, y, 'Most missed (needs accuracy)', style('subhead', {
+        fontSize: '26px', fill: '#ff6b6b'
+      })).setOrigin(0.5));
+      y += 42;
+      missed.forEach((fact, i) => {
+        this.contentContainer.add(this.add.text(W / 2, y + i * 42,
+          `${fact.a} × ${fact.b} = ${fact.a * fact.b}   (${fact.accuracy}%)`,
+          style('body', { fontSize: '24px', fill: fact.accuracy < 50 ? '#ff6b6b' : '#f7dc6f' })).setOrigin(0.5));
+      });
+    }
   }
 
   createMasteryGrid(startY) {
@@ -390,13 +424,45 @@ export class ParentDashboardScene extends Phaser.Scene {
         fontSize: '16px', fill: '#7a7a90'
       })).setOrigin(1, 0.5));
       for (let col = 1; col <= 12; col++) {
-        const m = progress.getFactMastery(r, col);
-        const color = m === 0 ? 0x2d2d44 : m >= 90 ? SUCCESS : m >= 75 ? COLORS.warning : m >= 50 ? 0xffb142 : WARN;
+        const color = this.factStatusColor(r, col);
         const cell = this.add.graphics();
         cell.fillStyle(color, 1);
         cell.fillRoundedRect(startX + (col - 1) * cellSize + 2, rowY + 2, cellSize - 4, cellSize - 4, 4);
         this.contentContainer.add(cell);
       }
+    }
+  }
+
+  // Cell color by automaticity status. Inaccurate facts split amber/red by
+  // accuracy so the parent can see how far off they are.
+  factStatusColor(a, b) {
+    const status = progress.getFactStatus(a, b);
+    if (status === 'unseen') return 0x2d2d44;
+    if (status === 'automatic') return GOLD;
+    if (status === 'slow') return SLOW_GREEN;
+    return progress.getFactMastery(a, b) >= 50 ? 0xffb142 : WARN; // inaccurate
+  }
+
+  createMasteryLegend(y) {
+    const items = [
+      [GOLD, 'Automatic'],
+      [SLOW_GREEN, 'Accurate, slow'],
+      [0xffb142, 'Missed'],
+      [0x2d2d44, 'Unseen'],
+    ];
+    // Lay the four swatch+label pairs out centered across the width.
+    const colW = 240;
+    const totalW = colW * items.length;
+    let x = W / 2 - totalW / 2 + 20;
+    for (const [color, label] of items) {
+      const sw = this.add.graphics();
+      sw.fillStyle(color, 1);
+      sw.fillRoundedRect(x, y - 12, 22, 22, 4);
+      this.contentContainer.add(sw);
+      this.contentContainer.add(this.add.text(x + 32, y, label, style('caption', {
+        fontSize: '20px', fill: '#cfcfe0'
+      })).setOrigin(0, 0.5));
+      x += colW;
     }
   }
 

@@ -10,6 +10,7 @@ import {
   getGlitchProblem,
   getDistractors,
   getProblemSecondsForWorldAndMode,
+  getAdaptiveProblemSeconds,
   getAsteroidCountForWorld,
   getBossHpForWorld,
   isFinalVisibleWorld,
@@ -128,7 +129,13 @@ export class GameScene extends Phaser.Scene {
     this.duration = this.modeConfig.duration;
     this.scoreThreshold = this.modeConfig.scoreThreshold;
     this.timeLeft = this.duration * 1000;
-    this.problemSeconds = getProblemSecondsForWorldAndMode(this.worldId, this.mode);
+    // Adaptive fall speed: Chapter 2 worlds + Arcade self-level to the kid's
+    // measured pace (pushes ~10% faster than comfort). Chapter 1 keeps its
+    // original hand-designed speed curve.
+    const adaptiveEligible = this.world?.chapter === 2 || !!this.arcadeMode;
+    this.problemSeconds = adaptiveEligible
+      ? getAdaptiveProblemSeconds(this.worldId, this.mode, records.getPaceMs())
+      : getProblemSecondsForWorldAndMode(this.worldId, this.mode);
 
     this.score = 0;
     this.attempts = 0;
@@ -949,7 +956,7 @@ export class GameScene extends Phaser.Scene {
     if (this._tutorialHint) this.dismissTutorialHint();
     const elapsed = performance.now() - asteroid.startedAtMs;
     this.history.push({ problem: asteroid.problem, userAnswer: btn.value, correct: true });
-    progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, true);
+    progress.recordFactAttempt(asteroid.problem.a, asteroid.problem.b, true, elapsed);
     records.recordAnswer(asteroid.problem, true, elapsed);
 
     this.score++;

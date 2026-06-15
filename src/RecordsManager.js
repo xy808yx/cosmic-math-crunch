@@ -39,6 +39,11 @@ class RecordsManager {
         this.worldsCleared = data.worldsCleared || 0;
         this.totalCorrect = data.totalCorrect || 0;
         this.totalAttempts = data.totalAttempts || 0;
+        // paceMs: persistent (across-session) EWMA of correct response times —
+        // drives the adaptive fall speed. Unlike todayAvgMs it does NOT reset
+        // daily. Cold-start from fastestPerFact so existing saves aren't jarring.
+        this.paceMs = data.paceMs || 0;
+        if (!this.paceMs) this._seedPaceFromFastest();
       } else {
         this.reset();
       }
@@ -47,6 +52,15 @@ class RecordsManager {
     }
     // Roll today's window if the date has changed since last save.
     this.rolloverTodayIfNeeded();
+  }
+
+  // Seed paceMs from the fastest-per-fact data already on the save. Typical
+  // recall is slower than a personal best, so scale the median best up a bit.
+  _seedPaceFromFastest() {
+    const vals = Object.values(this.fastestPerFact || {}).filter(n => n > 0).sort((a, b) => a - b);
+    if (!vals.length) return;
+    const median = vals[Math.floor(vals.length / 2)];
+    this.paceMs = median * 1.4;
   }
 
   reset() {
@@ -58,6 +72,7 @@ class RecordsManager {
     this.worldsCleared = 0;
     this.totalCorrect = 0;
     this.totalAttempts = 0;
+    this.paceMs = 0;
     this.save();
   }
 
@@ -71,7 +86,8 @@ class RecordsManager {
         todayDate: this.todayDate,
         worldsCleared: this.worldsCleared,
         totalCorrect: this.totalCorrect,
-        totalAttempts: this.totalAttempts
+        totalAttempts: this.totalAttempts,
+        paceMs: this.paceMs
       }));
     } catch (e) { /* quota exhausted; harmless */ }
   }
@@ -100,6 +116,10 @@ class RecordsManager {
       const n = this.todaySamples;
       this.todayAvgMs = (this.todayAvgMs * n + elapsedMs) / (n + 1);
       this.todaySamples = n + 1;
+
+      // Persistent pace EWMA (slow alpha so a single fast/slow answer doesn't
+      // swing the adaptive difficulty). Survives the daily rollover.
+      this.paceMs = this.paceMs > 0 ? this.paceMs * 0.85 + elapsedMs * 0.15 : elapsedMs;
 
       const key = problem?.factKey;
       if (key) {
@@ -160,6 +180,11 @@ class RecordsManager {
   getTodaySamples() {
     this.rolloverTodayIfNeeded();
     return this.todaySamples;
+  }
+
+  // Persistent per-kid recall pace (ms) — drives the adaptive fall speed.
+  getPaceMs() {
+    return Math.round(this.paceMs || 0);
   }
 
   getLongestStreak() {
