@@ -875,28 +875,26 @@ function auraPlanets(item, ctx, aura) {
 }
 
 function auraGalaxy(item, ctx, aura) {
-  // Two slow swirling arms of stars + a dense center.
-  const arms = 2;
-  const dotsPerArm = 9;
+  // Concentric rings of stars around a bright core — a star cluster, not a
+  // swirling spiral/vortex (each dot's angle is independent of its radius).
   const { rx, ry } = orbitRadii(ctx.layout);
   const palette = [0xfff3b8, 0xffd86b, 0xc77eff, 0xb6e0ff];
-  for (let arm = 0; arm < arms; arm++) {
-    const armC = ctx.scene.add.container(0, 0);
-    armC.angle = (arm / arms) * 360;
-    for (let i = 0; i < dotsPerArm; i++) {
-      const t = i / dotsPerArm;
-      const radius = rx * (0.18 + t * 0.95);
-      const angle = t * Math.PI * 1.6;
+  const rings = [
+    { rad: 0.42, count: 6, dot: 3 },
+    { rad: 0.72, count: 9, dot: 2.5 },
+    { rad: 1.00, count: 12, dot: 2 },
+  ];
+  rings.forEach((ring, ri) => {
+    for (let i = 0; i < ring.count; i++) {
+      const angle = (i / ring.count) * Math.PI * 2 + ri * 0.4;
       const dot = ctx.scene.add.graphics();
-      const c = palette[i % palette.length];
-      dot.fillStyle(c, 0.9);
-      dot.fillCircle(0, 0, 2 + (1 - t) * 2);
-      dot.x = Math.cos(angle) * radius;
-      dot.y = Math.sin(angle) * radius * (ry / rx);
-      armC.add(dot);
+      dot.fillStyle(palette[(i + ri) % palette.length], 0.9);
+      dot.fillCircle(0, 0, ring.dot);
+      dot.x = Math.cos(angle) * rx * ring.rad;
+      dot.y = Math.sin(angle) * ry * ring.rad;
+      aura.add(dot);
     }
-    aura.add(armC);
-  }
+  });
   // Bright center
   const core = ctx.scene.add.graphics();
   core.fillStyle(0xfff3b8, 0.9);

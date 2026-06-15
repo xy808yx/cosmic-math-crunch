@@ -39,14 +39,18 @@ export function drawDatamoshBlob(g, hpRatio, radius, seed = 0) {
   g.fillStyle(colors[0], 0.05 + clamped * 0.06);
   g.fillCircle(0, 0, r * 0.85);
 
-  // Layout chunks in a deterministic Phi-spiral within the radius.
-  const phi = 2.39996;
+  // Layout chunks as a deterministic pseudo-random scatter within the radius
+  // (seeded so per-hit redraws stay put; each jitter seed-bump reshuffles).
+  // Intentionally NOT a spiral/phyllotaxis arrangement — just scattered pixels.
+  const hash = (n) => {
+    const x = Math.sin(n * 12.9898 + seed * 78.233) * 43758.5453;
+    return x - Math.floor(x);
+  };
   for (let i = 0; i < chunkCount; i++) {
-    const t = (i + 1) / chunkCount;
-    const dist = r * (0.18 + 0.72 * Math.sqrt(t));
-    const a = i * phi + seed * 0.7;
-    const cx = Math.cos(a) * dist;
-    const cy = Math.sin(a) * dist;
+    const ang = hash(i * 2 + 1) * Math.PI * 2;
+    const dist = r * (0.12 + 0.73 * Math.sqrt(hash(i * 2 + 2)));
+    const cx = Math.cos(ang) * dist;
+    const cy = Math.sin(ang) * dist;
     const color = colors[i % colors.length];
 
     // Chunky pixel rect — drawn at integer multiples for that "chunky"
@@ -480,7 +484,7 @@ NORMAL_DRAWERS[10] = function (g, r) {
   g.strokePath();
 };
 
-// 11 — Void rune tile: dark with glowing cream edges
+// 11 — Void data tile: dark with glowing cream edges
 NORMAL_DRAWERS[11] = function (g, r) {
   drawShadow(g, r, 4, 6);
   // Outer glow
@@ -491,22 +495,14 @@ NORMAL_DRAWERS[11] = function (g, r) {
   g.fillRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, 10);
   g.fillStyle(0x6b6bb3, 0.6);
   g.fillRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 0.4, 10);
-  // Rune mark — an inward "void spiral": nested broken arcs collapsing toward
-  // the center. Deliberately asymmetric so it reads as a cosmic sigil and not
-  // any real-world symbol.
+  // Decorative inset frames — a plain geometric tech motif. No symbol of any
+  // kind (no rune/sigil/star): just nested rounded squares with a center pip.
   g.lineStyle(4, 0xfff3b8, 1);
-  g.beginPath();
-  g.arc(0, 0, r * 0.52, Math.PI * 0.10, Math.PI * 1.25);
-  g.strokePath();
-  g.beginPath();
-  g.arc(0, 0, r * 0.34, Math.PI * 0.95, Math.PI * 2.15);
-  g.strokePath();
-  g.beginPath();
-  g.arc(0, 0, r * 0.18, Math.PI * 0.30, Math.PI * 1.45);
-  g.strokePath();
-  // Center collapse point.
-  g.fillStyle(0xffffff, 1);
-  g.fillCircle(0, 0, r * 0.10);
+  g.strokeRoundedRect(-r * 0.46, -r * 0.46, r * 0.92, r * 0.92, 9);
+  g.lineStyle(3, 0xfff3b8, 0.75);
+  g.strokeRoundedRect(-r * 0.27, -r * 0.27, r * 0.54, r * 0.54, 7);
+  g.fillStyle(0xffffff, 0.9);
+  g.fillRect(-r * 0.07, -r * 0.07, r * 0.14, r * 0.14);
   // Edge outline
   g.lineStyle(3, 0xfff3b8, 0.85);
   g.strokeRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, 10);
