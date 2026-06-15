@@ -203,8 +203,10 @@ export const MODES = {
 const WORLD_PROBLEM_SECONDS = {
   1: 8.0,  2: 7.5,  3: 7.0,  4: 6.5,  5: 6.0,
   6: 5.5,  7: 5.0,  8: 4.5,  9: 4.0,  10: 3.5,  11: 3.0,
-  // Hidden worlds use their own pacing (read lazily).
-  15: 3.5,  16: 4.0
+  // Hidden worlds use their own pacing (read lazily). Glitch boss (15) gets a
+  // touch more time: its problems are visually corrupted and it's a 22-hit
+  // gauntlet, so 4.5s base (+1.0s boss = 5.5s) keeps a 3-star run attainable.
+  15: 4.5,  16: 4.0
 };
 
 // Tuning dials for the upper-level variety mechanics. Stardust, twists, and

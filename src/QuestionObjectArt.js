@@ -491,21 +491,20 @@ NORMAL_DRAWERS[11] = function (g, r) {
   g.fillRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, 10);
   g.fillStyle(0x6b6bb3, 0.6);
   g.fillRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 0.4, 10);
-  // Rune mark — interlocked triangles
+  // Rune mark — an inward "void spiral": nested broken arcs collapsing toward
+  // the center. Deliberately asymmetric so it reads as a cosmic sigil and not
+  // any real-world symbol.
   g.lineStyle(4, 0xfff3b8, 1);
   g.beginPath();
-  g.moveTo(0, -r * 0.5);
-  g.lineTo(r * 0.45, r * 0.3);
-  g.lineTo(-r * 0.45, r * 0.3);
-  g.closePath();
+  g.arc(0, 0, r * 0.52, Math.PI * 0.10, Math.PI * 1.25);
   g.strokePath();
   g.beginPath();
-  g.moveTo(0, r * 0.5);
-  g.lineTo(r * 0.45, -r * 0.3);
-  g.lineTo(-r * 0.45, -r * 0.3);
-  g.closePath();
+  g.arc(0, 0, r * 0.34, Math.PI * 0.95, Math.PI * 2.15);
   g.strokePath();
-  // Center star
+  g.beginPath();
+  g.arc(0, 0, r * 0.18, Math.PI * 0.30, Math.PI * 1.45);
+  g.strokePath();
+  // Center collapse point.
   g.fillStyle(0xffffff, 1);
   g.fillCircle(0, 0, r * 0.10);
   // Edge outline

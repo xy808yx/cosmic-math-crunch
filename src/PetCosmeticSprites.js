@@ -944,20 +944,25 @@ function auraEmbers(item, ctx, aura) {
 // Constellation — five stars connected by faint lines, slowly rotating.
 function auraConstellation(item, ctx, aura) {
   const { rx, ry } = orbitRadii(ctx.layout);
-  const points = 5;
   const palette = [0xfff3b8, 0xb6e0ff, 0xffe07a, 0xffffff, 0xc77eff];
-  const positions = [];
-  for (let i = 0; i < points; i++) {
-    const a = (i / points) * Math.PI * 2 - Math.PI / 2;
-    positions.push({ x: Math.cos(a) * rx, y: Math.sin(a) * ry });
-  }
-  // Faint connecting lines (drawn first, behind stars)
+  // An irregular "W" asterism (Cassiopeia-like) rather than 5 evenly-spaced
+  // points. Joining evenly-spaced points every-other-vertex traced a pentagram;
+  // a scattered cluster linked by an OPEN star-chart line reads as a real
+  // constellation and never closes into a star or polygon.
+  const shape = [
+    { x: -1.00, y: -0.25 },
+    { x: -0.50, y:  0.45 },
+    { x:  0.00, y: -0.15 },
+    { x:  0.50, y:  0.55 },
+    { x:  1.00, y: -0.35 },
+  ];
+  const positions = shape.map((s) => ({ x: s.x * rx, y: s.y * ry }));
+  // Faint connecting lines (drawn first, behind stars) — an open trace through
+  // the points in order, never closing the path.
   const links = ctx.scene.add.graphics();
   links.lineStyle(1, item.color, 0.55);
-  for (let i = 0; i < points; i++) {
-    const p = positions[i];
-    const q = positions[(i + 2) % points];
-    links.lineBetween(p.x, p.y, q.x, q.y);
+  for (let i = 0; i < positions.length - 1; i++) {
+    links.lineBetween(positions[i].x, positions[i].y, positions[i + 1].x, positions[i + 1].y);
   }
   aura.add(links);
   const grid = ['..A..', '.AAA.', 'AAAAA', '.A.A.', 'A...A'];

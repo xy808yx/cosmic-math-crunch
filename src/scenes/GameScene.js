@@ -2403,11 +2403,11 @@ export class GameScene extends Phaser.Scene {
 
   calculateBossStars() {
     const lost = SHIP_HP_MAX - this.shipHp;
-    // The Glitch boss (Datamosh) is a 22-hit gauntlet of corrupted problems on
-    // the game's tightest timer (4.5s). A zero-damage run is effectively
-    // impossible for a kid, so give it a small 3-star damage budget — you can
-    // slip up to twice and still earn 3 stars. Normal bosses are shorter and
-    // slower, so they keep the flawless-run requirement for 3 stars.
+    // The Glitch boss (Datamosh) is a 22-hit gauntlet of visually corrupted
+    // problems (5.5s each). A zero-damage run is effectively impossible for a
+    // kid, so give it a small 3-star damage budget — you can slip up to twice
+    // and still earn 3 stars. Normal bosses are shorter, so they keep the
+    // flawless-run requirement for 3 stars.
     if (this.isGlitchBoss) {
       if (lost <= 2) return 3;
       if (lost <= 3) return 2;

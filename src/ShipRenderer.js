@@ -895,9 +895,10 @@ function drawPatternOverlay(scene, container, pattern, hullW, hullH, pixelSize) 
     g.fillCircle(-hullW * 0.05, hullH * 0.25, pixelSize * 0.5);
     g.fillCircle(hullW * 0.05, -hullH * 0.10, pixelSize * 0.5);
   } else if (pattern.id === 'pattern_cosmic') {
-    // Pale star burst + scattered sparkles
+    // Pale star burst + scattered sparkles (5-point stars — a 6-point burst
+    // reads as a hexagram, which we avoid).
     g.fillStyle(c1, 0.85);
-    drawStarShape(g, 0, hullH * 0.05, 6, pixelSize * 2.2, pixelSize * 0.9);
+    drawStarShape(g, 0, hullH * 0.05, 5, pixelSize * 2.2, pixelSize * 0.9);
     g.fillStyle(c2, 0.7);
     drawStarShape(g, -hullW * 0.20, -hullH * 0.05, 5, pixelSize * 1.2, pixelSize * 0.5);
     drawStarShape(g, hullW * 0.20, -hullH * 0.05, 5, pixelSize * 1.2, pixelSize * 0.5);
