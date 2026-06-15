@@ -736,6 +736,22 @@ export class WorldMapScene extends Phaser.Scene {
         strokeThickness: 3
       })).setOrigin(0.5).setDepth(6);
 
+      // Glitch World has no Level Select screen to surface its rating, so show
+      // the boss star score (levelStars[1], 0-3) right under the node label —
+      // otherwise a 3-star datamosh win records but never displays anywhere.
+      if (h.id === 15) {
+        const best = progress.worldProgress[15]?.levelStars?.[1] || 0;
+        const starGap = 46;
+        const starY = pos.y + NODE_R + 64;
+        for (let s = 0; s < 3; s++) {
+          const sg = this.add.graphics().setDepth(6);
+          if (s < best) drawStarIcon(sg, 0, 0, 16);
+          else drawStarIcon(sg, 0, 0, 16, 0x3a3a50);
+          sg.x = pos.x + (s - 1) * starGap;
+          sg.y = starY;
+        }
+      }
+
       const hit = this.add.circle(pos.x, pos.y, NODE_R + 8, 0, 0)
         .setInteractive({ useHandCursor: true }).setDepth(7);
       hit.on('pointerdown', () => {
