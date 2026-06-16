@@ -1,11 +1,13 @@
-// S-curve path connecting the 11 visible worlds on the 1080×1920 canvas.
+// S-curve paths connecting the visible worlds on the 1080×1920 canvas.
+// Chapter 1 ("Outer Space") has 11 nodes; Chapter 2 ("Inner Space") has 8.
 //
 // Returns a Phaser.Curves.Path the ship can follow, and the precomputed
-// node anchor positions {x, y} for each world.
+// node anchor positions {x, y} for each world. Every entry point takes a
+// `chapter` (default 1) and selects the matching hand-tuned point set.
 
 import Phaser from 'phaser';
 
-const POSITIONS = [
+const POSITIONS_CH1 = [
   // 11 hand-tuned points to feel like a meandering S-curve.
   { x: 240,  y: 1500 },  // 1 — bottom-left
   { x: 540,  y: 1430 },  // 2
@@ -20,18 +22,35 @@ const POSITIONS = [
   { x: 540,  y: 360  }   // 11 — top-center
 ];
 
-export function getNodePositions() {
-  return POSITIONS.map(p => ({ ...p }));
+const POSITIONS_CH2 = [
+  // 8 hand-tuned points — a tighter S as the nanocraft shrinks inward.
+  { x: 240,  y: 1480 },  // 21 — bottom-left (Bloodstream)
+  { x: 560,  y: 1360 },  // 22 (Cell City)
+  { x: 840,  y: 1220 },  // 23 (Nucleus Vault)
+  { x: 660,  y: 1040 },  // 24 (Neuron Forest)
+  { x: 320,  y: 900  },  // 25 (Marrow Caverns)
+  { x: 560,  y: 720  },  // 26 (Immune Front)
+  { x: 860,  y: 560  },  // 27 (Mitochondria Core)
+  { x: 540,  y: 380  }   // 28 — top-center (The Singularity Cell)
+];
+
+function positionsFor(chapter) {
+  return chapter === 2 ? POSITIONS_CH2 : POSITIONS_CH1;
+}
+
+export function getNodePositions(chapter = 1) {
+  return positionsFor(chapter).map(p => ({ ...p }));
 }
 
 // Build a Phaser Path that smoothly threads all node positions, suitable for
 // `this.tweens.add({ targets: ship, ...path.getPoint(t) })` style traversal.
-export function buildMapPath() {
-  const start = POSITIONS[0];
+export function buildMapPath(chapter = 1) {
+  const positions = positionsFor(chapter);
+  const start = positions[0];
   const path = new Phaser.Curves.Path(start.x, start.y);
-  for (let i = 1; i < POSITIONS.length; i++) {
-    const prev = POSITIONS[i - 1];
-    const curr = POSITIONS[i];
+  for (let i = 1; i < positions.length; i++) {
+    const prev = positions[i - 1];
+    const curr = positions[i];
     const cx1 = prev.x + (curr.x - prev.x) * 0.3 + (i % 2 === 0 ? 80 : -80);
     const cy1 = prev.y + (curr.y - prev.y) * 0.3;
     const cx2 = prev.x + (curr.x - prev.x) * 0.7 + (i % 2 === 0 ? -80 : 80);
@@ -43,12 +62,13 @@ export function buildMapPath() {
 
 // Render the path onto a Graphics object as a dashed line, only visible
 // up to the player's current furthest-unlocked world. Returns the Graphics.
-export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc4) {
+export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc4, chapter = 1) {
   const g = scene.add.graphics();
   if (visibleSegmentCount <= 0) return g;
 
+  const nodeCount = positionsFor(chapter).length;
   const totalPoints = 240;
-  const visibleCutoff = Math.min(1, visibleSegmentCount / Math.max(1, POSITIONS.length - 1));
+  const visibleCutoff = Math.min(1, visibleSegmentCount / Math.max(1, nodeCount - 1));
   const samples = path.getPoints(totalPoints);
   const limit = Math.floor(samples.length * visibleCutoff);
 
@@ -75,8 +95,8 @@ export function drawPath(scene, path, visibleSegmentCount, accentColor = 0x4ecdc
 }
 
 // Returns the param t along the path for a given node index (0-based).
-export function tForNodeIndex(idx) {
-  const total = POSITIONS.length - 1;
+export function tForNodeIndex(idx, chapter = 1) {
+  const total = positionsFor(chapter).length - 1;
   if (total <= 0) return 0;
   return Math.max(0, Math.min(1, idx / total));
 }
@@ -84,8 +104,12 @@ export function tForNodeIndex(idx) {
 // Off-S-curve positions for the two hidden worlds. Placed in the empty pockets
 // of the map so each reads as a distinct "side branch" off its host world.
 export const HIDDEN_NODE_POSITIONS = {
-  15: { x: 970, y: 880 }, // Glitch — branches up-right from W5 (700, 1060)
-  16: { x: 160, y: 540 }  // Garage — branches up-left from W9 (660, 660)
+  15: { x: 970, y: 880 },  // Glitch — branches up-right from W5 (700, 1060)
+  16: { x: 465, y: 548 }   // Garage — short branch up-left from its host Galactic
+                           // Core (660, 658), tucked in the open pocket below the
+                           // Universe's End label and above the Supernova→Core
+                           // path edge. Sits right beside its host instead of
+                           // being tethered diagonally across the whole map.
 };
 
 // Host world id each hidden world is connected to. Used to draw the dashed

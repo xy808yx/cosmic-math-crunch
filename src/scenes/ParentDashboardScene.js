@@ -2,7 +2,7 @@
 // dark base + cyan/coral/mint accents. Includes a Reset Progress button.
 
 import Phaser from 'phaser';
-import { progress, VISIBLE_WORLDS, findWorld } from '../GameData.js';
+import { progress, VISIBLE_WORLDS, findWorld, CHAPTER1_FINAL_ID, getChapterWorlds } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
@@ -334,7 +334,14 @@ export class ParentDashboardScene extends Phaser.Scene {
       fill: '#cfcfe0'
     })).setOrigin(0, 0.5));
     const stats = companion.getEvolutionStats();
-    card.add(this.add.text(-w / 2 + 320, 70, `Worlds cleared: ${stats.worldsCleared} / 11`, style('body', {
+    // Denominator = worlds the player can actually reach. Chapter 2 stays hidden
+    // until World 11 is cleared, so before that the total is just Chapter 1 (11)
+    // — counting all 19 would read as un-completable and spoil the hidden worlds.
+    const ch2Unlocked = progress.isWorldFullyCleared(CHAPTER1_FINAL_ID);
+    const reachableWorlds = ch2Unlocked
+      ? VISIBLE_WORLDS.length
+      : getChapterWorlds(1).length;
+    card.add(this.add.text(-w / 2 + 320, 70, `Worlds cleared: ${stats.worldsCleared} / ${reachableWorlds}`, style('body', {
       fontSize: '22px',
       fill: '#cfcfe0'
     })).setOrigin(0, 0.5));

@@ -55,7 +55,10 @@ export const PET_COSMETICS = [
   { id: 'aura_embers',    slot: 'aura', name: 'Rising Embers',  price: 320,  color: 0xff8b3d, rarity: 'rare' },
   { id: 'aura_galaxy',    slot: 'aura', name: 'Mini Galaxy',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'aura_legendary', slot: 'aura', name: 'Legendary Glow', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
-  { id: 'aura_constellation', slot: 'aura', name: 'Constellation', price: 1500, color: 0xb6e0ff, rarity: 'legendary' }
+  { id: 'aura_constellation', slot: 'aura', name: 'Constellation', price: 1500, color: 0xb6e0ff, rarity: 'legendary' },
+  // ---- Chapter 2 "Inner Space" set ----
+  { id: 'aura_microbes',  slot: 'aura', name: 'Microbe Drift',  price: 350,  color: 0x9be86b, rarity: 'rare' },
+  { id: 'aura_bioluminescent', slot: 'aura', name: 'Bioluminescent', price: 0, unlock_only: true, color: 0x7dffd0, rarity: 'legendary', desc: 'Glow earned in the Singularity Cell.' }
 ];
 
 class CosmeticManager {

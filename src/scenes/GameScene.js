@@ -13,7 +13,9 @@ import {
   getAdaptiveProblemSeconds,
   getAsteroidCountForWorld,
   getBossHpForWorld,
+  getBossDurationForWorld,
   isFinalVisibleWorld,
+  isFinaleWorld,
   findWorld,
   getHiddenWorldForHost,
   getWorldMusicRate,
@@ -123,7 +125,7 @@ export class GameScene extends Phaser.Scene {
     if (this.arcadeMode === 'bossRush') this.bossMaxHp = ARCADE_BOSS_HP;
 
     this.modeConfig = this.isBoss
-      ? { label: this.world.villain || 'Boss', symbol: this.isGlitchBoss ? 'glitch' : 'skull', duration: 90, scoreThreshold: this.bossMaxHp }
+      ? { label: this.world.villain || 'Boss', symbol: this.isGlitchBoss ? 'glitch' : 'skull', duration: getBossDurationForWorld(this.worldId), scoreThreshold: this.bossMaxHp }
       : MODES[this.mode];
 
     this.duration = this.modeConfig.duration;
@@ -2358,23 +2360,40 @@ export class GameScene extends Phaser.Scene {
       }
     };
 
-    // Beating the final boss permanently grants the pet's Cosmic form,
-    // independent of the numeric evolution gates. Idempotent + runs on EVERY
-    // win (including replays), so the pet never "snaps back" to a lower stage.
+    // Beating the Chapter 1 final boss (W11 Void Devourer) permanently grants
+    // the pet's Cosmic form, independent of the numeric evolution gates.
+    // Idempotent + runs on EVERY win (including replays), so the pet never
+    // "snaps back" to a lower stage.
     if (bossWin && isFinalVisibleWorld(this.worldId)) {
       companion.unlockCosmic();
     }
 
-    // Final boss of the entire game (W11 Void Devourer): first time triggers
-    // the full endgame finale (cinematic → credits → personalized shout-out).
-    // After that, beating it again skips to the normal summary panel.
+    // Chapter 1 finale (W11): first clear triggers the CLIFFHANGER cinematic —
+    // it keeps the Cosmic form + Arcade unlock (via endingSeen) but reframes the
+    // ending as a teaser pointing at the warp gate. After that, replays skip to
+    // the summary. Persist endingSeen NOW, before the long credits roll, so
+    // closing the tab mid-credits can't leave it unset (Arcade would relock).
     if (bossWin && isFinalVisibleWorld(this.worldId) && worldFullyCleared && !progress.endingSeen) {
-      // Persist endingSeen NOW, before the long credits roll — otherwise closing
-      // the tab mid-credits leaves it unset, so the finale replays on the next
-      // win and the Arcade stays locked. CreditsScene.exitFinale also calls this
-      // (idempotent), so the normal "Onward" path is unchanged.
       progress.markEndingSeen();
       this.registry.set('currentWorldId', this.worldId);
+      this.registry.set('creditsMode', 'cliffhanger');
+      this.scene.start('CreditsScene');
+      return;
+    }
+
+    // Chapter 2 finale (W28 The Singularity Cell): first clear triggers the true
+    // GRAND finale — credits + the personalized hero card + the Nanocraft reward.
+    // markFinaleSeen persists the flag AND grants the rewards early (atomic), so
+    // closing the tab mid-credits can't strand the trophy.
+    if (bossWin && isFinaleWorld(this.worldId) && worldFullyCleared && !progress.finaleSeen) {
+      progress.markFinaleSeen();
+      // Beating the grand finale must also guarantee the Arcade unlock. Normally
+      // W11 sets endingSeen first, but a player who reaches W28 another way (e.g.
+      // dev "clear all worlds", which leaves the narrative flags untouched) would
+      // otherwise finish the whole game with Arcade still locked. Idempotent.
+      progress.markEndingSeen();
+      this.registry.set('currentWorldId', this.worldId);
+      this.registry.set('creditsMode', 'finale');
       this.scene.start('CreditsScene');
       return;
     }

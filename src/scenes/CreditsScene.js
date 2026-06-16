@@ -1,9 +1,14 @@
-// Endgame finale: 4-card cinematic → pet evolves → credits roll with Chrono-
-// Trigger-style pet+ship choreography → prominent 中文 hero shout-out for the
-// three kids. Plays only on the first final-boss win (or via the dev menu).
-// On exit, returns to WorldMapScene with shipParkedWorldId = 11 (so future
-// taps land naturally), and clears justClearedWorld so the auto-advance
-// doesn't run on top of the finale.
+// Endgame cinematic — runs in one of two modes (registry 'creditsMode'):
+//
+//   'cliffhanger' (Chapter 1 / World 11): cards → pet evolves to Cosmic →
+//      a light teaser outro pointing at the warp gate. Keeps endingSeen (Cosmic
+//      pet + Arcade unlock). NO hero card — that moves to the true finale.
+//   'finale' (Chapter 2 / World 28): cards → (evolve only if not already
+//      Cosmic) → prominent 中文 hero shout-out for the three kids + the
+//      Nanocraft reward reveal. Sets finaleSeen.
+//
+// On exit, returns to WorldMapScene parked on the chapter's final world and
+// clears justClearedWorld so the auto-advance doesn't run on top of the finale.
 
 import Phaser from 'phaser';
 import { progress } from '../GameData.js';
@@ -26,11 +31,21 @@ const H = 1920;
 const HERO_NAMES = '小宇  新宇  星宇';
 const HERO_MESSAGE = '爸爸爱你';
 
-const CINEMATIC_CARDS = [
-  'The Void Devourer fades into a soft, kind glow.',
+// One continuous arc across both chapters. Chapter 1 ends with the Void NOT
+// gone but SHRUNK into a scale you can't see (the cliffhanger); Chapter 2 ends
+// with the last shadow letting go inside the smallest cell, healing outward.
+const CLIFFHANGER_CARDS = [
+  'The Void Devourer dims… then folds inward — smaller, and smaller.',
   'Across the galaxy, worlds remember what light feels like.',
-  'Your ship slows. There is no more dark to chase.',
-  'You did it, pilot. The universe is yours again.'
+  'But the dark did not leave. It SHRANK.',
+  'Something is wrong now — at a scale far too small to see…'
+];
+
+const FINALE_CARDS = [
+  'Patient Zero — the very first germ of all — goes still.',
+  'Deep inside the smallest cell, the last shadow lets go.',
+  'From the bloodstream to the stars, every world breathes easy.',
+  'You did it, pilot. Outer space AND inner space are yours.'
 ];
 
 export class CreditsScene extends Phaser.Scene {
@@ -41,6 +56,13 @@ export class CreditsScene extends Phaser.Scene {
   create() {
     audio.init();
     music.pause();
+
+    // 'cliffhanger' (World 11) or 'finale' (World 28). Default to the HARMLESS
+    // cliffhanger path: the finale path grants the Nanocraft trophy + marks the
+    // finale seen, so a flagless/accidental entry must never land there. Every
+    // real finale launch sets creditsMode='finale' explicitly.
+    this.mode = this.registry.get('creditsMode') || 'cliffhanger';
+    this.cards = this.mode === 'cliffhanger' ? CLIFFHANGER_CARDS : FINALE_CARDS;
 
     // Credits soundtrack — plays once (not looped) under the cinematic cards
     // + pet evolution + roll + hero. Falls back silently if file is missing.
@@ -89,6 +111,7 @@ export class CreditsScene extends Phaser.Scene {
   // PART A — 4-card cinematic
   // ============================================================
   playCinematicCards() {
+    const cards = this.cards;
     let i = 0;
     const showCard = (text, last) => {
       const cardW = 880;
@@ -126,10 +149,10 @@ export class CreditsScene extends Phaser.Scene {
           onComplete: () => {
             card.destroy();
             i++;
-            if (i < CINEMATIC_CARDS.length) {
-              showCard(CINEMATIC_CARDS[i], i === CINEMATIC_CARDS.length - 1);
+            if (i < cards.length) {
+              showCard(cards[i], i === cards.length - 1);
             } else {
-              this.playPetEvolutionMoment();
+              this.afterCards();
             }
           }
         });
@@ -137,15 +160,33 @@ export class CreditsScene extends Phaser.Scene {
 
       this.time.delayedCall(last ? 2800 : 2400, advance);
     };
-    showCard(CINEMATIC_CARDS[0], false);
+    showCard(cards[0], false);
+  }
+
+  // Route past the cards depending on mode. The pet's Cosmic evolution beat is
+  // the Chapter 1 (cliffhanger) payoff; in the finale the pet is already Cosmic
+  // (unless a player skipped World 11 entirely — then show it once here too).
+  afterCards() {
+    if (this.mode === 'cliffhanger') {
+      this._afterPetMoment = () => this.showCliffhangerOutro();
+      this.playPetEvolutionMoment();
+    } else {
+      this._afterPetMoment = () => this.showHeroCard();
+      if (companion.hasStarter() && !progress.companion?.cosmicForm) {
+        this.playPetEvolutionMoment();
+      } else {
+        this.showHeroCard();
+      }
+    }
   }
 
   // ============================================================
   // PART B — Pet evolution moment (cosmic-tier glow)
   // ============================================================
   playPetEvolutionMoment() {
+    const done = this._afterPetMoment || (() => this.showHeroCard());
     if (!companion.hasStarter()) {
-      this.showHeroCard();
+      done();
       return;
     }
 
@@ -241,13 +282,67 @@ export class CreditsScene extends Phaser.Scene {
                 onComplete: () => {
                   pet.destroy();
                   tag.destroy();
-                  this.showHeroCard();
+                  done();
                 }
               });
             });
           }
         });
       }
+    });
+  }
+
+  // ============================================================
+  // CLIFFHANGER OUTRO (Chapter 1) — a light teaser, not the hero card.
+  // Points the player at the warp gate that now sits beside Universe's End
+  // (World 11, the finale node), which is where it opens after the boss falls.
+  // ============================================================
+  showCliffhangerOutro() {
+    const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 1).setDepth(60);
+    wash.alpha = 0;
+    this.tweens.add({ targets: wash, alpha: 0.9, duration: 1500, ease: 'Quad.easeIn' });
+
+    const lines = [
+      { t: 'CHAPTER 1 COMPLETE', size: 56, fill: '#fbbf24', y: 0.30, delay: 600 },
+      { t: 'The galaxy is bright again…', size: 38, fill: '#ffeaa7', y: 0.40, delay: 2200 },
+      { t: 'but something stirs at a scale\nyou cannot see.', size: 44, fill: '#ff7a8a', y: 0.52, delay: 4200 },
+      { t: 'Find the WARP GATE beside UNIVERSE\'S END\nand dive into INNER SPACE.', size: 32, fill: '#b5e6ff', y: 0.68, delay: 7000 }
+    ];
+    lines.forEach(l => {
+      const txt = this.add.text(W / 2, H * l.y, l.t, style('display', {
+        fontSize: `${l.size}px`, fill: l.fill, align: 'center',
+        stroke: '#0a0a1a', strokeThickness: 4, wordWrap: { width: W - 120 }
+      })).setOrigin(0.5).setDepth(70);
+      txt.alpha = 0; txt.setScale(0.9);
+      this.time.delayedCall(l.delay, () => {
+        audio.playMatch?.();
+        this.tweens.add({ targets: txt, alpha: 1, scale: 1, duration: 800, ease: 'Back.easeOut' });
+      });
+    });
+
+    // A small inward portal glyph (membrane rings — no spiral/sigil).
+    this.time.delayedCall(5400, () => {
+      const g = this.add.graphics().setDepth(69);
+      g.x = W / 2; g.y = H * 0.60;
+      g.lineStyle(4, 0xff7a8a, 0.9); g.strokeCircle(0, 0, 34);
+      g.lineStyle(3, 0xff7a8a, 0.55); g.strokeCircle(0, 0, 22);
+      g.fillStyle(0xff7a8a, 0.9); g.fillCircle(0, 0, 6);
+      g.alpha = 0;
+      this.tweens.add({ targets: g, alpha: 1, duration: 600 });
+      this.tweens.add({
+        targets: g, scale: { from: 1, to: 1.4 }, alpha: { from: 0.9, to: 0.35 },
+        duration: 1600, repeat: -1, yoyo: true, ease: 'Sine.easeInOut'
+      });
+    });
+
+    this.time.delayedCall(9500, () => {
+      const btn = createButton(this, {
+        x: W / 2, y: H - 200, label: 'Onward',
+        width: 360, height: 100, color: 0xff7a8a,
+        onClick: () => this.exitFinale()
+      });
+      btn.setDepth(75); btn.alpha = 0;
+      this.tweens.add({ targets: btn, alpha: 1, duration: 800 });
     });
   }
 
@@ -554,6 +649,26 @@ export class CreditsScene extends Phaser.Scene {
     });
     this._driftStars = driftStars;
 
+    // Nanocraft reward reveal (~30s). The hull is already equipped (granted by
+    // markFinaleSeen in GameScene), so it's literally flying in the choreography
+    // above — this banner just names the trophy.
+    this.time.delayedCall(30000, () => {
+      const rc = this.add.container(W / 2, H - 330).setDepth(74);
+      const rg = this.add.graphics();
+      rg.fillStyle(0x0a0a1a, 0.92); rg.fillRoundedRect(-300, -46, 600, 92, 18);
+      rg.lineStyle(3, 0x4ecdc4, 1); rg.strokeRoundedRect(-300, -46, 600, 92, 18);
+      rc.add(rg);
+      rc.add(this.add.text(0, -16, '★ NANOCRAFT HULL UNLOCKED ★', style('caption', {
+        fontSize: '26px', fill: '#4ecdc4', fontStyle: '900'
+      })).setOrigin(0.5));
+      rc.add(this.add.text(0, 18, 'Equipped! Build out the rest in the Shop.', style('caption', {
+        fontSize: '20px', fill: '#cfcfe0'
+      })).setOrigin(0.5));
+      rc.alpha = 0;
+      audio.playStardustChime?.();
+      this.tweens.add({ targets: rc, alpha: 1, duration: 700, ease: 'Quad.easeOut' });
+    });
+
     // "Onward" button arrives at ~33s, landing right as the 52s song
     // resolves (cards 14s + evolution 4s + this 33s ≈ 51s).
     this.time.delayedCall(33000, () => {
@@ -570,8 +685,13 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   exitFinale() {
-    // Mark the ending as seen (so it won't auto-replay; replay via dev menu).
-    progress.markEndingSeen();
+    // Persist the right flag for the mode (both idempotent; GameScene already
+    // set them early, this is the belt-and-suspenders on the "Onward" path).
+    if (this.mode === 'cliffhanger') {
+      progress.markEndingSeen();
+    } else {
+      progress.markFinaleSeen();
+    }
     progress.consumeJustClearedWorld(); // Clear any stale flag.
 
     // Stop the ambient spawners so they don't keep firing after we leave.
@@ -592,9 +712,15 @@ export class CreditsScene extends Phaser.Scene {
       });
     }
 
-    // Park ship on W11 (the final world) so the player lands there next.
-    this.registry.set('shipParkedWorldId', 11);
+    // Open the map on the chapter that actually contains the parked world, and
+    // park the ship on that chapter's final world. Without setting the chapter,
+    // a replay launched from the "wrong" chapter (e.g. dev-menu finale replay
+    // while viewing Chapter 1) would rebuild the wrong map and park on a node id
+    // that doesn't exist there. setCurrentChapter is idempotent.
+    progress.setCurrentChapter(this.mode === 'cliffhanger' ? 1 : 2);
+    this.registry.set('shipParkedWorldId', this.mode === 'cliffhanger' ? 11 : 28);
     this.registry.set('freePlay', false);
+    this.registry.set('creditsMode', null); // consume so a stray relaunch defaults cleanly
 
     new TransitionManager(this).fadeToScene('WorldMapScene');
   }

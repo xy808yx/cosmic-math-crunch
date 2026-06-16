@@ -67,6 +67,14 @@ const BOSS_EPITHETS = {
   9: 'CRUSHER OF GALAXIES',
   10: 'YOUR REFLECTION, ARMED',
   11: 'WHEN ALL LIGHT ENDS',
+  21: 'THE SNIFFLY SUPER-GERM',
+  22: 'GUNKSTER THE GOOEY GERM',
+  23: 'CAPTAIN CODE-SCRAMBLER',
+  24: 'THE ZAPPY SNEEZE-SPARK',
+  25: 'THE CRUSTY CRUNCHER',
+  26: 'SWARM MOTHER, QUEEN OF THE WIGGLY SNIFFLES',
+  27: 'THE ENERGY GULPER',
+  28: 'THE FIRST SNIFFLE OF ALL TIME',
   15: 'CORRUPTOR OF FACTS',
 };
 
@@ -204,6 +212,12 @@ export function playBossIntro(scene, worldId, onDone) {
   })).setOrigin(0.5);
   epithetText.alpha = 0;
   root.add(epithetText);
+
+  // Long epithets auto-shrink horizontally to fit the canvas (mirrors the boss
+  // name above). Some Chapter 2 epithets are long — e.g. W26 "SWARM MOTHER,
+  // QUEEN OF THE WIGGLY SNIFFLES" — and would otherwise bleed off both edges.
+  // The slide-in tween only animates x/alpha, so this scaleX persists.
+  epithetText.scaleX = Math.min(1, (W - 80) / epithetText.width);
 
   timers.push(scene.time.delayedCall(BOSS_INTRO_CONFIG.epithet.appearAt, () => {
     if (dismissed) return;

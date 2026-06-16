@@ -9,8 +9,10 @@
 //   - `flavorText`: the 1-line story card shown after the world is cleared
 
 export const WORLDS = [
+  // ── Chapter 1 — "Outer Space" (the original campaign) ──────────────────────
   {
     id: 1,
+    chapter: 1,
     name: 'Moon Base',
     color: 0x6f7ec4,
     accentColor: 0xb5e6ff,
@@ -21,6 +23,7 @@ export const WORLDS = [
   },
   {
     id: 2,
+    chapter: 1,
     name: 'Asteroid Belt',
     color: 0xc77a4a,
     accentColor: 0xffb38a,
@@ -31,6 +34,7 @@ export const WORLDS = [
   },
   {
     id: 3,
+    chapter: 1,
     name: 'Crystal Planet',
     color: 0x7a4eaa,
     accentColor: 0xd5a6ff,
@@ -41,6 +45,7 @@ export const WORLDS = [
   },
   {
     id: 4,
+    chapter: 1,
     name: 'Nebula Gardens',
     color: 0x4f956b,
     accentColor: 0x9be8a3,
@@ -51,6 +56,7 @@ export const WORLDS = [
   },
   {
     id: 5,
+    chapter: 1,
     name: 'Robot Station',
     color: 0x4c7ab5,
     accentColor: 0x9bd4ff,
@@ -61,6 +67,7 @@ export const WORLDS = [
   },
   {
     id: 6,
+    chapter: 1,
     name: 'Black Hole Edge',
     color: 0x4a2a55,
     accentColor: 0xff9ec7,
@@ -71,6 +78,7 @@ export const WORLDS = [
   },
   {
     id: 7,
+    chapter: 1,
     name: 'Ice Comet',
     color: 0x6e95c2,
     accentColor: 0xb6e0ff,
@@ -81,6 +89,7 @@ export const WORLDS = [
   },
   {
     id: 8,
+    chapter: 1,
     name: 'Supernova',
     color: 0xc44b5e,
     accentColor: 0xffae8a,
@@ -91,6 +100,7 @@ export const WORLDS = [
   },
   {
     id: 9,
+    chapter: 1,
     name: 'Galactic Core',
     color: 0xc88a3a,
     accentColor: 0xffe07a,
@@ -101,6 +111,7 @@ export const WORLDS = [
   },
   {
     id: 10,
+    chapter: 1,
     name: 'Parallel Dimension',
     color: 0x55858a,
     accentColor: 0xa6f0e8,
@@ -111,12 +122,107 @@ export const WORLDS = [
   },
   {
     id: 11,
+    chapter: 1,
     name: "Universe's End",
     color: 0x4a4a8c,
     accentColor: 0xfff3b8,
     description: 'The last horizon. The final stand against the Void.',
     villain: 'The Void Devourer',
-    flavorText: 'The Void shatters. Stars relight across every world.',
+    flavorText: 'The Void cracks open — and something pulls you inward, smaller and smaller…',
+    levelsRequired: 4,
+    bigBoss: true
+  },
+  // ── Chapter 2 — "Inner Space" (the microscopic finale) ─────────────────────
+  // Reached via the wormhole that tears open beside "Universe's End" (World 11,
+  // CHAPTER1_FINAL_ID) once that finale boss is beaten — the Void cracks open and
+  // pulls you inward. A nanocraft shrinks down through the body; bosses are
+  // kid-friendly giant germs. The grand finale lives at the end (world 28).
+  {
+    id: 21,
+    chapter: 2,
+    name: 'Bloodstream',
+    color: 0x8a2b3a,
+    accentColor: 0xff7a8a,
+    description: 'Shrunk to a speck — riding the warm red rivers within.',
+    villain: 'Sneezel',
+    flavorText: 'The Bloodstream runs clear. The current carries you deeper.',
+    levelsRequired: 4
+  },
+  {
+    id: 22,
+    chapter: 2,
+    name: 'Cell City',
+    color: 0x2f8f86,
+    accentColor: 0x4ecdc4,
+    description: 'A bustling metropolis of living cells.',
+    villain: 'Gunkster',
+    flavorText: 'Cell City hums back to life. The streets glow clean again.',
+    levelsRequired: 4
+  },
+  {
+    id: 23,
+    chapter: 2,
+    name: 'Nucleus Vault',
+    color: 0x6a3fa0,
+    accentColor: 0xc77eff,
+    description: 'The vault where the cell keeps its blueprints.',
+    villain: 'Scramble',
+    flavorText: 'The Nucleus settles. The blueprints read true again.',
+    levelsRequired: 4
+  },
+  {
+    id: 24,
+    chapter: 2,
+    name: 'Neuron Forest',
+    color: 0x3a5fa0,
+    accentColor: 0x7fb8ff,
+    description: 'A glowing forest of crackling nerve-trees.',
+    villain: 'Staticbug',
+    flavorText: 'The Neuron Forest steadies. Bright signals race home.',
+    levelsRequired: 4
+  },
+  {
+    id: 25,
+    chapter: 2,
+    name: 'Marrow Caverns',
+    color: 0xb5863a,
+    accentColor: 0xffcf6b,
+    description: 'Deep caverns where brand-new cells are born.',
+    villain: 'Crustle',
+    flavorText: 'Marrow Caverns bloom. Fresh cells stream upward.',
+    levelsRequired: 4
+  },
+  {
+    id: 26,
+    chapter: 2,
+    name: 'Immune Front',
+    color: 0x4f8a35,
+    accentColor: 0x9be86b,
+    description: 'The front line where the body defends itself.',
+    villain: 'Swarm Mother',
+    flavorText: 'The Immune Front holds. The body breathes easy.',
+    levelsRequired: 4
+  },
+  {
+    id: 27,
+    chapter: 2,
+    name: 'Mitochondria Core',
+    color: 0xc4622a,
+    accentColor: 0xff9b4a,
+    description: 'The roaring furnace that powers every cell.',
+    villain: 'Drainol',
+    flavorText: 'Mitochondria Core reignites. Energy floods back through the body.',
+    levelsRequired: 4
+  },
+  {
+    id: 28,
+    chapter: 2,
+    name: 'The Singularity Cell',
+    color: 0x6a6ab0,
+    accentColor: 0xfff3b8,
+    description: 'The very first cell of all — where the smallest war ends.',
+    villain: 'Patient Zero',
+    flavorText: 'The Singularity Cell goes quiet. From the smallest speck, everything heals.',
     levelsRequired: 4,
     bigBoss: true
   },
@@ -124,6 +230,7 @@ export const WORLDS = [
   // Not part of the main world map S-curve. Don't gate the ending.
   {
     id: 15,
+    chapter: 1,
     name: 'Glitch World',
     color: 0x39ff14,
     accentColor: 0xff00ff,
@@ -137,6 +244,7 @@ export const WORLDS = [
   },
   {
     id: 16,
+    chapter: 1,
     name: "Dad's Garage",
     color: 0xc88a3a,
     accentColor: 0xffe07a,
@@ -156,20 +264,39 @@ export const VISIBLE_WORLDS = WORLDS.filter(w => !w.hidden);
 // Hidden worlds — discoverable via warp asteroids.
 export const HIDDEN_WORLDS = WORLDS.filter(w => w.hidden);
 
-// The final visible boss — beating it triggers the endgame cinematic + credits.
-const FINAL_VISIBLE_WORLD_ID =
-  VISIBLE_WORLDS[VISIBLE_WORLDS.length - 1].id;
+// Chapter finals are PINNED explicitly (not "last visible world") so that
+// adding Chapter 2 worlds can't silently move the end-of-game trigger. Beating
+// World 11 ends Chapter 1 (Cosmic pet + Arcade unlock, then the cliffhanger);
+// beating World 28 is the true grand finale at the end of Chapter 2.
+export const CHAPTER1_FINAL_ID = 11;
+export const CHAPTER2_FINAL_ID = 28;
 
-// True if this world is the FINAL visible world (last boss = end-of-game).
+// True if this world is the Chapter 1 final boss (Void Devourer). Drives the
+// Cosmic-form unlock + the cliffhanger cinematic. Named for back-compat.
 export function isFinalVisibleWorld(worldId) {
-  return worldId === FINAL_VISIBLE_WORLD_ID;
+  return worldId === CHAPTER1_FINAL_ID;
 }
 
-// Returns the next visible world id (for ship auto-advance), or null at the end.
+// True if this world is the grand-finale boss at the end of Chapter 2.
+export function isFinaleWorld(worldId) {
+  return worldId === CHAPTER2_FINAL_ID;
+}
+
+// Visible worlds belonging to a chapter, in map order. Existing (untagged)
+// worlds default to chapter 1.
+export function getChapterWorlds(chapter) {
+  return VISIBLE_WORLDS.filter(w => (w.chapter || 1) === chapter);
+}
+
+// Returns the next visible world id (for ship auto-advance), or null at the end
+// of the chapter. Stays WITHIN the world's own chapter — clearing World 11 does
+// not auto-advance into Chapter 2 (that's reached via the warp gate).
 export function getNextVisibleWorldId(currentId) {
-  const idx = VISIBLE_WORLDS.findIndex(w => w.id === currentId);
-  if (idx < 0 || idx === VISIBLE_WORLDS.length - 1) return null;
-  return VISIBLE_WORLDS[idx + 1].id;
+  const world = findWorld(currentId);
+  const chapterWorlds = getChapterWorlds(world?.chapter || 1);
+  const idx = chapterWorlds.findIndex(w => w.id === currentId);
+  if (idx < 0 || idx === chapterWorlds.length - 1) return null;
+  return chapterWorlds[idx + 1].id;
 }
 
 // Find a world by id (visible or hidden). Used by GameScene/HiddenWorldScene.
@@ -203,6 +330,11 @@ export const MODES = {
 const WORLD_PROBLEM_SECONDS = {
   1: 8.0,  2: 7.5,  3: 7.0,  4: 6.5,  5: 6.0,
   6: 5.5,  7: 5.0,  8: 4.5,  9: 4.0,  10: 3.5,  11: 3.0,
+  // Chapter 2 ("Inner Space") keeps a flat-ish "same designed speed" (~4.5→3.5)
+  // on purpose — it is NOT a faster hand-tuned ramp. The per-kid pressure comes
+  // from getAdaptiveProblemSeconds (scoped to chapter 2 + arcade), which these
+  // values only serve as the cold-start fallback for.
+  21: 4.5,  22: 4.3,  23: 4.1,  24: 4.0,  25: 3.9,  26: 3.8,  27: 3.6,  28: 3.5,
   // Hidden worlds use their own pacing (read lazily). Glitch boss (15) gets a
   // touch more time: its problems are visually corrupted and it's a 22-hit
   // gauntlet, so 4.5s base (+1.0s boss = 5.5s) keeps a 3-star run attainable.
@@ -214,7 +346,16 @@ const WORLD_PROBLEM_SECONDS = {
 // playtest tweaks — no spelunking.
 export const UPPER_LEVEL_CONFIG = {
   stardust: { minWorldId: 8,  oneIn: 8, bonusScore: 2, bonusStreak: 2 },
-  twist:    { minWorldId: 8,  rate: { 8: 0.30, 9: 0.30, 10: 0.30, 11: 0.40 } },
+  // Chapter 1 worlds 8-11 ramp 0.30→0.40. Chapter 2 (21-28) carries the same
+  // signature-twist variety so Inner Space doesn't read as "plain" next to the
+  // upper Outer-Space worlds — a matching ramp climbing to the grand finale.
+  twist: {
+    minWorldId: 8,
+    rate: {
+      8: 0.30, 9: 0.30, 10: 0.30, 11: 0.40,
+      21: 0.30, 22: 0.30, 23: 0.32, 24: 0.34, 25: 0.36, 26: 0.38, 27: 0.40, 28: 0.45,
+    },
+  },
   miniBoss: { minWorldId: 10, oneIn: 8, hp: 2, fallMultiplier: 1.3, bonusScore: 3 },
 };
 
@@ -281,10 +422,27 @@ export const BOSS_CONFIG = {
 // Boss HP per world: 10 at world 1, +2 per world up to W10 (28 HP).
 // W11 is the BIG boss (Void Devourer) and gets a hard override — 4 phases.
 // Stays inside the 90s boss timer at every world.
+// Chapter 2 bosses get explicit HP — the `8 + worldId*2` formula would give
+// world 28 a brutal 64 HP. The germ bosses sit ~10–18; Patient Zero (28) is the
+// grand-finale big boss, tuned just under World 11's Void Devourer.
+const CHAPTER2_BOSS_HP = {
+  21: 10, 22: 11, 23: 12, 24: 13, 25: 14, 26: 15, 27: 16, 28: 46
+};
 export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
   if (worldId === 15) return 22;       // Glitch World boss (Datamosh) — mid-game spike.
+  if (CHAPTER2_BOSS_HP[worldId]) return CHAPTER2_BOSS_HP[worldId];
   return 8 + worldId * 2;
+}
+
+// Boss round length (seconds). Standard bosses get 90s. The grand-finale boss
+// (Patient Zero, W28) is the single longest fight in the game at 46 HP, so it
+// gets a bigger clock (120s ≈ 2.6s/hit) to stay fair for younger players —
+// without it, 46 correct answers in 90s (~1.95s each) is out of reach for the
+// target age. Tuning dial: lower W28's HP or raise this if playtests disagree.
+export function getBossDurationForWorld(worldId) {
+  if (worldId === 28) return 120;
+  return 90;
 }
 
 const GLITCH_MATH_WORLDS = [6, 7, 8];
@@ -536,6 +694,17 @@ export function getTwistedProblem(worldId, mode) {
     9: 'gravity',
     10: 'mirror',
     11: ['flare', 'gravity', 'mirror'][Math.floor(Math.random() * 3)],
+    // Chapter 2 cycles the three signature twists so each inner world has its
+    // own flavor; the grand finale (28) mixes all three like World 11. (Twists
+    // that don't fit the current op degrade to flare downstream.)
+    21: 'flare',
+    22: 'gravity',
+    23: 'mirror',
+    24: 'flare',
+    25: 'gravity',
+    26: 'mirror',
+    27: 'gravity',
+    28: ['flare', 'gravity', 'mirror'][Math.floor(Math.random() * 3)],
   };
   const kind = kindForWorld[worldId] || 'flare';
 
@@ -647,6 +816,13 @@ class PlayerProgress {
         this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
         this.tutorialSeen = !!data.tutorialSeen;
         this.cosmicHintSeen = !!data.cosmicHintSeen;
+        // Chapter 2 ("Inner Space") additions — backward-compatible defaults so
+        // existing saves (endingSeen, Cosmic pet) are untouched. currentChapter
+        // is just which map the player is viewing; finaleSeen gates the grand
+        // finale at World 28 (separate from endingSeen, which gates World 11's
+        // Cosmic/Arcade unlock and must NOT be reset).
+        this.currentChapter = data.currentChapter || 1;
+        this.finaleSeen = !!data.finaleSeen;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
         this.checkWorldUnlock(null);
       } else {
@@ -675,6 +851,8 @@ class PlayerProgress {
     this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
     this.tutorialSeen = false;
     this.cosmicHintSeen = false;
+    this.currentChapter = 1;
+    this.finaleSeen = false;
     this.save();
   }
 
@@ -892,7 +1070,9 @@ class PlayerProgress {
         petHelperUsed: this.petHelperUsed,
         dadNoteState: this.dadNoteState,
         tutorialSeen: this.tutorialSeen,
-        cosmicHintSeen: this.cosmicHintSeen
+        cosmicHintSeen: this.cosmicHintSeen,
+        currentChapter: this.currentChapter,
+        finaleSeen: this.finaleSeen
       }));
     } catch (e) {
       console.warn('Could not save progress');
@@ -911,6 +1091,52 @@ class PlayerProgress {
     if (!this.endingSeen) return;
     this.endingSeen = false;
     this.save();
+  }
+
+  // Switch which chapter map the player is viewing. Driven by the warp gate
+  // (→ chapter 2) and the return gate (→ chapter 1) on the world map.
+  setCurrentChapter(chapter) {
+    if (this.currentChapter === chapter) return;
+    this.currentChapter = chapter;
+    this.save();
+  }
+
+  // Mark the grand finale (World 28) as seen, grant its rewards, and persist —
+  // atomically. Called EARLY (before the long credits roll, mirroring
+  // markEndingSeen) so closing the tab mid-finale can't strand the reward.
+  // Returns true on the first call. Idempotent.
+  markFinaleSeen() {
+    const firstTime = !this.finaleSeen;
+    this.finaleSeen = true;
+    this.grantFinaleRewards();
+    this.save();
+    return firstTime;
+  }
+
+  // Force-replay the finale on next World-28 win (dev menu only).
+  resetFinaleSeen() {
+    if (!this.finaleSeen) return;
+    this.finaleSeen = false;
+    this.save();
+  }
+
+  // Idempotently grant the Chapter 2 finale rewards: the signature Nanocraft
+  // hull (auto-equipped) + the Bioluminescent aura. Mutates the save shape
+  // directly rather than calling ShipManager/CosmeticManager — those modules
+  // import `progress` from here, so calling back into them would be circular.
+  // Caller is responsible for save() (markFinaleSeen does it).
+  grantFinaleRewards() {
+    const ship = this.ship;
+    if (ship && Array.isArray(ship.ownedParts)) {
+      if (!ship.ownedParts.includes('hull_nanocraft')) {
+        ship.ownedParts.push('hull_nanocraft');
+        if (ship.parts) ship.parts.hull = 'hull_nanocraft'; // auto-equip the trophy
+      }
+    }
+    const cos = this.cosmetics;
+    if (cos && Array.isArray(cos.ownedIds) && !cos.ownedIds.includes('aura_bioluminescent')) {
+      cos.ownedIds.push('aura_bioluminescent');
+    }
   }
 
   // Mark a hidden world as discovered (warp asteroid was solved). UI updates.
@@ -952,7 +1178,11 @@ class PlayerProgress {
     return v;
   }
 
-  // Force-unlock every visible world (dev menu only).
+  // Force-unlock every visible world (dev menu only). NOTE: this only flips the
+  // `unlocked` flag — it does NOT clear Universe's End (World 11), so the Inner
+  // Space wormhole stays hidden even though Bloodstream reads unlocked. To
+  // exercise the wormhole/chapter-warp, use "Clear ALL levels" (devClearAllWorlds)
+  // instead, which 3-stars every world and reveals the gate.
   unlockAllVisibleWorlds() {
     let changed = false;
     for (const w of VISIBLE_WORLDS) {
@@ -963,6 +1193,30 @@ class PlayerProgress {
       }
     }
     if (changed) this.save();
+  }
+
+  // Dev convenience: fully 3-star every visible world in BOTH chapters. Because
+  // World 11 (Universe's End) ends up cleared, the Inner Space wormhole appears;
+  // because the Chapter 2 worlds get cleared, the whole Chapter 2 map opens up.
+  // Leaves the narrative flags (endingSeen/finaleSeen) alone — use the replay
+  // buttons for the cinematics.
+  devClearAllWorlds() {
+    for (const w of VISIBLE_WORLDS) {
+      const wp = this.worldProgress[w.id];
+      if (!wp) continue;
+      const stars = {};
+      for (let lvl = 1; lvl <= w.levelsRequired; lvl++) stars[lvl] = 3;
+      wp.levelStars = stars;
+      wp.levelsCompleted = w.levelsRequired;
+      wp.starsEarned = w.levelsRequired * 3;
+      wp.unlocked = true;
+    }
+    // Rebuild the star counter from scratch so the header chip stays consistent.
+    let total = 0;
+    for (const id in this.worldProgress) total += this.worldProgress[id].starsEarned || 0;
+    this.totalStars = total;
+    this.checkWorldUnlock(null);
+    this.save();
   }
 
   // Dad's Garage daily note. Returns { isNewDay, message, index } where
@@ -1160,22 +1414,37 @@ class PlayerProgress {
   }
 
   checkWorldUnlock(_completedWorldId) {
-    // World N+1 unlocks when world N has all 4 challenges cleared. World 1 is
-    // always unlocked. Hidden worlds (15+) are NOT part of this sequential
-    // chain — they unlock via warp-asteroid discovery (see discoverHiddenWorld).
-    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
-      const world = VISIBLE_WORLDS[i];
-      const wp = this.worldProgress[world.id];
-      if (!wp) continue;
-      if (i === 0) {
-        wp.unlocked = true;
-        continue;
-      }
-      const prev = VISIBLE_WORLDS[i - 1];
-      const prevWp = this.worldProgress[prev.id];
-      const prevCleared = prevWp && Object.keys(prevWp.levelStars).length >= prev.levelsRequired;
-      if (prevCleared && !wp.unlocked) {
-        wp.unlocked = true;
+    // Sequential unlock WITHIN each chapter: world N+1 unlocks when world N has
+    // all its challenges cleared. Each chapter's FIRST world has its own gate:
+    //   • Chapter 1 (Moon Base) is always unlocked.
+    //   • Chapter 2 (Bloodstream) unlocks once "Universe's End" (World 11, the
+    //     Chapter 1 finale) is fully cleared — the same condition that reveals
+    //     the warp gate, so the wormhole and the unlocked first inner world
+    //     appear together right after the Void cracks open.
+    // Hidden worlds (15/16) are NOT in this chain — they unlock via warp-asteroid
+    // discovery (see discoverHiddenWorld).
+    for (const chapter of [1, 2]) {
+      const worlds = getChapterWorlds(chapter);
+      for (let i = 0; i < worlds.length; i++) {
+        const world = worlds[i];
+        const wp = this.worldProgress[world.id];
+        if (!wp) continue;
+        if (i === 0) {
+          // First world of the chapter: gate on the chapter's entry condition.
+          // Never re-lock (matches original behavior of only flipping → true).
+          // Inner Space (Chapter 2) opens only after the Chapter 1 finale —
+          // "Universe's End" (World 11) — is beaten and the Void cracks open,
+          // pulling the player inward. This matches the warp-gate reveal on the
+          // map so the wormhole and the unlocked first world appear together.
+          if (chapter === 1 || this.isWorldFullyCleared(CHAPTER1_FINAL_ID)) wp.unlocked = true;
+          continue;
+        }
+        const prev = worlds[i - 1];
+        const prevWp = this.worldProgress[prev.id];
+        const prevCleared = prevWp && Object.keys(prevWp.levelStars).length >= prev.levelsRequired;
+        if (prevCleared && !wp.unlocked) {
+          wp.unlocked = true;
+        }
       }
     }
     // Hidden worlds: unlocked iff discovered. (They are accessed from glitch
@@ -1362,6 +1631,11 @@ const WORLD_MUSIC_RATE = {
   6: 0.8909,   // frost: -2 semitones
   9: 0.8409,   // void: -3 semitones
   11: 1.0293,  // final: +0.5 semitones
+  // Chapter 2 — "Inner Space" reads warmer/closer than the cold cosmos.
+  21: 1.0293,  // bloodstream: +0.5 semitones (a little quickened pulse)
+  23: 1.0595,  // nucleus: +1 semitone (bright, crystalline)
+  27: 0.9439,  // mitochondria furnace: -1 semitone (low rumble)
+  28: 0.8909,  // singularity cell: -2 semitones (finale gravitas)
 };
 export function getWorldMusicRate(worldId) {
   return WORLD_MUSIC_RATE[worldId] ?? 1.0;

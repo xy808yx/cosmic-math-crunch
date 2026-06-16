@@ -44,10 +44,20 @@ export class DevMenuScene extends Phaser.Scene {
         onClick: () => this.juiceItUp()
       },
       {
-        label: 'Replay endgame credits',
-        color: 0xfbbf24,
+        label: 'Replay Ch.1 cliffhanger',
+        color: 0xff7a8a,
         onClick: () => {
           progress.resetEndingSeen();
+          this.registry.set('creditsMode', 'cliffhanger');
+          new TransitionManager(this).fadeToScene('CreditsScene');
+        }
+      },
+      {
+        label: 'Replay Ch.2 grand finale',
+        color: 0xfbbf24,
+        onClick: () => {
+          progress.resetFinaleSeen();
+          this.registry.set('creditsMode', 'finale');
           new TransitionManager(this).fadeToScene('CreditsScene');
         }
       },
@@ -70,6 +80,14 @@ export class DevMenuScene extends Phaser.Scene {
         onClick: () => {
           progress.unlockAllVisibleWorlds();
           this.flashToast('All worlds unlocked.');
+        }
+      },
+      {
+        label: 'Clear ALL levels (+portal +Ch.2)',
+        color: 0x7dffd0,
+        onClick: () => {
+          progress.devClearAllWorlds();
+          this.flashToast('All levels cleared — portal + Chapter 2 open.');
         }
       },
       {

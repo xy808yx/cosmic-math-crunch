@@ -205,6 +205,31 @@ const HULL_ECLIPSE = [
   '......FfF.......'
 ];
 
+// Nanocraft — smooth rounded nanopod, big central cockpit dome, twin highlight
+// edges. The Chapter 2 "Inner Space" finale trophy hull.
+const HULL_NANOCRAFT = [
+  '......XXXX......',
+  '....XXHHHHXX....',
+  '...XHHBBBBHHX...',
+  '..XHBBPPPPBBHX..',
+  '.XHBBPPPPPPBBHX.',
+  '.XBBBPPPPPPBBBX.',
+  '.XBBBBPPPPBBBBX.',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBBBBBBBBBBX',
+  'XBBBBBBDBBBBBBBX',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBBBBBBBBBBX',
+  '.XBLBBBBBBBBLBX.',
+  '.XLLBBBBBBBBLLX.',
+  '..XLLBBBBBBLLX..',
+  '...XLLLLLLLLX...',
+  '....XLLLLLLX....',
+  '.....X....X.....',
+  '.....FfffF......',
+  '......FfF.......'
+];
+
 // WING strip overlays --------------------------------------------------------
 // Each wing grid is 18 cols × 6 rows (slightly wider than hull).
 const WINGS_STUB = [
@@ -348,6 +373,7 @@ export function drawShip(scene, x, y, opts = {}) {
                  : parts.hull === 'hull_arrow' ? HULL_ARROW
                  : parts.hull === 'hull_finned' ? HULL_FINNED
                  : parts.hull === 'hull_eclipse' ? HULL_ECLIPSE
+                 : parts.hull === 'hull_nanocraft' ? HULL_NANOCRAFT
                  : HULL_STANDARD;
   const hullW = hullGrid[0].length * pixelSize;
   const hullH = hullGrid.length * pixelSize;

@@ -508,6 +508,182 @@ NORMAL_DRAWERS[11] = function (g, r) {
   g.strokeRoundedRect(-r * 0.85, -r * 0.85, r * 1.7, r * 1.7, 10);
 };
 
+// ── Chapter 2 "Inner Space" — microscopic biology, one motif per world ──────
+
+// 21 — Bloodstream: red blood cell (biconcave disc)
+NORMAL_DRAWERS[21] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  g.fillStyle(0xc94257, 1);
+  g.fillCircle(0, 0, r);
+  g.fillStyle(0xff7a8a, 1);
+  g.fillCircle(0, 0, r * 0.92);
+  // Concave dimple — a darker recessed center reads as the cell's pinch.
+  g.fillStyle(0xd14d63, 1);
+  g.fillEllipse(0, r * 0.05, r * 1.0, r * 0.78);
+  g.fillStyle(0xb83b50, 0.85);
+  g.fillEllipse(0, r * 0.06, r * 0.55, r * 0.42);
+  g.fillStyle(0xffd0d8, 0.8);
+  g.fillEllipse(-r * 0.3, -r * 0.34, r * 0.5, r * 0.28);
+  g.fillStyle(0xffffff, 0.6);
+  g.fillCircle(-r * 0.34, -r * 0.38, r * 0.09);
+  outline(g, r, 0x4a0d18, 0.6, 3);
+};
+
+// 22 — Cell City: living cell with nucleus + organelles
+NORMAL_DRAWERS[22] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  g.fillStyle(0x2f8f86, 0.5);
+  g.fillCircle(0, 0, r * 1.0);
+  g.fillStyle(0x6fe0d4, 1);
+  g.fillCircle(0, 0, r * 0.9);
+  g.fillStyle(0xa9f0e8, 0.8);
+  g.fillEllipse(-r * 0.22, -r * 0.28, r * 0.7, r * 0.42);
+  // Nucleus
+  g.fillStyle(0x2f8f86, 1);
+  g.fillCircle(r * 0.12, r * 0.1, r * 0.3);
+  g.fillStyle(0x1d6b63, 1);
+  g.fillCircle(r * 0.16, r * 0.14, r * 0.15);
+  // Organelle dots
+  g.fillStyle(0xffe07a, 0.95);
+  g.fillCircle(-r * 0.45, r * 0.2, r * 0.1);
+  g.fillCircle(-r * 0.22, r * 0.48, r * 0.07);
+  g.fillStyle(0xff9ec7, 0.9);
+  g.fillCircle(r * 0.48, -r * 0.32, r * 0.08);
+  g.lineStyle(3, 0x14534c, 0.8);
+  g.strokeCircle(0, 0, r * 0.9);
+  g.fillStyle(0xffffff, 0.7);
+  g.fillCircle(-r * 0.36, -r * 0.4, r * 0.08);
+};
+
+// 23 — Nucleus Vault: chromosome (two pinched arms + centromere band)
+NORMAL_DRAWERS[23] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  const lobe = (cx, col, light) => {
+    g.fillStyle(col, 1);
+    g.fillEllipse(cx, -r * 0.42, r * 0.5, r * 0.62);
+    g.fillEllipse(cx, r * 0.42, r * 0.5, r * 0.62);
+    g.fillStyle(light, 0.7);
+    g.fillEllipse(cx - r * 0.08, -r * 0.5, r * 0.22, r * 0.28);
+  };
+  lobe(-r * 0.28, 0x9d6bff, 0xd5a6ff);
+  lobe(r * 0.28, 0x8a52e8, 0xc99cff);
+  // Centromere pinch band crossing the middle.
+  g.fillStyle(0x6a3fa0, 1);
+  g.fillEllipse(0, 0, r * 1.18, r * 0.34);
+  g.fillStyle(0xc77eff, 0.9);
+  g.fillEllipse(0, -r * 0.03, r * 0.9, r * 0.16);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillCircle(-r * 0.36, -r * 0.56, r * 0.06);
+};
+
+// 24 — Neuron Forest: neuron with radiating dendrites + glowing synapse tips
+NORMAL_DRAWERS[24] = function (g, r) {
+  drawShadow(g, r * 0.7, 4, 6);
+  const arms = 7;
+  const tips = [];
+  g.lineStyle(5, 0x4a7fd6, 0.9);
+  for (let i = 0; i < arms; i++) {
+    const a = (i / arms) * Math.PI * 2 + 0.3;
+    const ex = Math.cos(a) * r * 1.05, ey = Math.sin(a) * r * 1.05;
+    g.lineBetween(Math.cos(a) * r * 0.4, Math.sin(a) * r * 0.4, ex, ey);
+    g.lineBetween(ex, ey, ex + Math.cos(a + 0.5) * r * 0.22, ey + Math.sin(a + 0.5) * r * 0.22);
+    tips.push([ex, ey]);
+  }
+  g.fillStyle(0x3a5fa0, 1);
+  g.fillCircle(0, 0, r * 0.5);
+  g.fillStyle(0x7fb8ff, 1);
+  g.fillCircle(-r * 0.08, -r * 0.1, r * 0.36);
+  g.fillStyle(0xd6ecff, 0.9);
+  g.fillCircle(-r * 0.15, -r * 0.16, r * 0.15);
+  g.fillStyle(0x24407a, 1);
+  g.fillCircle(r * 0.05, r * 0.06, r * 0.13);
+  g.fillStyle(0xbfe0ff, 1);
+  for (const [tx, ty] of tips) g.fillCircle(tx, ty, r * 0.07);
+  g.lineStyle(3, 0x1c3160, 0.8);
+  g.strokeCircle(0, 0, r * 0.5);
+};
+
+// 25 — Marrow Caverns: fresh stem cell budding new cells
+NORMAL_DRAWERS[25] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  const buds = [[r * 0.72, -r * 0.45, r * 0.34], [-r * 0.7, r * 0.42, r * 0.3], [r * 0.5, r * 0.62, r * 0.26]];
+  for (const [bx, by, br] of buds) {
+    g.fillStyle(0xb5863a, 1); g.fillCircle(bx, by, br);
+    g.fillStyle(0xffcf6b, 1); g.fillCircle(bx, by, br * 0.82);
+    g.fillStyle(0xfff0c8, 0.8); g.fillCircle(bx - br * 0.25, by - br * 0.28, br * 0.34);
+  }
+  g.fillStyle(0xb5863a, 1); g.fillCircle(0, 0, r * 0.9);
+  g.fillStyle(0xffcf6b, 1); g.fillCircle(0, 0, r * 0.78);
+  g.fillStyle(0xfff0c8, 0.85); g.fillEllipse(-r * 0.25, -r * 0.3, r * 0.6, r * 0.38);
+  g.fillStyle(0xc4622a, 1); g.fillCircle(r * 0.1, r * 0.12, r * 0.25);
+  g.fillStyle(0x9a4a1f, 1); g.fillCircle(r * 0.13, r * 0.15, r * 0.12);
+  g.fillStyle(0xffffff, 0.8); g.fillCircle(-r * 0.32, -r * 0.36, r * 0.08);
+  outline(g, r * 0.9, 0x5a3a14, 0.7, 3);
+};
+
+// 26 — Immune Front: wiggly bacterium (rod + flagella)
+NORMAL_DRAWERS[26] = function (g, r) {
+  drawShadow(g, r, 4, 8);
+  g.lineStyle(4, 0x4f8a35, 0.85);
+  for (let i = -1; i <= 1; i++) {
+    g.beginPath();
+    g.moveTo(-r * 0.75, i * r * 0.24);
+    g.lineTo(-r * 1.02, i * r * 0.24 - r * 0.12);
+    g.lineTo(-r * 1.28, i * r * 0.24 + r * 0.08);
+    g.strokePath();
+  }
+  g.fillStyle(0x4f8a35, 1);
+  g.fillRoundedRect(-r * 0.78, -r * 0.42, r * 1.56, r * 0.84, r * 0.42);
+  g.fillStyle(0x9be86b, 1);
+  g.fillRoundedRect(-r * 0.7, -r * 0.36, r * 1.4, r * 0.72, r * 0.36);
+  g.fillStyle(0xd6f5b8, 0.8);
+  g.fillEllipse(-r * 0.1, -r * 0.18, r * 0.9, r * 0.2);
+  g.fillStyle(0x2f6320, 0.9);
+  g.fillCircle(-r * 0.3, r * 0.05, r * 0.12);
+  g.fillCircle(r * 0.15, -r * 0.02, r * 0.09);
+  g.fillCircle(r * 0.45, r * 0.08, r * 0.07);
+  g.lineStyle(3, 0x274d18, 0.8);
+  g.strokeRoundedRect(-r * 0.7, -r * 0.36, r * 1.4, r * 0.72, r * 0.36);
+};
+
+// 27 — Mitochondria Core: mitochondrion (oval + cristae folds + energy core)
+NORMAL_DRAWERS[27] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  g.fillStyle(0xc4622a, 1);
+  g.fillEllipse(0, 0, r * 1.9, r * 1.25);
+  g.fillStyle(0xff9b4a, 1);
+  g.fillEllipse(0, 0, r * 1.7, r * 1.05);
+  g.fillStyle(0xffc48a, 0.75);
+  g.fillEllipse(-r * 0.25, -r * 0.2, r * 0.9, r * 0.4);
+  // Cristae — inner folds read as vertical lobes inside the oval.
+  g.fillStyle(0xc4622a, 0.85);
+  for (let i = -1; i <= 1; i++) g.fillEllipse(i * r * 0.55, 0, r * 0.32, r * 0.85);
+  g.fillStyle(0xff9b4a, 1);
+  for (let i = -1; i <= 1; i++) g.fillEllipse(i * r * 0.55, 0, r * 0.16, r * 0.68);
+  g.fillStyle(0xffe07a, 0.95);
+  g.fillCircle(0, 0, r * 0.22);
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(-r * 0.04, -r * 0.04, r * 0.1);
+  g.lineStyle(3, 0x7a3a14, 0.7);
+  g.strokeEllipse(0, 0, r * 1.7, r * 1.05);
+};
+
+// 28 — The Singularity Cell: pristine luminous first cell
+NORMAL_DRAWERS[28] = function (g, r) {
+  drawShadow(g, r, 4, 6);
+  g.fillStyle(0xfff3b8, 0.18); g.fillCircle(0, 0, r * 1.1);
+  g.fillStyle(0xfff3b8, 0.3); g.fillCircle(0, 0, r * 0.98);
+  g.fillStyle(0xe8dca0, 1); g.fillCircle(0, 0, r * 0.88);
+  g.fillStyle(0xfffade, 1); g.fillCircle(0, 0, r * 0.78);
+  g.fillStyle(0xffffff, 0.7); g.fillEllipse(-r * 0.22, -r * 0.28, r * 0.6, r * 0.38);
+  g.fillStyle(0xffe9a0, 1); g.fillCircle(0, r * 0.02, r * 0.3);
+  g.fillStyle(0xffffff, 0.95); g.fillCircle(-r * 0.05, -r * 0.04, r * 0.14);
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(r * 0.5, -r * 0.4, r * 0.05);
+  g.fillCircle(-r * 0.55, r * 0.2, r * 0.04);
+  g.lineStyle(2, 0xcabf80, 0.7); g.strokeCircle(0, 0, r * 0.88);
+};
+
 // =========================================================================
 // BOSS BODIES — bespoke per world (radius is large, ~374)
 // =========================================================================
@@ -881,6 +1057,216 @@ BOSS_DRAWERS[11] = function (g, accent, r) {
   }
   bossEyes(g, r, 0xfff3b8);
   outline(g, r, 0xfff3b8, 1, 5);
+};
+
+// ── Chapter 2 "Inner Space" bosses — the eight germ villains ─────────────────
+
+// 21 — Sneezel: cold-virus germ with a corona of spikes + a drippy snout
+BOSS_DRAWERS[21] = function (g, accent, r) {
+  bossShadow(g, r);
+  const spikes = 14;
+  for (let i = 0; i < spikes; i++) {
+    const a = (i / spikes) * Math.PI * 2;
+    g.lineStyle(r * 0.06, 0xc94257, 1);
+    g.lineBetween(Math.cos(a) * r * 0.9, Math.sin(a) * r * 0.9, Math.cos(a) * r * 1.18, Math.sin(a) * r * 1.18);
+    g.fillStyle(0xff9ec7, 1);
+    g.fillCircle(Math.cos(a) * r * 1.18, Math.sin(a) * r * 1.18, r * 0.08);
+  }
+  g.fillStyle(0xc94257, 1); g.fillCircle(0, 0, r);
+  g.fillStyle(0xff7a8a, 1); g.fillCircle(-r * 0.05, -r * 0.05, r * 0.9);
+  g.fillStyle(0xffb3bf, 0.8); g.fillEllipse(-r * 0.28, -r * 0.34, r * 0.8, r * 0.45);
+  // Drippy snout + a glistening drop.
+  g.fillStyle(0xff9ec7, 1); g.fillEllipse(0, r * 0.5, r * 0.5, r * 0.36);
+  g.fillStyle(0xb6e0ff, 0.9);
+  g.fillCircle(r * 0.05, r * 0.72, r * 0.1);
+  g.fillEllipse(r * 0.05, r * 0.86, r * 0.12, r * 0.22);
+  bossEyes(g, r);
+  g.lineStyle(r * 0.04, 0x7a1020, 0.9);
+  g.lineBetween(-r * 0.5, -r * 0.34, -r * 0.16, -r * 0.24);
+  g.lineBetween(r * 0.5, -r * 0.34, r * 0.16, -r * 0.24);
+  outline(g, r, 0x4a0d18, 0.95, 5);
+};
+
+// 22 — Gunkster: gooey slime blob with drips, bubbles + a wide gooey grin
+BOSS_DRAWERS[22] = function (g, accent, r) {
+  bossShadow(g, r);
+  g.fillStyle(0x2f8f86, 1);
+  g.fillCircle(0, 0, r);
+  for (const [dx, dr] of [[-r * 0.55, r * 0.22], [0, r * 0.3], [r * 0.5, r * 0.2]]) {
+    g.fillEllipse(dx, r * 0.85, dr * 1.4, dr * 2.2);
+    g.fillCircle(dx, r * 1.05, dr);
+  }
+  g.fillStyle(0x4ecdc4, 1); g.fillCircle(-r * 0.05, -r * 0.08, r * 0.88);
+  g.fillStyle(0x9bf0e8, 0.8); g.fillEllipse(-r * 0.28, -r * 0.34, r * 0.8, r * 0.45);
+  g.fillStyle(0x7be0d8, 0.9);
+  g.fillCircle(r * 0.4, r * 0.2, r * 0.14);
+  g.fillCircle(-r * 0.45, r * 0.05, r * 0.1);
+  g.fillStyle(0xd6fff8, 0.85);
+  g.fillCircle(r * 0.36, r * 0.15, r * 0.05);
+  // Gooey grin (filled bottom arc).
+  g.fillStyle(0x14534c, 1);
+  g.beginPath();
+  g.arc(0, r * 0.1, r * 0.5, 0.15 * Math.PI, 0.85 * Math.PI, false);
+  g.closePath(); g.fillPath();
+  bossEyes(g, r, 0xffe07a);
+  outline(g, r, 0x0f3b36, 0.95, 5);
+};
+
+// 23 — Scramble: jagged purple gremlin marked with scrambled digit-glyphs
+BOSS_DRAWERS[23] = function (g, accent, r) {
+  bossShadow(g, r);
+  const path = polygonPath(r, 11, 0.78, 1.12);
+  g.fillStyle(0x6a3fa0, 1); fillPath(g, path);
+  g.fillStyle(0x9d6bff, 1); fillPath(g, path.map(p => ({ x: p.x * 0.7, y: p.y * 0.7 - r * 0.1 })));
+  g.fillStyle(0xc99cff, 0.7); g.fillEllipse(-r * 0.25, -r * 0.4, r * 0.7, r * 0.4);
+  // Scrambled glyph marks (little bright cross-rects — no symbol, just garble).
+  g.fillStyle(0xfce7ff, 0.9);
+  for (const [mx, my] of [[-r * 0.4, r * 0.1], [r * 0.3, -r * 0.2], [r * 0.15, r * 0.42], [-r * 0.15, -r * 0.46], [r * 0.5, r * 0.15]]) {
+    g.fillRect(mx - r * 0.05, my - r * 0.09, r * 0.1, r * 0.18);
+    g.fillRect(mx - r * 0.09, my - r * 0.02, r * 0.18, r * 0.06);
+  }
+  // Zigzag grin.
+  g.lineStyle(r * 0.05, 0x2a0f4a, 1);
+  g.beginPath();
+  g.moveTo(-r * 0.35, r * 0.32);
+  g.lineTo(-r * 0.12, r * 0.46);
+  g.lineTo(r * 0.12, r * 0.32);
+  g.lineTo(r * 0.35, r * 0.46);
+  g.strokePath();
+  bossEyes(g, r, 0xff9ec7);
+  outlinePath(g, path, 0x2a0f4a, 0.95, 5);
+};
+
+// 24 — Staticbug: electric beetle with antennae + crackling spark arcs
+BOSS_DRAWERS[24] = function (g, accent, r) {
+  bossShadow(g, r);
+  g.lineStyle(r * 0.035, 0xbfe0ff, 0.9);
+  for (let i = 0; i < 5; i++) {
+    const a = (i / 5) * Math.PI * 2 + 0.2;
+    const x0 = Math.cos(a) * r * 0.95, y0 = Math.sin(a) * r * 0.95;
+    const x1 = Math.cos(a) * r * 1.25, y1 = Math.sin(a) * r * 1.25;
+    const mx = (x0 + x1) / 2 + Math.cos(a + 1.5) * r * 0.12;
+    const my = (y0 + y1) / 2 + Math.sin(a + 1.5) * r * 0.12;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo(mx, my); g.lineTo(x1, y1); g.strokePath();
+  }
+  g.lineStyle(r * 0.04, 0x3a5fa0, 1);
+  g.lineBetween(-r * 0.3, -r * 0.78, -r * 0.5, -r * 1.15);
+  g.lineBetween(r * 0.3, -r * 0.78, r * 0.5, -r * 1.15);
+  g.fillStyle(0xffe07a, 1);
+  g.fillCircle(-r * 0.5, -r * 1.15, r * 0.09);
+  g.fillCircle(r * 0.5, -r * 1.15, r * 0.09);
+  g.fillStyle(0x3a5fa0, 1); g.fillEllipse(0, 0, r * 1.7, r * 1.9);
+  g.fillStyle(0x7fb8ff, 1); g.fillEllipse(-r * 0.08, -r * 0.1, r * 1.4, r * 1.5);
+  g.fillStyle(0xd6ecff, 0.8); g.fillEllipse(-r * 0.25, -r * 0.35, r * 0.7, r * 0.5);
+  // Wing seam as a lightning bolt.
+  g.lineStyle(r * 0.04, 0x24407a, 0.9);
+  g.beginPath();
+  g.moveTo(0, -r * 0.6); g.lineTo(-r * 0.1, -r * 0.1); g.lineTo(r * 0.08, 0); g.lineTo(-r * 0.05, r * 0.7);
+  g.strokePath();
+  bossEyes(g, r, 0xffe07a);
+  g.lineStyle(5, 0x1c3160, 0.95); g.strokeEllipse(0, 0, r * 1.7, r * 1.9);
+};
+
+// 25 — Crustle: crusty armored crab-rock with two pincers
+BOSS_DRAWERS[25] = function (g, accent, r) {
+  bossShadow(g, r);
+  const claw = (sx) => {
+    g.fillStyle(0xb5863a, 1); g.fillCircle(sx * r * 1.05, r * 0.2, r * 0.34);
+    g.fillStyle(0xffcf6b, 1); g.fillCircle(sx * r * 1.05, r * 0.2, r * 0.24);
+    g.fillStyle(0x12122a, 1); g.fillTriangle(sx * r * 1.2, r * 0.05, sx * r * 1.2, r * 0.35, sx * r * 0.92, r * 0.2);
+  };
+  claw(-1); claw(1);
+  const path = polygonPath(r, 12, 0.84, 1.08);
+  g.fillStyle(0x8a5f25, 1); fillPath(g, path);
+  g.fillStyle(0xb5863a, 1); fillPath(g, path.map(p => ({ x: p.x * 0.82, y: p.y * 0.82 - r * 0.06 })));
+  g.fillStyle(0xffcf6b, 0.7); g.fillEllipse(-r * 0.25, -r * 0.4, r * 0.7, r * 0.36);
+  g.fillStyle(0x8a5f25, 0.9);
+  g.fillCircle(r * 0.35, r * 0.15, r * 0.12);
+  g.fillCircle(-r * 0.3, r * 0.3, r * 0.1);
+  g.fillCircle(r * 0.1, -r * 0.35, r * 0.08);
+  // Chompy mouth with teeth.
+  g.fillStyle(0x12122a, 1); g.fillRoundedRect(-r * 0.32, r * 0.35, r * 0.64, r * 0.2, 4);
+  g.fillStyle(0xfff0c8, 1);
+  for (let i = -2; i <= 2; i++) g.fillRect(i * r * 0.12 - r * 0.03, r * 0.35, r * 0.06, r * 0.1);
+  bossEyes(g, r, 0xfff3b8);
+  outlinePath(g, path, 0x4a2f10, 0.95, 5);
+};
+
+// 26 — Swarm Mother: crowned queen germ surrounded by spawnlings
+BOSS_DRAWERS[26] = function (g, accent, r) {
+  bossShadow(g, r);
+  for (const [sx, sy] of [[-r * 1.05, -r * 0.2], [r * 1.05, -r * 0.1], [-r * 0.85, r * 0.6], [r * 0.9, r * 0.55]]) {
+    g.fillStyle(0x4f8a35, 1); g.fillCircle(sx, sy, r * 0.2);
+    g.fillStyle(0x9be86b, 1); g.fillCircle(sx, sy, r * 0.14);
+    g.fillStyle(0x2f6320, 1); g.fillCircle(sx, sy, r * 0.05);
+  }
+  g.fillStyle(0x4f8a35, 1); g.fillCircle(0, 0, r);
+  g.fillStyle(0x9be86b, 1); g.fillCircle(-r * 0.05, -r * 0.05, r * 0.9);
+  g.fillStyle(0xcdf5a8, 0.8); g.fillEllipse(-r * 0.28, -r * 0.34, r * 0.8, r * 0.45);
+  g.fillStyle(0x2f6320, 0.85);
+  g.fillCircle(r * 0.4, r * 0.25, r * 0.1);
+  g.fillCircle(-r * 0.4, r * 0.3, r * 0.08);
+  // Crown.
+  g.fillStyle(0xffe07a, 1);
+  g.fillTriangle(-r * 0.5, -r * 0.78, -r * 0.32, -r * 1.12, -r * 0.14, -r * 0.78);
+  g.fillTriangle(-r * 0.18, -r * 0.85, 0, -r * 1.28, r * 0.18, -r * 0.85);
+  g.fillTriangle(r * 0.14, -r * 0.78, r * 0.32, -r * 1.12, r * 0.5, -r * 0.78);
+  g.fillStyle(0xff9ec7, 1); g.fillCircle(0, -r * 1.28, r * 0.06);
+  bossEyes(g, r, 0xffe07a);
+  g.lineStyle(r * 0.045, 0x274d18, 1);
+  g.beginPath(); g.arc(0, r * 0.05, r * 0.4, 0.15 * Math.PI, 0.85 * Math.PI, false); g.strokePath();
+  outline(g, r, 0x1f3a12, 0.95, 5);
+};
+
+// 27 — Drainol: orange furnace-cell gulping energy through a straw proboscis
+BOSS_DRAWERS[27] = function (g, accent, r) {
+  bossShadow(g, r);
+  g.fillStyle(0xff9b4a, 0.3); g.fillCircle(0, 0, r * 1.1);
+  g.fillStyle(0xc4622a, 1); g.fillCircle(0, 0, r);
+  g.fillStyle(0xff9b4a, 1); g.fillCircle(-r * 0.05, -r * 0.05, r * 0.88);
+  g.fillStyle(0xffc48a, 0.8); g.fillEllipse(-r * 0.28, -r * 0.34, r * 0.8, r * 0.45);
+  g.lineStyle(r * 0.03, 0xc4622a, 0.8);
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    g.lineBetween(Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45, Math.cos(a) * r * 0.78, Math.sin(a) * r * 0.78);
+  }
+  g.fillStyle(0xffe07a, 1); g.fillCircle(0, r * 0.12, r * 0.32);
+  g.fillStyle(0xffffff, 0.9); g.fillCircle(-r * 0.05, r * 0.08, r * 0.14);
+  // Sucking straw/proboscis.
+  g.fillStyle(0x8a3f18, 1); g.fillRoundedRect(-r * 0.12, r * 0.62, r * 0.24, r * 0.5, r * 0.1);
+  g.fillStyle(0x07071a, 1); g.fillEllipse(0, r * 1.12, r * 0.22, r * 0.12);
+  bossEyes(g, r, 0xfff3b8);
+  outline(g, r, 0x6a3010, 0.95, 5);
+};
+
+// 28 — Patient Zero: the regal grand-finale master germ (pale gold + corona crown)
+BOSS_DRAWERS[28] = function (g, accent, r) {
+  bossShadow(g, r);
+  g.fillStyle(0xfff3b8, 0.1); g.fillCircle(0, 0, r * 1.35);
+  g.fillStyle(0xfff3b8, 0.16); g.fillCircle(0, 0, r * 1.18);
+  // Elegant corona crown — alternating long + short spikes.
+  const spikes = 18;
+  for (let i = 0; i < spikes; i++) {
+    const a = (i / spikes) * Math.PI * 2;
+    const long = i % 2 === 0;
+    g.lineStyle(r * (long ? 0.05 : 0.035), 0xe8c97a, 1);
+    g.lineBetween(Math.cos(a) * r * 0.92, Math.sin(a) * r * 0.92,
+                  Math.cos(a) * r * (long ? 1.3 : 1.12), Math.sin(a) * r * (long ? 1.3 : 1.12));
+    g.fillStyle(long ? 0xff9ec7 : 0xfffade, 1);
+    g.fillCircle(Math.cos(a) * r * (long ? 1.3 : 1.12), Math.sin(a) * r * (long ? 1.3 : 1.12), r * (long ? 0.07 : 0.05));
+  }
+  g.fillStyle(0xd9c87e, 1); g.fillCircle(0, 0, r);
+  g.fillStyle(0xfff3b8, 1); g.fillCircle(-r * 0.05, -r * 0.06, r * 0.9);
+  g.fillStyle(0xfffdf0, 0.85); g.fillEllipse(-r * 0.26, -r * 0.32, r * 0.85, r * 0.5);
+  g.lineStyle(r * 0.02, 0xe8c97a, 0.8); g.strokeCircle(0, 0, r * 0.6);
+  g.lineStyle(r * 0.02, 0xe8c97a, 0.6); g.strokeCircle(0, 0, r * 0.4);
+  g.fillStyle(0xff9ec7, 1); g.fillCircle(0, r * 0.02, r * 0.26);
+  g.fillStyle(0xffffff, 0.95); g.fillCircle(-r * 0.06, -r * 0.05, r * 0.12);
+  bossEyes(g, r, 0xff7a8a);
+  g.lineStyle(r * 0.035, 0xb8902f, 0.9);
+  g.lineBetween(-r * 0.5, -r * 0.34, -r * 0.18, -r * 0.28);
+  g.lineBetween(r * 0.5, -r * 0.34, r * 0.18, -r * 0.28);
+  outline(g, r, 0x8a6a1f, 0.95, 5);
 };
 
 function drawDefaultBoss(g, accent, r) {

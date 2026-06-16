@@ -285,6 +285,14 @@ export const WORLD_BACKGROUNDS = {
   9:  { bgTop: 0x180a04, bgBottom: 0x603018, drawHorizon: galacticCoreHorizon },
   10: { bgTop: 0x0a1820, bgBottom: 0x205058, drawHorizon: parallelDimHorizon },
   11: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: universesEndHorizon },
+  21: { bgTop: 0x1a0610, bgBottom: 0x5a1422, drawHorizon: ch2BloodstreamHorizon },
+  22: { bgTop: 0x06201c, bgBottom: 0x166e64, drawHorizon: ch2CellCityHorizon },
+  23: { bgTop: 0x140828, bgBottom: 0x3a1a6e, drawHorizon: ch2NucleusVaultHorizon },
+  24: { bgTop: 0x06102a, bgBottom: 0x1a3a6e, drawHorizon: ch2NeuronForestHorizon },
+  25: { bgTop: 0x1a1206, bgBottom: 0x5a3e16, drawHorizon: ch2MarrowCavernsHorizon },
+  26: { bgTop: 0x0a1a06, bgBottom: 0x2a5a18, drawHorizon: ch2ImmuneFrontHorizon },
+  27: { bgTop: 0x1a0c04, bgBottom: 0x5a2810, drawHorizon: ch2MitochondriaCoreHorizon },
+  28: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: ch2TheSingularityCellHorizon },
   15: { bgTop: 0x0a0010, bgBottom: 0x200030, drawHorizon: glitchWorldHorizon }
 };
 
@@ -301,6 +309,295 @@ function glitchWorldHorizon(scene, { width, y }) {
   }
   g.lineStyle(2, 0xff00ff, 0.55);
   g.lineBetween(0, y, width, y);
+}
+
+// ── Chapter 2 "Inner Space" horizons ──────────────────────────────────────
+function ch2BloodstreamHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Deep plasma channel — wide, warm red curve filling the lower portion.
+  g.fillStyle(0x6e1422, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0xa02838, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+  // A brighter plasma current rippling across the surface.
+  g.fillStyle(0xc23a4a, 1);
+  g.beginPath();
+  g.moveTo(0, baseY + 40);
+  for (let x = 0; x <= W; x += 40) {
+    const y = baseY + 40 + Math.sin(x * 0.011) * 26 + Phaser.Math.Between(-5, 5);
+    g.lineTo(x, y);
+  }
+  g.lineTo(W, baseY + 260);
+  g.lineTo(0, baseY + 260);
+  g.closePath();
+  g.fillPath();
+  // Floating red blood cells — rounded discs with a paler dimpled center.
+  for (let i = 0; i < 9; i++) {
+    const x = (i + 0.5) * (W / 9) + Phaser.Math.Between(-26, 26);
+    const y = baseY + 90 + Phaser.Math.Between(-16, 70);
+    const r = Phaser.Math.Between(20, 36);
+    g.fillStyle(0xc23a4a, 1);
+    g.fillEllipse(x, y, r * 2, r * 1.5);
+    g.fillStyle(0xff7a8a, 1);
+    g.fillEllipse(x, y, r * 1.2, r * 0.85);
+  }
+  // Tiny plasma bubbles drifting up.
+  g.fillStyle(0xff9ec7, 0.6);
+  for (let i = 0; i < 16; i++) {
+    g.fillCircle(Phaser.Math.Between(0, W), baseY - Phaser.Math.Between(0, 180), Phaser.Math.Between(2, 5));
+  }
+  return g;
+}
+
+// World 22 — Cell City: organelle skyline inside a glowing cell
+function ch2CellCityHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Cytoplasm floor — layered soft teal bands
+  g.fillStyle(0x0f4a44, 1);
+  g.fillRect(0, baseY + 60, W, 240);
+  g.fillStyle(0x176e64, 1);
+  g.fillEllipse(W / 2, baseY + 120, W * 1.5, 200);
+  // Distant membrane glow band
+  g.fillStyle(0x4ecdc4, 0.18);
+  g.fillEllipse(W / 2, baseY + 30, W * 1.3, 36);
+  // Organelle "buildings" along the skyline — rounded rods + blob domes
+  let x = 30;
+  while (x < W - 30) {
+    const w = Phaser.Math.Between(60, 120);
+    const h = Phaser.Math.Between(50, 140);
+    g.fillStyle(0x2f8f86, 1);
+    g.fillRoundedRect(x, baseY - h, w, h + 40, 18);
+    // Lighter front face
+    g.fillStyle(0x4ecdc4, 0.85);
+    g.fillRoundedRect(x + 6, baseY - h + 6, w - 12, 16, 8);
+    // Window dots (vesicles)
+    g.fillStyle(0xbafff6, 0.6);
+    for (let i = 0; i < 3; i++) {
+      const wy = baseY - h + 30 + i * 22;
+      if (wy < baseY) g.fillCircle(x + w / 2, wy, 5);
+    }
+    // Occasional rounded antenna cilium
+    if (Math.random() < 0.45) {
+      g.lineStyle(4, 0x4ecdc4, 0.9);
+      g.lineBetween(x + w / 2, baseY - h, x + w / 2, baseY - h - 24);
+      g.fillStyle(0xbafff6, 0.9);
+      g.fillCircle(x + w / 2, baseY - h - 26, 5);
+    }
+    x += w + Phaser.Math.Between(10, 28);
+  }
+  // Floating cytoplasm bubbles
+  g.fillStyle(0xbafff6, 0.5);
+  for (let i = 0; i < 10; i++) {
+    g.fillCircle(Phaser.Math.Between(0, W), baseY - Phaser.Math.Between(0, 180), Phaser.Math.Between(2, 5));
+  }
+  return g;
+}
+
+function ch2NucleusVaultHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Deep cytoplasm floor — layered violet ellipses receding to the back wall.
+  g.fillStyle(0x2a1450, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0x3a1f6a, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+  // The great nucleus vault — a glowing violet sphere domed at the horizon.
+  g.fillStyle(0x4a2a82, 0.9);
+  g.fillCircle(W / 2, baseY + 150, 360);
+  g.fillStyle(0x6a3fa0, 1);
+  g.fillCircle(W / 2, baseY + 170, 320);
+  g.fillStyle(0x8455c4, 0.7);
+  g.fillEllipse(W / 2 - 90, baseY + 70, 200, 120);
+  // Bright nucleolus core glow.
+  g.fillStyle(0xc77eff, 0.5);
+  g.fillCircle(W / 2, baseY + 150, 90);
+  g.fillStyle(0xe3bcff, 0.85);
+  g.fillCircle(W / 2 - 10, baseY + 140, 42);
+  // Floating chromosome rods scattered low across the floor.
+  for (let i = 0; i < 8; i++) {
+    const x = (i + 0.5) * (W / 8) + Phaser.Math.Between(-24, 24);
+    const y = baseY + 60 + Phaser.Math.Between(-16, 24);
+    const len = Phaser.Math.Between(22, 40);
+    g.fillStyle(0xc77eff, 0.85);
+    g.fillRoundedRect(x - 5, y - len / 2, 10, len, 5);
+    g.fillStyle(0xc77eff, 0.85);
+    g.fillRoundedRect(x - len / 2, y - 5, len, 10, 5);
+    g.fillStyle(0xe3bcff, 0.6);
+    g.fillCircle(x, y, 4);
+  }
+  // DNA thread strands drifting near the dome.
+  g.fillStyle(0xe3bcff, 0.7);
+  for (let i = 0; i < 6; i++) {
+    const x = (i + 0.5) * (W / 6);
+    g.fillCircle(x, baseY - 30 + Math.sin(i * 1.1) * 30, 3);
+  }
+  return g;
+}
+
+function ch2NeuronForestHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Soft neural haze along the floor
+  g.fillStyle(0x1c2f5a, 1);
+  g.fillRect(0, baseY + 60, W, 220);
+  // Forest of neuron "trees": a rounded soma trunk that branches into dendrites
+  const trees = 6;
+  for (let i = 0; i < trees; i++) {
+    const cx = (i + 0.5) * (W / trees) + Phaser.Math.Between(-30, 30);
+    const h = Phaser.Math.Between(110, 190);
+    const trunkW = Phaser.Math.Between(14, 22);
+    // Trunk (axon)
+    g.fillStyle(0x2c4a82, 1);
+    g.fillRoundedRect(cx - trunkW / 2, baseY - h, trunkW, h + 40, trunkW / 2);
+    // Cell body (soma) — a plump blob at the base of the branches
+    g.fillStyle(0x3a5fa0, 1);
+    g.fillCircle(cx, baseY - h + 18, trunkW + 8);
+    // Branching dendrites — three rounded rods fanning upward
+    g.lineStyle(8, 0x3a5fa0, 1);
+    const branches = 3;
+    for (let b = 0; b < branches; b++) {
+      const spread = (b - (branches - 1) / 2) * 38 + Phaser.Math.Between(-6, 6);
+      const tipX = cx + spread;
+      const tipY = baseY - h - Phaser.Math.Between(20, 50);
+      g.lineBetween(cx, baseY - h + 12, tipX, tipY);
+      // Glowing synapse tip
+      g.fillStyle(0x7fb8ff, 0.35);
+      g.fillCircle(tipX, tipY, 9);
+      g.fillStyle(0x7fb8ff, 1);
+      g.fillCircle(tipX, tipY, 4);
+    }
+  }
+  // A few electric sparks drifting in the canopy
+  g.fillStyle(0x7fb8ff, 0.9);
+  for (let i = 0; i < 14; i++) {
+    g.fillCircle(Phaser.Math.Between(0, W), baseY - Phaser.Math.Between(20, 200), Phaser.Math.Between(2, 3));
+  }
+  return g;
+}
+
+function ch2MarrowCavernsHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Warm amber cavern walls — layered rounded ellipses lit from below.
+  g.fillStyle(0x6e4f18, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0x8a661f, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+  // Spongy marrow pockets along the cavern floor.
+  g.fillStyle(0xb5863a, 1);
+  for (let i = 0; i < 6; i++) {
+    const x = (i + 0.5) * (W / 6) + Phaser.Math.Between(-24, 24);
+    g.fillEllipse(x, baseY + 150, Phaser.Math.Between(120, 200), Phaser.Math.Between(70, 110));
+  }
+  // Brand-new cells budding and glowing upward like bubbles.
+  for (let i = 0; i < 14; i++) {
+    const x = Phaser.Math.Between(0, W);
+    const y = baseY - Phaser.Math.Between(0, 200);
+    const r = Phaser.Math.Between(4, 12);
+    g.fillStyle(0xffcf6b, 0.5);
+    g.fillCircle(x, y, r + 3);
+    g.fillStyle(0xffe6ac, 0.85);
+    g.fillCircle(x - r * 0.3, y - r * 0.3, r * 0.6);
+  }
+  return g;
+}
+
+function ch2ImmuneFrontHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Plasma floor — layered organic green ellipses receding into the distance.
+  g.fillStyle(0x1c3a10, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0x2a5418, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+  // A row of plump white blood cells resting along the front line.
+  for (let i = 0; i < 6; i++) {
+    const x = (i + 0.5) * (W / 6) + Phaser.Math.Between(-24, 24);
+    const cy = baseY + 70 + Phaser.Math.Between(-16, 16);
+    const r = Phaser.Math.Between(34, 58);
+    g.fillStyle(0x6fae4a, 1);
+    g.fillCircle(x, cy, r);
+    // Lumpy edges
+    g.fillCircle(x - r * 0.6, cy + r * 0.2, r * 0.5);
+    g.fillCircle(x + r * 0.55, cy - r * 0.1, r * 0.45);
+    // Pale highlight cap
+    g.fillStyle(0x9be86b, 1);
+    g.fillEllipse(x - r * 0.25, cy - r * 0.3, r * 0.9, r * 0.55);
+  }
+  // Floating accent microbes drifting above the line.
+  g.fillStyle(0x9be86b, 0.8);
+  for (let i = 0; i < 14; i++) {
+    g.fillCircle(Phaser.Math.Between(0, W), baseY - Phaser.Math.Between(0, 200), Phaser.Math.Between(2, 5));
+  }
+  return g;
+}
+
+function ch2MitochondriaCoreHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Warm cytoplasm floor — layered ellipses from deep to glowing.
+  g.fillStyle(0x3a1808, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0x6a3010, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+  // Big bean-shaped mitochondria resting along the floor.
+  const beans = [
+    [W * 0.22, baseY + 40, 220, 110],
+    [W * 0.58, baseY + 70, 300, 140],
+    [W * 0.86, baseY + 30, 180, 96]
+  ];
+  for (const [bx, by, bw, bh] of beans) {
+    g.fillStyle(0xc4622a, 1);
+    g.fillEllipse(bx, by, bw, bh);
+    g.fillStyle(0xff9b4a, 1);
+    g.fillEllipse(bx - bw * 0.08, by - bh * 0.14, bw * 0.78, bh * 0.6);
+    // Glowing inner cristae folds (rounded rods).
+    g.fillStyle(0xc4622a, 0.9);
+    for (let i = -2; i <= 2; i++) {
+      const cx = bx + i * (bw * 0.16);
+      g.fillRoundedRect(cx - 8, by - bh * 0.34, 16, bh * 0.68, 8);
+    }
+  }
+  // Floating energy sparks rising off the furnace.
+  g.fillStyle(0xffc77a, 0.9);
+  for (let i = 0; i < 16; i++) {
+    g.fillCircle(Phaser.Math.Between(0, W), baseY - Phaser.Math.Between(0, 200), Phaser.Math.Between(2, 4));
+  }
+  return g;
+}
+
+function ch2TheSingularityCellHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  const cx = W / 2;
+  const cy = baseY + 70;
+  // Radiant primordial bloom — concentric soft halos in the cell palette
+  for (let i = 6; i >= 0; i--) {
+    const t = i / 6;
+    g.fillStyle(0x6a6ab0, 0.10 + (1 - t) * 0.14);
+    g.fillEllipse(cx, cy, W * (0.4 + t * 1.1), 90 + t * 240);
+  }
+  // Soft ringed light around the cell
+  g.lineStyle(6, 0xfff3b8, 0.30);
+  g.strokeEllipse(cx, cy, 520, 200);
+  g.lineStyle(4, 0xfff3b8, 0.22);
+  g.strokeEllipse(cx, cy, 700, 280);
+  // The luminous first cell — gold-white sphere
+  g.fillStyle(0x9a9ad8, 0.85);
+  g.fillEllipse(cx, cy, 300, 140);
+  g.fillStyle(0xfff3b8, 0.9);
+  g.fillEllipse(cx, cy, 200, 90);
+  g.fillStyle(0xffffff, 1);
+  g.fillEllipse(cx, cy, 100, 44);
+  // Drifting nucleus motes along the horizon
+  g.fillStyle(0xfff3b8, 0.7);
+  for (let i = 0; i < 9; i++) {
+    const x = (i + 0.5) * (W / 9) + Phaser.Math.Between(-20, 20);
+    g.fillCircle(x, baseY + 130 + Phaser.Math.Between(-16, 16), Phaser.Math.Between(2, 5));
+  }
+  return g;
 }
 
 export function getWorldBackground(worldId) {

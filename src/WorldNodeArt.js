@@ -433,3 +433,337 @@ NODE_RENDERERS[11] = function drawUniverseEnd(scene, c, _s) {
   g.fillPath();
   c.add(g);
 };
+
+// ── Chapter 2 "Inner Space" node renderers ────────────────────────────────
+NODE_RENDERERS[21] = function drawBloodstream(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 54, 140, 22);
+  // Two smaller companion cells drifting behind.
+  g.fillStyle(0xa02838, 1);
+  g.fillEllipse(-44, 22, 44, 30);
+  g.fillStyle(0xff7a8a, 0.9);
+  g.fillEllipse(-44, 22, 24, 16);
+  g.fillStyle(0xa02838, 1);
+  g.fillEllipse(46, -20, 40, 28);
+  g.fillStyle(0xff7a8a, 0.9);
+  g.fillEllipse(46, -20, 22, 14);
+  // Main red blood cell — rounded disc, mid tone then bright rim light.
+  g.fillStyle(0xc23a4a, 1);
+  g.fillEllipse(0, 0, 120, 84);
+  g.fillStyle(0xe0586a, 1);
+  g.fillEllipse(-6, -8, 100, 64);
+  // Paler dimpled center.
+  g.fillStyle(0xff7a8a, 1);
+  g.fillEllipse(0, 2, 64, 40);
+  g.fillStyle(0xffb0bc, 1);
+  g.fillEllipse(0, 2, 36, 22);
+  // Bright glossy highlight on the upper-left.
+  g.fillStyle(0xffffff, 0.7);
+  g.fillEllipse(-26, -18, 26, 14);
+  // Friendly little face dots so the cell reads as cute.
+  g.fillStyle(0xc23a4a, 1);
+  g.fillCircle(-12, -2, 4);
+  g.fillCircle(12, -2, 4);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-13, -3, 1.5);
+  g.fillCircle(11, -3, 1.5);
+  c.add(g);
+};
+
+NODE_RENDERERS[22] = function drawCellCity(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 140, 24);
+  // Cell membrane — round glowing body
+  g.fillStyle(0x4ecdc4, 0.30);
+  g.fillCircle(0, 0, 64);
+  g.fillStyle(0x2f8f86, 1);
+  g.fillCircle(0, 0, 56);
+  g.fillStyle(0x3faea4, 1);
+  g.fillCircle(-4, -6, 48);
+  // Organelle "buildings" rising inside
+  g.fillStyle(0x176e64, 1);
+  g.fillRoundedRect(-34, -8, 20, 44, 6);
+  g.fillRoundedRect(-8, -26, 18, 62, 6);
+  g.fillRoundedRect(16, -2, 22, 38, 6);
+  // Bright front faces
+  g.fillStyle(0x4ecdc4, 1);
+  g.fillRoundedRect(-32, -6, 16, 12, 4);
+  g.fillRoundedRect(-6, -24, 14, 12, 4);
+  g.fillRoundedRect(18, 0, 18, 12, 4);
+  // Window vesicles
+  g.fillStyle(0xbafff6, 0.9);
+  g.fillCircle(-24, 16, 3);
+  g.fillCircle(1, 4, 3);
+  g.fillCircle(27, 18, 3);
+  // Nucleus — big round organelle, cute centerpiece
+  g.fillStyle(0xbafff6, 1);
+  g.fillCircle(8, -8, 14);
+  g.fillStyle(0x2f8f86, 1);
+  g.fillCircle(8, -8, 7);
+  // Membrane highlight glint
+  g.fillStyle(0xeafffb, 0.7);
+  g.fillEllipse(-22, -28, 22, 12);
+  c.add(g);
+};
+
+NODE_RENDERERS[23] = function drawNucleusVault(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 140, 22);
+  // Soft outer membrane halo
+  g.fillStyle(0xc77eff, 0.25);
+  g.fillCircle(0, 0, 72);
+  // Nucleus body — violet sphere with brighter dome
+  g.fillStyle(0x6a3fa0, 1);
+  g.fillCircle(0, 0, 60);
+  g.fillStyle(0x8455c4, 1);
+  g.fillCircle(-4, -6, 52);
+  g.fillStyle(0xc77eff, 0.6);
+  g.fillEllipse(-18, -20, 44, 26);
+  // Glowing nucleolus core
+  g.fillStyle(0xc77eff, 1);
+  g.fillCircle(6, 8, 18);
+  g.fillStyle(0xe3bcff, 1);
+  g.fillCircle(2, 4, 10);
+  g.fillStyle(0xffffff, 0.85);
+  g.fillCircle(-1, 1, 4);
+  // X-shaped chromosome pair, upper left
+  g.fillStyle(0xe3bcff, 1);
+  g.fillRoundedRect(-34, -34, 7, 26, 3.5);
+  g.fillStyle(0xe3bcff, 1);
+  g.beginPath();
+  g.moveTo(-44, -36);
+  g.lineTo(-38, -38);
+  g.lineTo(-20, -10);
+  g.lineTo(-26, -8);
+  g.closePath();
+  g.fillPath();
+  g.beginPath();
+  g.moveTo(-20, -38);
+  g.lineTo(-26, -36);
+  g.lineTo(-38, -10);
+  g.lineTo(-44, -12);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(0xfce7ff, 0.9);
+  g.fillCircle(-32, -24, 4);
+  // Small chromosome rod, lower right
+  g.fillStyle(0xe3bcff, 1);
+  g.fillRoundedRect(26, 18, 7, 24, 3.5);
+  g.fillRoundedRect(20, 26, 24, 7, 3.5);
+  // DNA thread squiggle drifting across the top
+  g.lineStyle(3, 0xfce7ff, 0.9);
+  g.beginPath();
+  g.moveTo(-18, -46);
+  g.lineTo(-6, -52);
+  g.lineTo(8, -44);
+  g.lineTo(22, -50);
+  g.strokePath();
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(-6, -52, 3);
+  g.fillCircle(22, -50, 2.5);
+  c.add(g);
+};
+
+NODE_RENDERERS[24] = function drawNeuronForest(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 140, 22);
+  // Soft glow behind the cell
+  g.fillStyle(0x7fb8ff, 0.18);
+  g.fillCircle(0, 0, 70);
+  // Dendrite branches radiating out from the soma (rounded rods)
+  const tips = [
+    [-58, -34], [-30, -62], [18, -64], [54, -38], [60, 14], [30, 56], [-26, 58], [-60, 20]
+  ];
+  g.lineStyle(7, 0x2c4a82, 1);
+  for (const [tx, ty] of tips) g.lineBetween(0, 0, tx, ty);
+  g.lineStyle(4, 0x3a5fa0, 1);
+  for (const [tx, ty] of tips) g.lineBetween(0, 0, tx, ty);
+  // Cell body (soma)
+  g.fillStyle(0x3a5fa0, 1);
+  g.fillCircle(0, 0, 40);
+  g.fillStyle(0x4f78c0, 1);
+  g.fillCircle(-4, -6, 32);
+  g.fillStyle(0x7fb8ff, 0.85);
+  g.fillEllipse(-12, -14, 22, 14);
+  // Nucleus
+  g.fillStyle(0x2c4a82, 1);
+  g.fillCircle(4, 6, 12);
+  g.fillStyle(0xbfe0ff, 0.7);
+  g.fillCircle(1, 3, 5);
+  // Glowing synapse tips at the ends of the branches
+  for (const [tx, ty] of tips) {
+    g.fillStyle(0x7fb8ff, 0.4);
+    g.fillCircle(tx, ty, 8);
+    g.fillStyle(0x7fb8ff, 1);
+    g.fillCircle(tx, ty, 4);
+    g.fillStyle(0xffffff, 0.9);
+    g.fillCircle(tx - 1, ty - 1, 1.5);
+  }
+  // Little electric sparks arcing in the gaps
+  g.fillStyle(0xeaf4ff, 1);
+  g.fillCircle(-40, 30, 2);
+  g.fillCircle(38, -24, 2);
+  g.fillCircle(20, 40, 1.5);
+  c.add(g);
+};
+
+NODE_RENDERERS[25] = function drawMarrowCaverns(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 140, 24);
+  // Warm amber cavern dome — shadow band, mid, bright top.
+  g.fillStyle(0x6e4f18, 1);
+  g.fillCircle(0, 0, 60);
+  g.fillStyle(0xb5863a, 1);
+  g.fillCircle(-4, -6, 54);
+  g.fillStyle(0xd6a85a, 0.9);
+  g.fillEllipse(-18, -22, 46, 30);
+  // Hollow cavern mouth opening into the warm marrow.
+  g.fillStyle(0x4a3410, 1);
+  g.fillEllipse(2, 14, 52, 40);
+  g.fillStyle(0x7a5820, 1);
+  g.fillEllipse(2, 18, 40, 28);
+  // Brand-new cells budding up like glowing bubbles.
+  const cells = [[-14, 8, 9], [12, 16, 7], [0, -2, 6], [22, 4, 5]];
+  for (const [bx, by, r] of cells) {
+    g.fillStyle(0xffcf6b, 0.85);
+    g.fillCircle(bx, by, r);
+    g.fillStyle(0xffe6ac, 1);
+    g.fillCircle(bx - r * 0.3, by - r * 0.3, r * 0.45);
+  }
+  // Rising spark above the cavern.
+  g.fillStyle(0xffcf6b, 0.5);
+  g.fillCircle(0, -40, 7);
+  g.fillStyle(0xffe6ac, 1);
+  g.fillCircle(0, -40, 4);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-1, -42, 1.5);
+  c.add(g);
+};
+
+NODE_RENDERERS[26] = function drawImmuneFront(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 140, 24);
+  // Big friendly white blood cell — lumpy pale-green sphere.
+  g.fillStyle(0x6fae4a, 1);
+  g.fillCircle(0, 0, 60);
+  // Lumpy bumps around the rim
+  g.fillCircle(-46, 16, 22);
+  g.fillCircle(44, 10, 24);
+  g.fillCircle(-18, -48, 20);
+  g.fillCircle(28, 46, 18);
+  // Bright top body
+  g.fillStyle(0x9be86b, 1);
+  g.fillCircle(-4, -6, 50);
+  // Soft inner glow / nucleus pool
+  g.fillStyle(0xc7f5a8, 0.85);
+  g.fillEllipse(-18, -20, 44, 30);
+  // Friendly face
+  g.fillStyle(0x2a5418, 1);
+  g.fillCircle(-16, -2, 6);
+  g.fillCircle(16, -2, 6);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-14, -4, 2);
+  g.fillCircle(18, -4, 2);
+  // Happy smile
+  g.lineStyle(4, 0x2a5418, 1);
+  g.beginPath();
+  g.arc(0, 8, 18, 0.15 * Math.PI, 0.85 * Math.PI);
+  g.strokePath();
+  // Two little Y-shaped antibody defenders patrolling nearby.
+  g.lineStyle(4, 0x9be86b, 1);
+  // Left antibody
+  g.lineBetween(-66, -34, -66, -16);
+  g.lineBetween(-66, -34, -76, -46);
+  g.lineBetween(-66, -34, -56, -46);
+  // Right antibody
+  g.lineBetween(64, -30, 64, -12);
+  g.lineBetween(64, -30, 54, -42);
+  g.lineBetween(64, -30, 74, -42);
+  g.fillStyle(0xc7f5a8, 1);
+  g.fillCircle(-66, -16, 3);
+  g.fillCircle(64, -12, 3);
+  c.add(g);
+};
+
+NODE_RENDERERS[27] = function drawMitochondriaCore(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 52, 140, 24);
+  // Soft warm outer glow.
+  g.fillStyle(0xff9b4a, 0.28);
+  g.fillEllipse(0, 0, 156, 116);
+  // Bean-shaped outer membrane.
+  g.fillStyle(0xc4622a, 1);
+  g.fillEllipse(0, 0, 130, 88);
+  g.fillStyle(0xa84e1e, 1);
+  g.fillEllipse(8, 10, 110, 64);
+  // Bright inner matrix.
+  g.fillStyle(0xff9b4a, 1);
+  g.fillEllipse(-4, -4, 104, 64);
+  g.fillStyle(0xffc77a, 1);
+  g.fillEllipse(-12, -12, 60, 32);
+  // Glowing cristae folds (rounded inner rods).
+  g.fillStyle(0xc4622a, 0.95);
+  for (let i = -2; i <= 2; i++) {
+    g.fillRoundedRect(i * 20 - 6, -26, 12, 52, 6);
+  }
+  // Hot cristae highlights.
+  g.fillStyle(0xffe0b0, 0.9);
+  for (let i = -2; i <= 2; i++) {
+    g.fillRoundedRect(i * 20 - 4, -24, 4, 48, 2);
+  }
+  // Pulsing energy sparks.
+  g.fillStyle(0xffe07a, 1);
+  g.fillCircle(-40, -28, 3);
+  g.fillCircle(44, 22, 3);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-40, -28, 1.5);
+  g.fillCircle(44, 22, 1.5);
+  g.fillCircle(0, -34, 2);
+  c.add(g);
+};
+
+NODE_RENDERERS[28] = function drawTheSingularityCell(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(0, 56, 130, 22);
+  // Soft outer glow of golden light
+  g.fillStyle(0xfff3b8, 0.18);
+  g.fillCircle(0, 0, 78);
+  g.fillStyle(0xfff3b8, 0.30);
+  g.fillCircle(0, 0, 60);
+  // Ring of soft light around the cell
+  g.lineStyle(5, 0xfff3b8, 0.85);
+  g.strokeCircle(0, 0, 64);
+  g.lineStyle(2, 0xffffff, 0.6);
+  g.strokeCircle(0, 0, 70);
+  // Luminous cell body — periwinkle membrane fading to gold-white core
+  g.fillStyle(0x6a6ab0, 1);
+  g.fillCircle(0, 0, 52);
+  g.fillStyle(0x9a9ad8, 1);
+  g.fillCircle(-3, -4, 44);
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(-2, -3, 30);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-6, -8, 16);
+  // Tiny nucleus motes orbiting inside
+  g.fillStyle(0xfff3b8, 0.9);
+  g.fillCircle(22, 16, 5);
+  g.fillCircle(-20, 22, 4);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(22, 15, 2);
+  // Sparkle motes around the halo
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(-52, -16, 2.5);
+  g.fillCircle(50, 10, 2.5);
+  g.fillStyle(0xffffff, 0.95);
+  g.fillCircle(-30, -40, 1.5);
+  g.fillCircle(34, -32, 1.5);
+  c.add(g);
+};

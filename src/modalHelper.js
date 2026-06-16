@@ -19,6 +19,7 @@ export function createModal(scene, opts = {}) {
     strokeWidth = 3,
     showCloseHint = true,
     closeHintText = 'tap anywhere to close',
+    showCloseButton = false,
     closeOnCardTap = false,
     onClose = null,
   } = opts;
@@ -59,6 +60,31 @@ export function createModal(scene, opts = {}) {
     })).setOrigin(0.5).setDepth(depth + 1);
   }
 
+  // Explicit close (X) button pinned to the card's top-right corner. Built as a
+  // top-level object above the card so later card children can't steal its tap.
+  let closeBtn = null;
+  if (showCloseButton) {
+    const r = 38;
+    const bx = W / 2 + width / 2 - r - 22;
+    const by = H / 2 - height / 2 + r + 22;
+    closeBtn = scene.add.container(bx, by).setDepth(depth + 4);
+    const cg = scene.add.graphics();
+    cg.fillStyle(0x000000, 0.35); cg.fillCircle(0, 3, r);
+    cg.fillStyle(COLORS.bgPanel, 1); cg.fillCircle(0, 0, r);
+    cg.lineStyle(3, accentColor, 0.95); cg.strokeCircle(0, 0, r);
+    const k = r * 0.42;
+    cg.lineStyle(5, 0xffffff, 0.95);
+    cg.lineBetween(-k, -k, k, k);
+    cg.lineBetween(-k, k, k, -k);
+    closeBtn.add(cg);
+    const chit = scene.add.circle(0, 0, r + 8, 0x000000, 0.001)
+      .setInteractive({ useHandCursor: true });
+    closeBtn.add(chit);
+    chit.on('pointerdown', (p, lx, ly, ev) => { ev?.stopPropagation?.(); close(); });
+    chit.on('pointerover', () => scene.tweens.add({ targets: closeBtn, scale: 1.1, duration: 110 }));
+    chit.on('pointerout', () => scene.tweens.add({ targets: closeBtn, scale: 1, duration: 110 }));
+  }
+
   let closed = false;
   let sceneCloseHandler = null;
   let deferTimer = null;
@@ -82,6 +108,7 @@ export function createModal(scene, opts = {}) {
     overlay.destroy();
     card.destroy();
     closeHint?.destroy();
+    closeBtn?.destroy();
     onClose?.();
   };
 
@@ -115,6 +142,6 @@ export function createModal(scene, opts = {}) {
     }, 0);
   }
 
-  return { overlay, card, close, closeHint, width, height };
+  return { overlay, card, close, closeHint, closeBtn, width, height };
 }
 

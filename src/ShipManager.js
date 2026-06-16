@@ -13,6 +13,8 @@ export const SHIP_PARTS = [
   { id: 'hull_finned',  slot: 'hull',  name: 'Finned Hull',    price: 350, color: 0xffae3a, rarity: 'rare' },
   { id: 'hull_wraith',  slot: 'hull',  name: 'Wraith Hull',    price: 1500, color: 0xa6f0e8, rarity: 'legendary' },
   { id: 'hull_eclipse', slot: 'hull',  name: 'Eclipse Hull',   price: 1500, color: 0xfff3b8, rarity: 'legendary' },
+  // Reward-only: the signature trophy of the Chapter 2 grand finale (World 28).
+  { id: 'hull_nanocraft', slot: 'hull', name: 'Nanocraft Hull', price: 0, unlock_only: true, color: 0x4ecdc4, rarity: 'legendary', desc: 'Forged in the Singularity Cell.' },
 
   // wings
   { id: 'wings_default', slot: 'wings', name: 'Stub Wings',  price: 0,   isDefault: true, color: 0x8b9bb4, rarity: 'common' },
@@ -34,6 +36,9 @@ export const SHIP_PARTS = [
   { id: 'paint_void',    slot: 'paint', name: 'Void',     price: 150, color: 0x6c2bd9, rarity: 'common' },
   { id: 'paint_mint',    slot: 'paint', name: 'Mint',     price: 100, color: 0x9be8a3, rarity: 'common' },
   { id: 'paint_coral',   slot: 'paint', name: 'Coral',    price: 100, color: 0xffae8a, rarity: 'common' },
+  // Chapter 2 "Inner Space" set — pair with the Nanocraft hull.
+  { id: 'paint_plasma',    slot: 'paint', name: 'Plasma',    price: 150, color: 0xff5b8a, rarity: 'common' },
+  { id: 'paint_cytoplasm', slot: 'paint', name: 'Cytoplasm', price: 150, color: 0x5fe0c0, rarity: 'common' },
   // Patterned common paints
   { id: 'paint_racing',     slot: 'paint', name: 'Racing Stripes', price: 200, color: 0x07071a, color2: 0xffffff, pattern: 'pattern_stripes', rarity: 'common' },
   { id: 'paint_checkered',  slot: 'paint', name: 'Checkered',      price: 200, color: 0x12122a, color2: 0xffffff, pattern: 'pattern_checkered', rarity: 'common' },

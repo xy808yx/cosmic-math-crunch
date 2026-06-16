@@ -631,6 +631,57 @@ function drawAura(item, ctx) {
   if (item.id === 'aura_galaxy')    return auraGalaxy(item, ctx, aura);
   if (item.id === 'aura_embers')    return auraEmbers(item, ctx, aura);
   if (item.id === 'aura_constellation') return auraConstellation(item, ctx, aura);
+  if (item.id === 'aura_microbes')  return auraMicrobes(item, ctx, aura);
+  if (item.id === 'aura_bioluminescent') return auraBioluminescent(item, ctx, aura);
+}
+
+// Chapter 2 "Inner Space" auras ------------------------------------------------
+function auraBioluminescent(item, ctx, aura) {
+  // Soft glowing specks orbiting the pet, each gently pulsing in brightness.
+  const { rx, ry } = orbitRadii(ctx.layout);
+  for (let i = 0; i < 10; i++) {
+    const dot = ctx.scene.add.graphics();
+    dot.fillStyle(item.color, 0.35);
+    dot.fillCircle(0, 0, 6);
+    dot.fillStyle(item.color, 1);
+    dot.fillCircle(0, 0, 3);
+    placeOrbit(dot, i, 10, rx, ry);
+    aura.add(dot);
+    ctx.scene.tweens.add({
+      targets: dot, alpha: { from: 0.4, to: 1 },
+      duration: 700 + i * 60, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+  spinAura(ctx.scene, aura, 7000);
+}
+
+function auraMicrobes(item, ctx, aura) {
+  // Little microbe specks drifting up from the pet's feet, wobbling + fading.
+  const baseY = ctx.layout.height * 0.5;
+  const spread = ctx.layout.width * 0.6;
+  for (let i = 0; i < 6; i++) {
+    const launch = () => {
+      const m = ctx.scene.add.graphics();
+      const r = 3 + Math.random() * 3;
+      m.fillStyle(item.color, 0.9);
+      m.fillCircle(0, 0, r);
+      m.fillStyle(lighten(item.color, 0.3), 1);
+      m.fillCircle(-r * 0.3, -r * 0.3, r * 0.4);
+      m.x = (Math.random() - 0.5) * spread;
+      m.y = baseY;
+      aura.add(m);
+      ctx.scene.tweens.add({
+        targets: m,
+        y: -ctx.layout.height * 0.55,
+        x: m.x + (Math.random() - 0.5) * 50,
+        alpha: 0,
+        duration: 2400 + Math.random() * 900,
+        ease: 'Sine.easeOut',
+        onComplete: () => { m.destroy(); launch(); }
+      });
+    };
+    ctx.scene.time.delayedCall(i * 380, launch);
+  }
 }
 
 function orbitRadii(layout) {

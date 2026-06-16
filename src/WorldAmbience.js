@@ -12,30 +12,158 @@ const PER_WORLD_CAP = 4;
 // `nodePositions` is an array of {x, y} in path order, and `furthestUnlocked`
 // is the highest world index that should emit theme particles.
 export function createMapAmbience(scene, opts) {
-  const { width, height, nodePositions, furthestUnlocked, accentColors } = opts;
+  const {
+    width, height, nodePositions, furthestUnlocked, accentColors,
+    chapter = 1, worldIds
+  } = opts;
 
   const state = {
     activeParticles: 0,
     layers: scene.add.container(0, 0).setDepth(1)
   };
 
-  // Twinkling stars
-  buildTwinkleStars(scene, state, width, height);
+  if (chapter === 2) {
+    // Inner Space: a warm living-vessel ambience — pulsing capillary walls,
+    // drifting translucent cells, and rising convection motes. No white stars,
+    // no shooting stars (those are the cosmic-only cues for Outer Space).
+    buildCapillaryArcs(scene, state, width, height);
+    for (let i = 0; i < 18; i++) buildDriftCell(scene, state, width, height);
+    scheduleConvectionMote(scene, state, width, height);
+    buildVignette(scene, width, height);
+  } else {
+    // Outer Space: the cosmic starfield ambience.
+    buildTwinkleStars(scene, state, width, height);
+    buildNebulaClouds(scene, state, width, height, accentColors);
+    scheduleShootingStar(scene, state, width, height);
+  }
 
-  // Drifting nebula clouds
-  buildNebulaClouds(scene, state, width, height, accentColors);
-
-  // Shooting stars
-  scheduleShootingStar(scene, state, width, height);
-
-  // Theme particles per unlocked world
+  // Theme particles per unlocked world (both chapters). Use the REAL world id at
+  // each node — Chapter 2's nodes are worlds 21-28, so the old `i + 1` silently
+  // gave them Chapter 1's emitters.
   for (let i = 0; i <= furthestUnlocked; i++) {
     const pos = nodePositions[i];
     if (!pos) continue;
-    buildWorldEmitter(scene, state, i + 1, pos.x, pos.y);
+    const worldId = worldIds && worldIds[i] != null ? worldIds[i] : i + 1;
+    buildWorldEmitter(scene, state, worldId, pos.x, pos.y);
   }
 
   return state;
+}
+
+// ── Chapter 2 "Inner Space" ambience builders ──────────────────────────────
+
+// Two soft capillary walls hugging the screen edges (open sine-sampled bulges,
+// never closed rings). They throb gently out of phase like a heartbeat.
+function buildCapillaryArcs(scene, state, W, H) {
+  for (const dir of [-1, 1]) {
+    const g = scene.add.graphics();
+    const stroke = (w, color, alpha) => {
+      g.lineStyle(w, color, alpha);
+      g.beginPath();
+      for (let y = 80; y <= H - 140; y += 40) {
+        const x = dir < 0
+          ? -20 + Math.sin(y * 0.004) * 70
+          : W + 20 - Math.sin(y * 0.004) * 70;
+        if (y === 80) g.moveTo(x, y); else g.lineTo(x, y);
+      }
+      g.strokePath();
+    };
+    stroke(40, 0xc23a4a, 0.22);   // vessel wall
+    stroke(10, 0xff7a8a, 0.30);   // inner highlight
+    state.layers.add(g);
+    scene.tweens.add({
+      targets: g,
+      alpha: { from: 0.7, to: 1.0 }, scaleX: 1.03,
+      duration: 3600 + Math.random() * 800, yoyo: true, repeat: -1,
+      ease: 'Sine.easeInOut', delay: dir < 0 ? 0 : 900,
+    });
+  }
+}
+
+// One drifting translucent cell — the star replacement. Bobs and drifts
+// laterally on a current (never falls); near cells (high depth factor) are
+// larger / faster, far cells smaller / slower → parallax depth.
+function buildDriftCell(scene, state, W, H) {
+  const f = Math.random();
+  const g = scene.add.graphics();
+  const roll = Math.random();
+  if (roll < 0.5) {
+    // red blood cell — two discs with a paler dimple
+    const r = 14 + f * 16;
+    g.fillStyle(0xc23a4a, 0.5); g.fillEllipse(0, 0, r * 2, r * 1.4);
+    g.fillStyle(0xff7a8a, 0.65); g.fillEllipse(0, 0, r * 1.2, r * 0.8);
+  } else if (roll < 0.8) {
+    // plasma vesicle — a glassy bubble
+    const r = 10 + f * 12;
+    g.fillStyle(0xff9ec7, 0.30); g.fillCircle(0, 0, r);
+    g.lineStyle(2, 0xffc2d2, 0.4); g.strokeCircle(0, 0, r);
+  } else {
+    // teal cell — ties the cell-teal palette together
+    const r = 12 + f * 12;
+    g.fillStyle(0x4ecdc4, 0.22); g.fillCircle(0, 0, r);
+    g.fillStyle(0xbafff6, 0.4); g.fillCircle(0, 0, r * 0.5);
+  }
+  // Bias x out of the centre node/label spine so labels never lose contrast.
+  const left = Math.random() < 0.5;
+  g.x = left ? 40 + Math.random() * (W * 0.30) : W * 0.66 + Math.random() * (W * 0.30);
+  g.y = 160 + Math.random() * (H - 360);
+  state.layers.add(g);
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  scene.tweens.add({
+    targets: g, x: '+=' + (dir * (60 + 120 * f)),
+    duration: 14000 + Math.random() * 12000, yoyo: true, repeat: -1,
+    ease: 'Sine.easeInOut', delay: Math.random() * 4000,
+  });
+  scene.tweens.add({
+    targets: g, y: '+=' + (10 + 18 * f),
+    duration: 3000 + Math.random() * 2000, yoyo: true, repeat: -1,
+    ease: 'Sine.easeInOut', delay: Math.random() * 1000,
+  });
+  scene.tweens.add({
+    targets: g, scaleX: 1.08, scaleY: 0.94,
+    duration: 2600 + Math.random() * 1400, yoyo: true, repeat: -1,
+    ease: 'Sine.easeInOut',
+  });
+}
+
+// Slow upward convection motes — the organic replacement for shooting stars.
+// Self-rescheduling, capped against SCENE_CAP exactly like scheduleShootingStar.
+function scheduleConvectionMote(scene, state, W, H) {
+  const colors = [0xff7a8a, 0xffc2d2, 0xffcf6b];
+  const fire = () => {
+    if (state.activeParticles >= SCENE_CAP) {
+      scene.time.delayedCall(2000, fire);
+      return;
+    }
+    const mote = scene.add.circle(
+      Math.random() * W, H - 120 + Math.random() * 80,
+      2 + Math.random() * 2, colors[Math.floor(Math.random() * colors.length)], 0.7
+    );
+    state.layers.add(mote);
+    state.activeParticles++;
+    scene.tweens.add({
+      targets: mote, y: '-=' + (380 + Math.random() * 260), alpha: 0,
+      duration: 3200 + Math.random() * 1400, ease: 'Sine.easeOut',
+      onComplete: () => { mote.destroy(); state.activeParticles--; },
+    });
+    scene.tweens.add({
+      targets: mote, x: '+=' + ((Math.random() - 0.5) * 70),
+      duration: 3200, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+    });
+    scene.time.delayedCall(1400 + Math.random() * 1200, fire);
+  };
+  scene.time.delayedCall(2000 + Math.random() * 4000, fire);
+}
+
+// Subtle peripheral vignette (depth 4, between ambience and nodes) so node
+// labels near the warm edges always stay readable.
+function buildVignette(scene, W, H) {
+  const v = scene.add.graphics().setDepth(4);
+  v.fillStyle(0x000000, 0.18);
+  v.fillRect(0, 0, W, 90);
+  v.fillRect(0, H - 90, W, 90);
+  v.fillRect(0, 0, 90, H);
+  v.fillRect(W - 90, 0, 90, H);
 }
 
 // 80 small dots; ~30% of them gently twinkle.
@@ -323,5 +451,98 @@ const THEME_EMITTERS = {
       onComplete: () => ray.destroy()
     });
     return ray;
-  }
+  },
+  21: (scene, state, cx, cy) => {
+  const colors = [0xff7a8a, 0xff9ec7, 0xc23a4a];
+  const p = scene.add.circle(
+    cx + (Math.random() - 0.5) * 80, cy + 30,
+    3, colors[Math.floor(Math.random() * colors.length)], 0.85
+  );
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, y: '-=60', alpha: 0,
+    duration: 2200, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  22: (scene, state, cx, cy) => {
+  const p = scene.add.circle(cx + (Math.random() - 0.5) * 80, cy + 30, 3, 0x4ecdc4, 0.85);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, y: '-=60', alpha: 0, scale: 1.4,
+    duration: 2200, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  23: (scene, state, cx, cy) => {
+  const p = scene.add.circle(cx + (Math.random() - 0.5) * 80, cy + 30, 3, 0xc77eff, 0.9);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, y: '-=60', alpha: 0, scale: 1.4,
+    duration: 2000, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  24: (scene, state, cx, cy) => {
+  const a = Math.random() * Math.PI * 2;
+  const r = 50 + Math.random() * 24;
+  const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0x7fb8ff, 1);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p,
+    x: cx + Math.cos(a) * (r + 30), y: cy + Math.sin(a) * (r + 30),
+    alpha: 0, scale: 1.6,
+    duration: 1100, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  25: (scene, state, cx, cy) => {
+  const p = scene.add.circle(cx + (Math.random() - 0.5) * 60, cy + 26, 3, 0xffcf6b, 0.9);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, y: '-=60', alpha: 0, scale: 1.5,
+    duration: 2200, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  26: (scene, state, cx, cy) => {
+    const p = scene.add.circle(cx + (Math.random() - 0.5) * 90, cy + 30, 3, 0x9be86b, 0.85);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, y: '-=60', alpha: 0, scale: 1.4,
+      duration: 2200, ease: 'Sine.easeOut',
+      onComplete: () => p.destroy()
+    });
+    return p;
+  },
+  27: (scene, state, cx, cy) => {
+  const a = Math.random() * Math.PI * 2;
+  const colors = [0xff9b4a, 0xffc77a, 0xffe07a];
+  const p = scene.add.circle(cx, cy, 3, colors[Math.floor(Math.random() * colors.length)], 1);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p,
+    x: cx + Math.cos(a) * 80, y: cy + Math.sin(a) * 80,
+    alpha: 0, duration: 1100, ease: 'Quad.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
+  28: (scene, state, cx, cy) => {
+  const a = Math.random() * Math.PI * 2;
+  const r = 72 + Math.random() * 18;
+  const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0xfff3b8, 1);
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, alpha: 0, scale: 1.8,
+    duration: 1400, ease: 'Sine.easeOut',
+    onComplete: () => p.destroy()
+  });
+  return p;
+},
 };

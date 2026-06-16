@@ -5,13 +5,14 @@
 
 import Phaser from 'phaser';
 import {
-  WORLDS, VISIBLE_WORLDS, HIDDEN_WORLDS,
-  progress, getNextVisibleWorldId
+  WORLDS, HIDDEN_WORLDS,
+  progress, getNextVisibleWorldId, getChapterWorlds, CHAPTER1_FINAL_ID
 } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
-import { createStarfield } from '../starfieldHelper.js';
+import { createStarfield, createInnerSpaceBase } from '../starfieldHelper.js';
+import { playWormholeCinematic } from '../WormholeCinematic.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { companion, drawCompanion, CAROUSEL_STAGE_ORDER, SPECIES } from '../CompanionManager.js';
@@ -64,10 +65,25 @@ export class WorldMapScene extends Phaser.Scene {
       companion.unlockCosmic();
     }
 
-    createStarfield(this, { width: W, height: H, accentStrength: 0 });
+    // Which chapter map are we viewing? (1 = Outer Space, 2 = Inner Space.)
+    // Driven by the warp gate / return gate. Hidden-world warp arrivals always
+    // land on the Chapter 1 map — that's where their host worlds + branch
+    // geometry live. Resolved BEFORE the backdrop so each chapter paints its own.
+    this.currentChapter = progress.currentChapter || 1;
+    if (this.registry.get('warpArrivalHiddenId')) this.currentChapter = 1;
+    this.chapterWorlds = getChapterWorlds(this.currentChapter);
 
-    this.path = buildMapPath();
-    this.nodePositions = getNodePositions();
+    // Backdrop: cold cosmic starfield for Outer Space, warm breathing living
+    // interior for Inner Space — so the two chapters never look alike.
+    if (this.currentChapter === 2) {
+      createInnerSpaceBase(this, { width: W, height: H });
+    } else {
+      createStarfield(this, { width: W, height: H, accentStrength: 0 });
+    }
+    this._warping = false; // reset across scene.restart() (instance is reused)
+
+    this.path = buildMapPath(this.currentChapter);
+    this.nodePositions = getNodePositions(this.currentChapter);
     this.currentWorldIndex = this.findCurrentWorldIndex();
     this.furthestUnlockedIndex = this.findFurthestUnlockedIndex();
     this._mapFootprint = this.computeMapFootprint();
@@ -75,6 +91,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.createHeader();
     this.createMap();
     this.createHiddenNodes();
+    this.createChapterGates();
     this.createShipOnActiveWorld();
     this.createBottomChrome();
 
@@ -407,20 +424,22 @@ export class WorldMapScene extends Phaser.Scene {
     createMapAmbience(this, {
       width: W,
       height: H,
+      chapter: this.currentChapter,
       nodePositions: this.nodePositions,
+      worldIds: this.chapterWorlds.map(w => w.id),
       furthestUnlocked: this.furthestUnlockedIndex,
-      accentColors: VISIBLE_WORLDS.map(w => w.accentColor)
+      accentColors: this.chapterWorlds.map(w => w.accentColor)
     });
 
     // Path — only segments up to (and including) the current world segment
     // are visible; locked tail is hidden.
     const visibleSegments = this.furthestUnlockedIndex; // segments equals (idx) since 0-based
-    drawPath(this, this.path, visibleSegments, COLORS.accentTeal).setDepth(2);
+    drawPath(this, this.path, visibleSegments, COLORS.accentTeal, this.currentChapter).setDepth(2);
 
     // Nodes — unlocked render in full color, locked render as silhouette+?.
     this.nodeContainers = {};
-    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
-      const world = VISIBLE_WORLDS[i];
+    for (let i = 0; i < this.chapterWorlds.length; i++) {
+      const world = this.chapterWorlds[i];
       const pos = this.nodePositions[i];
       const isLocked = i > this.furthestUnlockedIndex;
 
@@ -573,7 +592,7 @@ export class WorldMapScene extends Phaser.Scene {
     fade.fillStyle(COLORS.bgDark, 0.7);
     fade.fillRect(0, 1700, W, 220);
 
-    const world = VISIBLE_WORLDS[this.currentWorldIndex];
+    const world = this.chapterWorlds[this.currentWorldIndex];
     const wp = progress.getWorldProgress(world.id);
     const fullyCleared = progress.isWorldFullyCleared(world.id);
 
@@ -640,8 +659,8 @@ export class WorldMapScene extends Phaser.Scene {
       this._bobTween = null;
     }
 
-    const startT = tForNodeIndex(this.currentWorldIndex);
-    const endT = tForNodeIndex(targetIndex);
+    const startT = tForNodeIndex(this.currentWorldIndex, this.currentChapter);
+    const endT = tForNodeIndex(targetIndex, this.currentChapter);
 
     audio.playLaser?.();
 
@@ -677,16 +696,174 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   enterWorld(idx) {
-    const world = VISIBLE_WORLDS[idx];
+    const world = this.chapterWorlds[idx];
     this.registry.set('selectedWorld', world.id);
     this.registry.set('shipParkedWorldId', world.id);
     new TransitionManager(this).fadeToScene('LevelSelectScene');
   }
 
   // ============================================================
+  // CHAPTER WARP GATES
+  //
+  // A glowing wormhole "warp gate" bridges the chapters. On the Chapter 1 map it
+  // tears open right beside "Universe's End" (World 11) once that finale boss is
+  // beaten — the Void cracks open and pulls you inward — and dives INTO Inner
+  // Space (Chapter 2). On the Chapter 2 map it surfaces back OUT to Chapter 1.
+  // ============================================================
+  createChapterGates() {
+    if (this.currentChapter === 1) {
+      // Entry wormhole → Chapter 2, beside Universe's End (the top-center node),
+      // gated on the Chapter 1 finale being beaten (matches Bloodstream unlock).
+      if (!progress.isWorldFullyCleared(CHAPTER1_FINAL_ID)) return;
+      const host = this.nodePositions[this.nodePositions.length - 1]; // World 11
+      const gate = { x: 220, y: 470 };
+      this.drawHiddenBranch(host, gate, 0xff7a8a);
+      this.buildGateNode(gate, {
+        accent: 0xff7a8a, core: 0xffcf6b, inward: true, label: 'INNER SPACE',
+        onTap: () => this.warpToChapter(2)
+      });
+    } else {
+      // Return wormhole → Chapter 1 (the surface), beside the first inner world.
+      const host = this.nodePositions[0];
+      if (!host) return;
+      const gate = { x: 180, y: 1300 };
+      this.drawHiddenBranch(host, gate, 0x4ecdc4);
+      this.buildGateNode(gate, {
+        accent: 0x4ecdc4, core: 0xb5e6ff, inward: false, label: 'SURFACE',
+        onTap: () => this.warpToChapter(1)
+      });
+    }
+  }
+
+  // Draws a gorgeous animated wormhole — the "iris gate". Layers (back to front):
+  // a breathing halo, a dark glassy membrane dome with a gradient core well, a
+  // receding RING TUNNEL pulling toward a hot pinhole, and motes streaking
+  // inward (entry / dive) or outward (return / surface). Direction is the ONLY
+  // thing that flips between the two variants. Purely concentric rings + radial
+  // motes + breathing halos — never a spiral / swirl / sigil.
+  buildGateNode(pos, { accent, core = accent, inward, label, onTap }) {
+    const R = 76;
+    const dir = inward ? 1 : -1;
+    const node = this.add.container(pos.x, pos.y).setDepth(5);
+
+    // Static: breathing halo + membrane dome + glassy sheen + gradient core well.
+    const g = this.add.graphics();
+    g.fillStyle(accent, 0.07); g.fillCircle(0, 0, R + 34);
+    g.fillStyle(accent, 0.12); g.fillCircle(0, 0, R + 20);
+    g.fillStyle(accent, 0.18); g.fillCircle(0, 0, R + 8);
+    g.fillStyle(0x0a0a1a, 0.94); g.fillCircle(0, 0, R);
+    g.fillStyle(0xffffff, 0.06); g.fillEllipse(0, -R * 0.22, R * 1.5, R * 0.95);
+    // Core well: stacked translucent discs (a dark throat warming to a glow at the
+    // centre). Stacked solids render identically on WebGL + Canvas, unlike
+    // fillGradientStyle, which is WebGL-only on circles.
+    g.fillStyle(0x0a0a1a, 0.6); g.fillCircle(0, 0, R * 0.30);
+    g.fillStyle(core, 0.30); g.fillCircle(0, 0, R * 0.22);
+    g.fillStyle(core, 0.55); g.fillCircle(0, 0, R * 0.13);
+    node.add(g);
+
+    // Dynamic hero layers, redrawn each frame from a single phase.
+    const tunnel = this.add.graphics(); node.add(tunnel);
+    const motes = this.add.graphics(); node.add(motes);
+
+    // Bright pulsing pinhole core (the tap beacon).
+    const coreG = this.add.graphics();
+    coreG.fillStyle(core, 0.9); coreG.fillCircle(0, 0, 10);
+    coreG.fillStyle(0xffffff, 0.85); coreG.fillCircle(0, 0, 6);
+    coreG.fillStyle(0xffffff, 1); coreG.fillCircle(0, 0, 3);
+    node.add(coreG);
+
+    // ONE per-frame handler (delta-based) drives both dynamic layers. Removed on
+    // shutdown — warpToChapter restarts the scene, reusing this instance, so a
+    // forgotten off() would stack a handler every warp.
+    let phase = 0;
+    const onFrame = (_, delta) => {
+      phase = (phase + delta / 4200) % 1;
+      const s = g.scaleX; // inhale with the breathing dome so the whole gate pulses as one
+      tunnel.clear();
+      for (let i = 0; i < 7; i++) {
+        const p = (((i / 7) + phase * dir) % 1 + 1) % 1;
+        const edge = Math.min(p / 0.12, (1 - p) / 0.12, 1); // fade in at rim, out at core
+        if (edge <= 0) continue;
+        tunnel.lineStyle(1 + 4 * p, accent, (0.25 + 0.55 * p) * Math.max(0, edge));
+        tunnel.strokeCircle(0, 0, R * s * p * p); // quadratic spacing → tunnel depth
+      }
+      motes.clear();
+      for (let m = 0; m < 6; m++) {
+        const f = ((phase + m / 6) % 1 + 1) % 1;
+        const t = dir > 0 ? 1 - f : f; // entry: rim→core, return: core→rim
+        const rad = (R * 0.06 + R * 0.89 * t) * s;
+        const ang = m * (Math.PI * 2 / 6) + 0.4;
+        motes.fillStyle(accent, Math.max(0, dir > 0 ? 1 - f : f) * 0.95);
+        motes.fillCircle(Math.cos(ang) * rad, Math.sin(ang) * rad, 2.5);
+      }
+    };
+    this.events.on('update', onFrame);
+    this.events.once('shutdown', () => this.events.off('update', onFrame));
+
+    // Breathing tweens with deliberately non-harmonic periods (halo 1900 / core
+    // 1400) so the gate never visibly loops — it reads as alive.
+    this.tweens.add({
+      targets: g, scale: { from: 1.0, to: 1.06 },
+      duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+    this.tweens.add({
+      targets: coreG, scale: { from: 0.88, to: 1.16 }, alpha: { from: 0.8, to: 1.0 },
+      duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    this.add.text(pos.x, pos.y + R + 24, label, style('caption', {
+      fontSize: '22px',
+      fill: '#' + accent.toString(16).padStart(6, '0'),
+      fontStyle: '900', stroke: '#0a0a1a', strokeThickness: 3
+    })).setOrigin(0.5).setDepth(6);
+    const hit = this.add.circle(pos.x, pos.y, R + 12, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(7);
+    hit.on('pointerdown', onTap);
+    hit.on('pointerover', () => this.tweens.add({ targets: node, scale: 1.06, duration: 120 }));
+    hit.on('pointerout', () => this.tweens.add({ targets: node, scale: 1, duration: 120 }));
+    return node;
+  }
+
+  // Warp the map between chapters: launch the ship into the wormhole, play the
+  // travel cinematic, then persist the new chapter and restart the scene so it
+  // rebuilds on the other map. The cinematic owns the warp sound + the seamless
+  // hold-to-black handoff; we just kick off the ship and hand it the restart.
+  warpToChapter(target) {
+    if (this._warping) return;
+    this._warping = true;
+    // NOTE: do NOT disable this.input here. The cinematic's own opaque backdrop
+    // + full-screen hit rect (depth 2000) already shield the map nodes from
+    // stray taps, and disabling the scene's InputPlugin would also kill the
+    // cinematic's tap-to-skip (the skip rect lives on this same scene).
+    if (this.shipPet) {
+      this.tweens.killTweensOf(this.shipPet);
+      this.tweens.add({
+        targets: this.shipPet,
+        y: this.shipPet.y - 50, scale: 0.5, alpha: 0.15,
+        duration: 700, ease: 'Quad.easeIn'
+      });
+    }
+    // Park the ship where the player should land: diving IN → the first inner
+    // world (the start of Inner Space); surfacing OUT → back at the World 11
+    // gate they left from, not all the way back at Moon Base.
+    const parkId = target === 2 ? getChapterWorlds(2)[0]?.id : CHAPTER1_FINAL_ID;
+    if (parkId != null) this.registry.set('shipParkedWorldId', parkId);
+
+    // Dive in (→ Inner Space) or surface out (→ surface). The cinematic restarts
+    // the scene under its opaque hold, so the rebuilt map fades in seamlessly.
+    playWormholeCinematic(this, target === 2 ? 'in' : 'out', () => {
+      progress.setCurrentChapter(target);
+      this.scene.restart();
+    });
+  }
+
+  // ============================================================
   // HIDDEN WORLD NODES
   // ============================================================
   createHiddenNodes() {
+    // Hidden worlds (Glitch / Garage) branch off Chapter 1 host worlds; their
+    // node + branch geometry only exists on the Chapter 1 map.
+    if (this.currentChapter !== 1) return;
     for (const h of HIDDEN_WORLDS) {
       if (!progress.isHiddenWorldDiscovered(h.id)) continue;
       const pos = HIDDEN_NODE_POSITIONS[h.id];
@@ -966,8 +1143,8 @@ export class WorldMapScene extends Phaser.Scene {
       return;
     }
 
-    const clearedIdx = VISIBLE_WORLDS.findIndex(w => w.id === cleared);
-    const nextIdx = VISIBLE_WORLDS.findIndex(w => w.id === nextId);
+    const clearedIdx = this.chapterWorlds.findIndex(w => w.id === cleared);
+    const nextIdx = this.chapterWorlds.findIndex(w => w.id === nextId);
 
     if (clearedIdx < 0 || nextIdx < 0) {
       progress.consumeJustClearedWorld();
@@ -1018,7 +1195,7 @@ export class WorldMapScene extends Phaser.Scene {
   showNewWorldTooltip(nextIdx) {
     const pos = this.nodePositions[nextIdx];
     if (!pos) return;
-    const world = VISIBLE_WORLDS[nextIdx];
+    const world = this.chapterWorlds[nextIdx];
     // Pulse the freshly-unlocked node — three cycles, scale 1.0 → 1.15 → 1.0.
     // Signals "this is the new spot you can play now" before the tooltip fires.
     const node = this.nodeContainers?.[world?.id];
@@ -1178,6 +1355,8 @@ export class WorldMapScene extends Phaser.Scene {
       accentColor: COLORS.accentWarm,
       radius: 28, strokeWidth: 4,
       overlayAlpha: 0.85,
+      showCloseButton: true,
+      showCloseHint: false, // the X button is the close affordance; no redundant hint
     });
 
     card.add(this.add.text(0, -ch / 2 + 95, 'YOUR COMPANIONS', style('display', {
@@ -1634,26 +1813,31 @@ export class WorldMapScene extends Phaser.Scene {
   // PROGRESS HELPERS
   // ============================================================
   findCurrentWorldIndex() {
+    const worlds = this.chapterWorlds;
     const parkedId = this.registry.get('shipParkedWorldId');
     if (parkedId) {
-      const parkedIdx = VISIBLE_WORLDS.findIndex(w => w.id === parkedId);
-      if (parkedIdx >= 0 && progress.isWorldUnlocked(VISIBLE_WORLDS[parkedIdx].id)) {
+      const parkedIdx = worlds.findIndex(w => w.id === parkedId);
+      if (parkedIdx >= 0 && progress.isWorldUnlocked(worlds[parkedIdx].id)) {
         return parkedIdx;
       }
     }
-    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
-      const w = VISIBLE_WORLDS[i];
+    for (let i = 0; i < worlds.length; i++) {
+      const w = worlds[i];
       if (!progress.isWorldUnlocked(w.id)) return Math.max(0, i - 1);
       const wp = progress.getWorldProgress(w.id);
       if (wp.levelsCompleted < w.levelsRequired) return i;
     }
-    return VISIBLE_WORLDS.length - 1;
+    return worlds.length - 1;
   }
 
   findFurthestUnlockedIndex() {
-    let idx = 0;
-    for (let i = 0; i < VISIBLE_WORLDS.length; i++) {
-      if (progress.isWorldUnlocked(VISIBLE_WORLDS[i].id)) idx = i;
+    // Seed -1 ("nothing unlocked") so a locked first world isn't mistaken for an
+    // unlocked one — otherwise `isLocked = i > furthestUnlockedIndex` would treat
+    // index 0 as playable and let a tap bypass the gate. In practice the displayed
+    // chapter's first world is always unlocked, so this is purely defensive.
+    let idx = -1;
+    for (let i = 0; i < this.chapterWorlds.length; i++) {
+      if (progress.isWorldUnlocked(this.chapterWorlds[i].id)) idx = i;
     }
     return idx;
   }
