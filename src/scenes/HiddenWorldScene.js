@@ -1303,68 +1303,77 @@ function drawConifer(bg, x, y, s = 1) {
   bg.fillTriangle(x, y - 34 * s, x + w * 0.3, y - 34 * s, x, y - 80 * s);
 }
 
-// Pale Art-Deco school modelled on Point Grey Secondary (per the owner's photo):
-// a WIDE, FLAT-ROOFED concrete block with a regular grid of rectangular windows
-// in horizontal floors, a taller CENTRAL tower with vertical glazing strips and
-// twin slender roof fins (Art-Deco verticals). No spire, no arches — deliberately
-// not a church. Drawn on the backdrop; the turf covers its base.
+// Warm Art-Deco / Collegiate school (Point Grey Secondary feel): warm buff stone
+// with a cornice + base course, tall PAIRED windows in bays (not a factory grid),
+// a projecting central entrance pavilion with a stepped Deco crown, a CLOCK, a
+// grand doorway, and a FLAGPOLE + FLAG on top — the unmistakable "school" signals.
+// No spire/cross (not a church), no smokestack fins (not a factory).
 function drawSchoolTowerBack(bg, x, y) {
-  const wall = 0xdedbd0, wallShade = 0xc9c5b9, trim = 0xb7b3a6;
-  const glass = 0x8fa9bf, glassDark = 0x59707f, glassHi = 0xc6d4df;
-  const door = 0x454953, towerLite = 0xe7e4db;
+  const stone = 0xe3dac6, stoneShade = 0xd0c6ae, stoneDark = 0xbcb094, cornice = 0xf1ecdd;
+  const glass = 0x6f93a8, glassDark = 0x46606e, glassHi = 0xbcd2dc, litGlass = 0xf6d98a;
+  const door = 0x5b4632, surround = 0xece4d2, pole = 0x8a8f96, flagRed = 0xd14b3f;
 
-  const bBase = y + 182;                                   // building meets the turf line
-  const bx0 = x - 320, bx1 = x + 320, bTop = y + 40;
-  const tx0 = x - 74, tx1 = x + 74, tTop = y - 34, tcx = x;
+  const base = y + 182;                                  // meets the turf line
+  const bx0 = x - 322, bx1 = x + 322, roof = y + 48;     // wide main block
+  const cx0 = x - 88, cx1 = x + 88, cRoof = y - 6;       // central pavilion (taller)
 
-  // ---- main block: flat slab + parapet coping + ground band ----
-  bg.fillStyle(wall, 1); bg.fillRect(bx0, bTop, bx1 - bx0, bBase - bTop);
-  bg.fillStyle(trim, 1); bg.fillRect(bx0 - 5, bTop - 9, (bx1 - bx0) + 10, 11);   // flat parapet
-  bg.fillStyle(wallShade, 1); bg.fillRect(bx0, bBase - 18, bx1 - bx0, 18);       // ground band
-  bg.fillStyle(trim, 0.5);                                                       // floor string-courses
-  bg.fillRect(bx0, bTop + 50, bx1 - bx0, 2); bg.fillRect(bx0, bTop + 90, bx1 - bx0, 2);
-
-  // rectangular window grid (3 floors), skipping the central tower zone
-  const drawWin = (cx, top) => {
-    bg.fillStyle(glassDark, 1); bg.fillRect(cx - 14, top - 1, 28, 30);          // frame
-    bg.fillStyle(glass, 1);     bg.fillRect(cx - 13, top, 26, 28);
-    bg.fillStyle(glassHi, 0.5); bg.fillRect(cx - 11, top + 2, 6, 24);           // sheen
-    bg.lineStyle(1.4, glassDark, 0.5);
-    bg.lineBetween(cx, top, cx, top + 28);                                       // mullions
-    bg.lineBetween(cx - 13, top + 14, cx + 13, top + 14);
+  // Rectangular window, warm-lit when `on`.
+  const win = (cx, top, w, h, on) => {
+    bg.fillStyle(glassDark, 1); bg.fillRect(cx - w / 2 - 1, top - 1, w + 2, h + 2);
+    bg.fillStyle(on ? litGlass : glass, 1); bg.fillRect(cx - w / 2, top, w, h);
+    bg.fillStyle(on ? 0xfff0c0 : glassHi, on ? 0.5 : 0.45); bg.fillRect(cx - w / 2 + 2, top + 2, 4, h - 4);
+    bg.lineStyle(1.3, glassDark, 0.5); bg.lineBetween(cx, top, cx, top + h);
   };
-  const rowTops = [bTop + 14, bTop + 54, bTop + 94];
-  for (const [zs, ze] of [[bx0 + 22, tx0 - 18], [tx1 + 18, bx1 - 22]]) {
-    const cols = 4, pitch = (ze - zs) / cols;
-    for (let i = 0; i < cols; i++) {
-      const cx = zs + pitch * (i + 0.5);
-      for (const rt of rowTops) drawWin(cx, rt);
+
+  // ---- main block: warm stone, cornice, base course, raised end parapets ----
+  bg.fillStyle(stone, 1); bg.fillRect(bx0, roof, bx1 - bx0, base - roof);
+  bg.fillStyle(stoneDark, 1); bg.fillRect(bx0, base - 16, bx1 - bx0, 16);          // base course
+  bg.fillStyle(cornice, 1); bg.fillRect(bx0 - 5, roof - 8, (bx1 - bx0) + 10, 8);   // cornice cap
+  bg.fillStyle(stoneShade, 1); bg.fillRect(bx0, roof, bx1 - bx0, 3);               // under-cornice shadow
+  bg.fillStyle(cornice, 1); bg.fillRect(bx0 - 2, roof - 16, 64, 10); bg.fillRect(bx1 - 62, roof - 16, 64, 10);
+  bg.fillStyle(stone, 1);   bg.fillRect(bx0 + 2, roof - 8, 56, 8);  bg.fillRect(bx1 - 58, roof - 8, 56, 8);
+
+  // ---- wing windows: tall pairs in bays, divided by slim pilasters ----
+  const rows = [roof + 20, roof + 70];
+  for (const [zs, ze] of [[bx0 + 14, cx0 - 14], [cx1 + 14, bx1 - 14]]) {
+    const bays = 3, bw = (ze - zs) / bays;
+    for (let b = 0; b <= bays; b++) { bg.fillStyle(stoneShade, 1); bg.fillRect(zs + bw * b - 3, roof, 6, (base - roof) - 16); }
+    for (let b = 0; b < bays; b++) {
+      const c = zs + bw * (b + 0.5);
+      for (let r = 0; r < rows.length; r++) {
+        const isLit = (b === 1 && r === 1);
+        win(c - 13, rows[r], 18, 38, isLit);
+        win(c + 13, rows[r], 18, 38, false);
+      }
     }
   }
 
-  // ---- central tower: taller, slightly lighter, flat-topped ----
-  bg.fillStyle(towerLite, 1); bg.fillRect(tx0, tTop, tx1 - tx0, bBase - tTop);
-  bg.fillStyle(wallShade, 1); bg.fillRect(tx1 - 8, tTop, 8, bBase - tTop);       // shaded right face
-  bg.fillStyle(trim, 1); bg.fillRect(tx0 - 7, tTop - 8, (tx1 - tx0) + 14, 10);   // flat tower coping
-  for (const sx of [tcx - 44, tcx, tcx + 44]) {                                  // vertical glazing strips
-    const sT = tTop + 26, sB = bBase - 54;
-    bg.fillStyle(glassDark, 1); bg.fillRect(sx - 10, sT - 1, 20, (sB - sT) + 2);
-    bg.fillStyle(glass, 1);     bg.fillRect(sx - 9, sT, 18, sB - sT);
-    bg.fillStyle(glassHi, 0.4); bg.fillRect(sx - 7, sT + 2, 4, (sB - sT) - 4);
-    bg.lineStyle(1.2, glassDark, 0.45);
-    for (let yy = sT + 22; yy < sB; yy += 22) bg.lineBetween(sx - 9, yy, sx + 9, yy);
-  }
-  // twin slender roof fins (the two vertical projections in the photo)
-  bg.fillStyle(towerLite, 1);
-  bg.fillRect(tcx - 30, tTop - 30, 9, 34); bg.fillRect(tcx + 21, tTop - 30, 9, 34);
-  bg.fillStyle(trim, 1);
-  bg.fillRect(tcx - 31, tTop - 32, 11, 5); bg.fillRect(tcx + 20, tTop - 32, 11, 5);
+  // ---- central pavilion: projects + rises, with a stepped Deco crown ----
+  bg.fillStyle(stone, 1);     bg.fillRect(cx0, cRoof, cx1 - cx0, base - cRoof);
+  bg.fillStyle(0xeee6d4, 1);  bg.fillRect(cx0, cRoof, 6, base - cRoof);            // lit left edge
+  bg.fillStyle(stoneShade, 1); bg.fillRect(cx1 - 6, cRoof, 6, base - cRoof);       // shaded right edge
+  // stepped Art-Deco crown (flat steps — not a spire, not fins)
+  bg.fillStyle(cornice, 1); bg.fillRect(cx0 + 6, cRoof - 8, (cx1 - cx0) - 12, 10);
+  bg.fillStyle(stone, 1);   bg.fillRect(x - 50, cRoof - 18, 100, 12); bg.fillStyle(cornice, 1); bg.fillRect(x - 50, cRoof - 18, 100, 4);
+  bg.fillStyle(stone, 1);   bg.fillRect(x - 26, cRoof - 26, 52, 10);  bg.fillStyle(cornice, 1); bg.fillRect(x - 26, cRoof - 26, 52, 4);
+  // flagpole + flag (the clearest "school", never a factory)
+  bg.fillStyle(pole, 1); bg.fillRect(x - 1.5, cRoof - 70, 3, 48);
+  bg.fillStyle(flagRed, 1); bg.fillRect(x + 1.5, cRoof - 70, 34, 20);
+  bg.fillStyle(stone, 1); bg.fillTriangle(x + 35, cRoof - 70, x + 35, cRoof - 50, x + 24, cRoof - 60); // swallowtail notch
+  // clock on the pavilion face
+  bg.fillStyle(0xf6f1e6, 1); bg.fillCircle(x, cRoof + 30, 17);
+  bg.lineStyle(3, stoneDark, 1); bg.strokeCircle(x, cRoof + 30, 17);
+  bg.lineStyle(2.5, glassDark, 1); bg.lineBetween(x, cRoof + 30, x, cRoof + 20); bg.lineBetween(x, cRoof + 30, x + 9, cRoof + 33);
+  // three tall dignified windows
+  for (const sx of [x - 46, x, x + 46]) win(sx, cRoof + 58, 22, 74, false);
 
-  // ---- flat rectangular entrance under the tower ----
-  const dHalf = 30, dTop = bBase - 46;
-  bg.fillStyle(trim, 1); bg.fillRect(tcx - dHalf - 5, dTop - 7, (dHalf + 5) * 2, 7);   // flat canopy
-  bg.fillStyle(door, 1); bg.fillRect(tcx - dHalf, dTop, dHalf * 2, (bBase - 18) - dTop);
-  bg.fillStyle(glassDark, 1); bg.fillRect(tcx - dHalf + 6, dTop + 5, dHalf * 2 - 12, 10); // transom
+  // ---- grand central entrance ----
+  const dW = 70, dTop = base - 50;
+  bg.fillStyle(surround, 1); bg.fillRect(x - dW / 2 - 7, dTop - 10, dW + 14, (base - 16) - (dTop - 10));   // stepped surround
+  bg.fillStyle(stoneShade, 1); bg.fillRect(x - dW / 2 - 7, dTop - 10, dW + 14, 4);
+  bg.fillStyle(door, 1); bg.fillRect(x - dW / 2, dTop, dW, (base - 16) - dTop);
+  bg.fillStyle(0x4a3a2a, 1); bg.fillRect(x - 2, dTop, 4, (base - 16) - dTop);                              // double-door split
+  bg.fillStyle(glassDark, 1); bg.fillRect(x - dW / 2 + 6, dTop + 5, dW - 12, 9);                           // transom
 }
 
 // Small white soccer goal sitting on the turf (background).
