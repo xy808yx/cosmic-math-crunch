@@ -2,7 +2,7 @@
 // cards in front (×, ÷, mixed, boss). Locked modes show a lock icon.
 
 import Phaser from 'phaser';
-import { WORLDS, MODES, progress, findWorld } from '../GameData.js';
+import { WORLDS, MODES, progress, findWorld, getWorldMusicRate } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -27,7 +27,6 @@ export class LevelSelectScene extends Phaser.Scene {
   }
 
   create() {
-    music.ensurePlaying(this);
     // Defense-in-depth: LevelSelect is a campaign / free-play entry, never an
     // arcade one. Clear any arcadeMode left over so a level tapped here can't
     // accidentally launch GameScene in arcade mode.
@@ -36,6 +35,16 @@ export class LevelSelectScene extends Phaser.Scene {
     const worldId = this.registry.get('selectedWorld') || 1;
     this.world = findWorld(worldId) || WORLDS[0];
     this.worldProgress = progress.getWorldProgress(worldId);
+
+    // The mission briefing plays THIS world's song (its level theme), so it's
+    // not silent and it carries seamlessly into GameScene — which fades to the
+    // same track and just re-applies the per-world pitch. Chapter 2 prefers its
+    // bespoke Inner Space level track, falling back to the Ch1 theme if missing.
+    const worldSong = this.world.chapter === 2
+      ? music.resolveTrack(this, 'innerSpaceLevel', 'levelTheme')
+      : 'levelTheme';
+    music.fadeToTrack(this, worldSong);
+    music.setPlaybackRate(getWorldMusicRate(this.world.id), 600);
 
     this.events.on('wake', this.onSceneWake, this);
     this.events.on('resume', this.onSceneWake, this);
