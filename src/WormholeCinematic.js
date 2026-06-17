@@ -1,24 +1,25 @@
 // Wormhole travel cinematic — "The Ring-Tunnel Dive".
 //
-// A self-contained ~3.8s full-screen sequence that plays every time the player
+// A self-contained ~3.4s full-screen sequence that plays every time the player
 // crosses the chapter wormhole, replacing the old flat fade-to-black. The
 // wormhole is a RECEDING RING TUNNEL (nested squashed ellipse outlines streaming
-// past a bright breathing lens core) — never a spiral, swirl, swept arc, or
-// ray-burst (per the project's no-spiral / no-sigil art policy).
+// past a bright breathing lens core) with hyperspace STREAKS, the kid's real
+// SHIP + PET as the hero, and a climax SHOCKWAVE — never a spiral, swirl, swept
+// arc, or ray-burst (per the project's no-spiral / no-sigil art policy).
 //
-//   playWormholeCinematic(scene, 'in',  onDone)  — Ch1 → Ch2: dive INWARD,
-//       cold cosmic (indigo/teal/gold) morphs to warm living (violet/rose),
-//       the ship shrinks into the pupil, ends on a low heartbeat thump.
-//   playWormholeCinematic(scene, 'out', onDone)  — Ch2 → Ch1: surface OUTWARD,
-//       warm morphs back to cold, the ship grows, ends on a bright chime.
+//   playWormholeCinematic(scene, 'in',  onDone)  — Ch1 → Ch2: the ship dives
+//       INWARD, big→swallowed by the core; cold cosmic (indigo/teal/gold) morphs
+//       to warm living (violet/rose); ends on a low heartbeat thump.
+//   playWormholeCinematic(scene, 'out', onDone)  — Ch2 → Ch1: the ship BURSTS
+//       OUTWARD from the core toward the viewer, small→large; warm morphs back to
+//       cold; ends on a bright chime.
+//
+// Both directions show the SAME ship+pet (their customization) as the clear hero,
+// driven by the single master clock so it can never desync from the visuals.
 //
 // Handoff contract: onDone() (setCurrentChapter + scene.restart) is invoked
 // while the screen is held opaque at 0x0a0a1a — the exact colour the rebuilt
 // map's TransitionManager.fadeIn() starts from — so the swap is seamless.
-//
-// Driven by ONE master "clock" tween whose onUpdate redraws every layer from a
-// single p∈[0,1]; no per-frame allocation (integer colour lerp), tap-to-skip,
-// done-flag guarded so onDone fires exactly once.
 
 import Phaser from 'phaser';
 import { audio } from './AudioManager.js';
@@ -56,7 +57,7 @@ function sampleGrad(p) {
 
 export function playWormholeCinematic(scene, direction, onDone) {
   const dirIn = direction !== 'out';
-  const CLOCK_MS = 2900;
+  const CLOCK_MS = 3400;
 
   const root = scene.add.container(0, 0).setDepth(2000).setScrollFactor(0);
 
@@ -65,54 +66,53 @@ export function playWormholeCinematic(scene, direction, onDone) {
   const backdrop = scene.add.graphics();
   root.add(backdrop);
 
-  // --- RING TUNNEL (the hero) ---
+  // --- RING TUNNEL (the hero structure) ---
   const tunnel = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
   root.add(tunnel);
-  const RINGS = 12;
+  const RINGS = 14;
   const ringWob = [];
   for (let i = 0; i < RINGS; i++) ringWob.push((i * 0.7) % TAU);
 
-  // --- MOTES (inward/outward streaks) ---
-  const motes = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
-  root.add(motes);
-  const MOTES = 14;
-  const moteA = [], moteT0 = [], moteSpd = [];
-  for (let m = 0; m < MOTES; m++) {
-    moteA.push((m / MOTES) * TAU + (m % 3) * 0.6);
-    moteT0.push((m * 0.137) % 1);
-    moteSpd.push(0.8 + (m % 5) * 0.18);
+  // --- STREAKS (hyperspace speed-lines toward/away from the core) ---
+  const streaks = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  root.add(streaks);
+  const STREAKS = 26;
+  const stkA = [], stkT0 = [], stkSpd = [];
+  for (let m = 0; m < STREAKS; m++) {
+    stkA.push((m / STREAKS) * TAU + (m % 4) * 0.5);
+    stkT0.push((m * 0.137) % 1);
+    stkSpd.push(0.9 + (m % 5) * 0.2);
   }
 
-  // --- CORE LENS (bright breathing pupil) ---
+  // --- CORE LENS (bright breathing pupil) + orbiting sparks ---
   const core = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
   root.add(core);
 
+  // --- SHOCKWAVE layer (climax burst; drawn behind the ship) ---
+  const shock = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
+  root.add(shock);
+
   // --- SHIP — the kid's REAL ship + companion, matching the parked map ship, so
-  // the showcase moment keeps their customization (parts read is synchronous &
-  // warp-safe; falls back to defaults if unavailable). ---
+  // the showcase keeps their customization (parts read is synchronous &
+  // warp-safe; falls back to defaults if unavailable). Driven by the master
+  // clock in redraw() so it stays locked to the visuals (and is force-steppable). ---
   let parts;
   try { parts = ship.getCurrentParts(); } catch (e) { parts = undefined; }
-  const shipG = drawShip(scene, CX, dirIn ? 1500 : CY, {
-    scale: dirIn ? 0.55 : 0.12, showTrail: true, parts
-  });
+  // The ship GEOMETRY is baked at the hero size; the warp then animates the
+  // CONTAINER scale (0.2 = tiny/swallowed … 1.0 = full hero) — NOT drawShip's
+  // `scale` (that bakes into the geometry; double-driving it left the old 'out'
+  // ship microscopic, so only the pet read). Pet rides in the porthole and so
+  // scales with the ship.
+  const HERO_BAKE = 1.0;
+  const shipG = drawShip(scene, CX, CY, { scale: HERO_BAKE, showTrail: true, parts });
   shipG.setScrollFactor(0);
-  shipG.setAlpha(dirIn ? 1 : 0.2);
   try {
     if (companion.hasStarter?.() && shipG.portholeCenter) {
       const pc = shipG.portholeCenter;
-      shipG.add(drawCompanion(scene, pc.x, pc.y, { scale: 0.42 }));
+      shipG.add(drawCompanion(scene, pc.x, pc.y, { scale: 0.70 }));
     }
   } catch (e) { /* pet is optional */ }
   root.add(shipG);
-  const shipTween = scene.tweens.add({
-    targets: shipG,
-    y: dirIn ? 690 : 1200,
-    scale: dirIn ? 0.12 : 0.55,
-    alpha: dirIn ? 0.2 : 1,
-    duration: 1100,
-    delay: 200,
-    ease: dirIn ? 'Cubic.easeIn' : 'Cubic.easeOut',
-  });
 
   // --- FLASH (ADD) for the mid wink + climax bloom ---
   const flash = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
@@ -137,72 +137,119 @@ export function playWormholeCinematic(scene, direction, onDone) {
     fontSize: '30px', fill: '#9a9aae'
   })).setOrigin(0.5).setAlpha(0);
   root.add(skipHint);
-  // Fade the hint in well after the dive begins so it never undercuts the first
-  // wow; it rides along in `root` and is torn down with everything else.
-  timers.push(scene.time.delayedCall(900, () => {
+  timers.push(scene.time.delayedCall(1000, () => {
     scene.tweens.add({ targets: skipHint, alpha: 0.85, duration: 500, ease: 'Sine.easeOut' });
   }));
 
   function redraw() {
     const p = clock.p;
     const mix = dirIn ? p : 1 - p;            // 0 = cold/cosmos, 1 = warm/body
+    const accent = dirIn ? lerpHex(0xfff3b8, 0xff7a8a, p) : lerpHex(0xff7a8a, 0xfff3b8, p);
 
     // Backdrop: morph cold↔warm, fully opaque.
     backdrop.clear();
     backdrop.fillStyle(lerpHex(COLD_BG, WARM_BG, mix), 1);
     backdrop.fillRect(0, 0, W, H);
 
-    // Ring tunnel: 12 concentric squashed ellipses, quadratic depth spacing.
-    // Sine-eased p already gives the slow→fast→settle "inhale" pacing.
+    // Ring tunnel: concentric squashed ellipses, quadratic depth spacing.
     tunnel.clear();
     for (let i = 0; i < RINGS; i++) {
-      let t = ((i / RINGS) + p * 2.0 * (dirIn ? 1 : -1)) % 1;
+      let t = ((i / RINGS) + p * 2.2 * (dirIn ? 1 : -1)) % 1;
       if (t < 0) t += 1;
       const sc = Math.pow(t, 1.9);
-      const rw = 30 + sc * 1320;
+      const rw = 30 + sc * 1340;
       const squash = 0.74 + 0.06 * Math.sin(ringWob[i] + p * TAU);
       const rh = rw * squash;
       const offX = Math.sin(ringWob[i] * 0.7 + p * 3) * 16 * sc;
       const offY = Math.cos(ringWob[i] * 0.5) * 9 * sc;
-      const a = Math.min(0.62, 0.12 + 0.62 * (1 - Math.min(1, Math.abs(t - 0.5) * 1.4)));
+      const a = Math.min(0.66, 0.12 + 0.66 * (1 - Math.min(1, Math.abs(t - 0.5) * 1.4)));
       const col = sampleGrad(Math.max(0, Math.min(1, mix + (t - 0.5) * 0.22)));
-      tunnel.lineStyle(2 + sc * 7, col, a);
+      tunnel.lineStyle(2 + sc * 8, col, a);
       tunnel.strokeEllipse(CX + offX, CY + offY, rw, rh);
     }
 
-    // Motes streaking toward/away from the core.
-    motes.clear();
-    for (let m = 0; m < MOTES; m++) {
-      let u = (moteT0[m] + p * moteSpd[m]) % 1;
+    // Hyperspace streaks: short radial speed-lines accelerating toward/away.
+    streaks.clear();
+    const speedUp = 1 + 1.6 * (dirIn ? p : 1 - p);   // streaks get longer/faster mid-dive
+    for (let m = 0; m < STREAKS; m++) {
+      let u = (stkT0[m] + p * stkSpd[m] * 1.5) % 1;
       if (u < 0) u += 1;
-      const rp = dirIn ? 1 - u : u;            // radius param: 0 = core, 1 = rim
-      const radius = Math.pow(rp, 1.6) * 640;
-      const a = (dirIn ? (0.2 + 0.7 * rp) : (0.2 + 0.7 * (1 - rp))) * 0.9;
-      motes.fillStyle(sampleGrad(mix), a);
-      motes.fillCircle(CX + Math.cos(moteA[m]) * radius,
-                       CY + Math.sin(moteA[m]) * radius * 0.82,
-                       2 + rp * 3);
+      const rp = dirIn ? 1 - u : u;                   // 0 = core, 1 = rim
+      const r1 = Math.pow(rp, 1.6) * 760;
+      const r2 = Math.pow(Math.max(0, rp - 0.05 * speedUp), 1.6) * 760;
+      const a = (dirIn ? (0.12 + 0.8 * rp) : (0.12 + 0.8 * (1 - rp))) * 0.9;
+      const ca = Math.cos(stkA[m]), sa = Math.sin(stkA[m]) * 0.82;
+      streaks.lineStyle(1.6 + rp * 3, sampleGrad(mix), a);
+      streaks.lineBetween(CX + ca * r2, CY + sa * r2, CX + ca * r1, CY + sa * r1);
     }
 
-    // Core lens: stacked filled ellipses + hot pupil, pale-gold↔rose accent.
-    const accent = dirIn ? lerpHex(0xfff3b8, 0xff7a8a, p) : lerpHex(0xff7a8a, 0xfff3b8, p);
-    const baseScale = (dirIn ? 0.35 + 0.9 * p : 1.25 - 0.9 * p) * (1 + 0.06 * Math.sin(p * 18));
+    // Core lens: stacked filled ellipses + hot pupil + orbiting sparks.
+    const baseScale = (dirIn ? 0.35 + 0.95 * p : 1.30 - 0.95 * p) * (1 + 0.07 * Math.sin(p * 20));
     const cs = Math.max(0.12, baseScale);
     core.clear();
-    core.fillStyle(accent, 0.16); core.fillEllipse(CX, CY, 230 * cs, 230 * cs * 0.82);
-    core.fillStyle(accent, 0.30); core.fillEllipse(CX, CY, 145 * cs, 145 * cs * 0.82);
-    core.fillStyle(accent, 0.55); core.fillEllipse(CX, CY, 88 * cs, 88 * cs * 0.82);
-    core.fillStyle(0xffffff, 0.95); core.fillEllipse(CX, CY, 44 * cs, 44 * cs * 0.82);
+    core.fillStyle(accent, 0.16); core.fillEllipse(CX, CY, 240 * cs, 240 * cs * 0.82);
+    core.fillStyle(accent, 0.30); core.fillEllipse(CX, CY, 150 * cs, 150 * cs * 0.82);
+    core.fillStyle(accent, 0.55); core.fillEllipse(CX, CY, 90 * cs, 90 * cs * 0.82);
+    core.fillStyle(0xffffff, 0.95); core.fillEllipse(CX, CY, 46 * cs, 46 * cs * 0.82);
+    for (let s = 0; s < 6; s++) {
+      const sa2 = s / 6 * TAU + p * TAU * (dirIn ? 1.4 : -1.4);
+      const sr = (120 + 60 * Math.sin(p * 12 + s)) * cs;
+      core.fillStyle(0xffffff, 0.5 + 0.4 * Math.sin(p * 16 + s));
+      core.fillCircle(CX + Math.cos(sa2) * sr, CY + Math.sin(sa2) * sr * 0.82, 2.5 + 2 * cs);
+    }
+
+    // Ship hero — driven by the clock. IN: big→swallowed (dives up into the core).
+    // OUT: bursts from the core toward the viewer, small→large (front-loaded so it
+    // reads as the hero almost immediately, not just at the very end).
+    // `csc` is the CONTAINER zoom (0.2 tiny … 1.0 full hero); effective ship size
+    // is HERO_BAKE × csc. IN: hero at the bottom → accelerates up + shrinks into
+    // the core. OUT: bursts from the core → grows toward the viewer (front-loaded
+    // easeOut so it's clearly the hero almost immediately).
+    let sy, csc, sal, srot;
+    if (dirIn) {
+      const k = Math.min(1, p / 0.94); const ke = k * k;     // easeIn accelerate
+      sy = 1470 + (CY - 1470) * ke;
+      csc = 1.0 - 0.8 * ke;
+      sal = p < 0.74 ? 1 : Math.max(0.08, 1 - (p - 0.74) / 0.26 * 0.92);
+      srot = Math.sin(p * Math.PI) * 0.06;
+    } else {
+      const eo = 1 - (1 - p) * (1 - p);                       // easeOut, front-loaded
+      sy = CY + (1250 - CY) * eo;
+      csc = 0.2 + 0.8 * eo;
+      sal = Math.min(1, p / 0.16);
+      srot = Math.sin(p * Math.PI) * 0.06;
+    }
+    shipG.setPosition(CX, sy);
+    shipG.setScale(csc);
+    shipG.setAlpha(sal);
+    shipG.setRotation(srot);
 
     // Membrane-crossing wink at the teal pivot (p ≈ 0.5).
     if (!winkFired && p >= 0.5) {
       winkFired = true;
       scene.tweens.add({
-        targets: flash, alpha: { from: 0, to: 0.25 },
-        duration: 150, yoyo: true, ease: 'Sine.easeOut',
+        targets: flash, alpha: { from: 0, to: 0.28 },
+        duration: 160, yoyo: true, ease: 'Sine.easeOut',
       });
-      scene.cameras.main.flash(120, 255, 240, 210);
+      scene.cameras.main.flash(140, 255, 240, 210);
       audio.playTone?.(523, 0.12, 'sine', 0.18);
+    }
+  }
+
+  // Expanding shockwave rings from the core at the climax.
+  function fireShockwave() {
+    const tint = dirIn ? 0xff9ec7 : 0xbcd4ff;
+    for (let r = 0; r < 3; r++) {
+      const wave = { rad: 30, a: 0.85 };
+      scene.tweens.add({
+        targets: wave, rad: 1500, a: 0,
+        duration: 460, delay: r * 90, ease: 'Cubic.easeOut',
+        onUpdate: () => {
+          shock.clear();
+          shock.lineStyle(3 + 12 * wave.a, r === 0 ? 0xffffff : tint, wave.a);
+          shock.strokeEllipse(CX, CY, wave.rad, wave.rad * 0.82);
+        },
+      });
     }
   }
 
@@ -210,14 +257,15 @@ export function playWormholeCinematic(scene, direction, onDone) {
     if (punched) return;
     punched = true;
     skipHint.setAlpha(0);
-    // Bright bloom.
-    scene.tweens.add({ targets: flash, alpha: 1, duration: 200, ease: 'Cubic.easeIn' });
-    scene.cameras.main.flash(180, 255, 255, 255);
-    scene.cameras.main.shake(160, 0.008);
-    if (dirIn) audio.playTone?.(180, 0.20, 'sine', 0.22);     // low heartbeat thump
-    else       audio.playTone?.(880, 0.20, 'triangle', 0.22); // bright starlight chime
+    fireShockwave();
+    // Bright bloom + a harder kick.
+    scene.tweens.add({ targets: flash, alpha: 1, duration: 220, ease: 'Cubic.easeIn' });
+    scene.cameras.main.flash(220, 255, 255, 255);
+    scene.cameras.main.shake(220, 0.012);
+    if (dirIn) audio.playTone?.(180, 0.22, 'sine', 0.24);     // low heartbeat thump
+    else       audio.playTone?.(880, 0.22, 'triangle', 0.24); // bright starlight chime
     // Settle to opaque 0x0a0a1a, then hand off under the cover.
-    timers.push(scene.time.delayedCall(150, () => {
+    timers.push(scene.time.delayedCall(200, () => {
       scene.tweens.add({
         targets: cover, alpha: 1, duration: 300, ease: 'Cubic.easeIn',
         onComplete: finish,
@@ -242,7 +290,6 @@ export function playWormholeCinematic(scene, direction, onDone) {
   function skip() {
     if (punched || done) return;
     scene.tweens.killTweensOf(clock);
-    scene.tweens.killTweensOf(shipG);
     clock.p = 1;
     redraw();
     punchOut();
