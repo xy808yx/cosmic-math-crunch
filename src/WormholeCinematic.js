@@ -27,26 +27,32 @@ import { drawShip } from './ShipRenderer.js';
 import { ship } from './ShipManager.js';
 import { companion, drawCompanion } from './CompanionManager.js';
 import { style } from './textStyles.js';
+import { lerpHex } from './colorUtils.js';
 
 const W = 1080;
 const H = 1920;
 const CX = 540;
 const CY = 760;            // core sits in the upper visual third (room for ship)
 const TAU = Math.PI * 2;
+const SQUASH = 0.82;       // ellipse foreshortening shared by every radial layer
 
-// Canonical cold → warm bridge gradient (shared with the gate + map palettes).
-// Teal (0x4ecdc4) is the deliberate centre pivot: the one hue living in BOTH
-// the cosmic and the body palettes, so the eye never sees a hard seam.
+// Hyperspace streak field geometry: REACH = rim radius, CURVE = depth-spacing
+// exponent (matched to the ring tunnel's feel).
+const STREAK_REACH = 760;
+const STREAK_CURVE = 1.6;
+// Ship travel anchors (canvas-space Y): IN starts just off the bottom and dives
+// up into the core; OUT rests in the lower third after bursting out toward us.
+const SHIP_DIVE_START_Y = 1470;
+const SHIP_SURFACE_REST_Y = 1250;
+const SHOCK_MAX_R = 1500;  // shockwave rings expand to here at the climax
+
+// Canonical cold → warm bridge gradient. Teal (0x4ecdc4) is the deliberate
+// centre pivot: the one hue living in BOTH the cosmic and the body palettes, so
+// the eye never sees a hard seam. (Defined here; the gate/map palettes happen to
+// use the same stops as inline literals — there is no shared export yet.)
 const GRAD = [0x4a4a8c, 0x6e7bd6, 0x4ecdc4, 0xfff3b8, 0xc77eff, 0xff7a8a];
 
-// Allocation-free integer colour lerp + gradient sample (called every frame).
-function lerpHex(a, b, t) {
-  const ar = (a >> 16) & 255, ag = (a >> 8) & 255, ab = a & 255;
-  const br = (b >> 16) & 255, bg = (b >> 8) & 255, bb = b & 255;
-  return (((ar + (br - ar) * t) | 0) << 16)
-       | (((ag + (bg - ag) * t) | 0) << 8)
-       | (((ab + (bb - ab) * t) | 0));
-}
+// Gradient sample over GRAD (allocation-free; called every frame).
 function sampleGrad(p) {
   const c = p < 0 ? 0 : p > 1 ? 1 : p;
   const n = GRAD.length - 1;
@@ -77,9 +83,13 @@ export function playWormholeCinematic(scene, direction, onDone) {
   const streaks = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD);
   root.add(streaks);
   const STREAKS = 26;
-  const stkA = [], stkT0 = [], stkSpd = [];
+  // Each streak's angle is fixed for its lifetime, so bake cos/sin (pre-squashed)
+  // once at setup — exactly like ringWob — instead of recomputing per frame.
+  const stkT0 = [], stkSpd = [], stkCos = [], stkSin = [];
   for (let m = 0; m < STREAKS; m++) {
-    stkA.push((m / STREAKS) * TAU + (m % 4) * 0.5);
+    const ang = (m / STREAKS) * TAU + (m % 4) * 0.5;
+    stkCos.push(Math.cos(ang));
+    stkSin.push(Math.sin(ang) * SQUASH);
     stkT0.push((m * 0.137) % 1);
     stkSpd.push(0.9 + (m % 5) * 0.2);
   }
@@ -94,8 +104,9 @@ export function playWormholeCinematic(scene, direction, onDone) {
 
   // --- SHIP — the kid's REAL ship + companion, matching the parked map ship, so
   // the showcase keeps their customization (parts read is synchronous &
-  // warp-safe; falls back to defaults if unavailable). Driven by the master
-  // clock in redraw() so it stays locked to the visuals (and is force-steppable). ---
+  // warp-safe; falls back to defaults if unavailable). The container TRANSFORM
+  // (position/scale/alpha/rotation) is driven by the master clock in redraw();
+  // the engine-trail particles and pet flourishes keep their own ambient tweens. ---
   let parts;
   try { parts = ship.getCurrentParts(); } catch (e) { parts = undefined; }
   // The ship GEOMETRY is baked at the hero size; the warp then animates the
@@ -128,6 +139,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
   let winkFired = false;
   let punched = false;
   let done = false;
+  let shockTween = null;
   const timers = [];
 
   // --- TAP-TO-SKIP (invisible full-screen surface + a gentle late-fading hint) ---
@@ -144,7 +156,6 @@ export function playWormholeCinematic(scene, direction, onDone) {
   function redraw() {
     const p = clock.p;
     const mix = dirIn ? p : 1 - p;            // 0 = cold/cosmos, 1 = warm/body
-    const accent = dirIn ? lerpHex(0xfff3b8, 0xff7a8a, p) : lerpHex(0xff7a8a, 0xfff3b8, p);
 
     // Backdrop: morph cold↔warm, fully opaque.
     backdrop.clear();
@@ -170,54 +181,53 @@ export function playWormholeCinematic(scene, direction, onDone) {
 
     // Hyperspace streaks: short radial speed-lines accelerating toward/away.
     streaks.clear();
-    const speedUp = 1 + 1.6 * (dirIn ? p : 1 - p);   // streaks get longer/faster mid-dive
+    const speedUp = 1 + 1.6 * mix;                   // streaks get longer/faster mid-dive
+    const streakCol = sampleGrad(mix);               // loop-invariant — sample once per frame
     for (let m = 0; m < STREAKS; m++) {
       let u = (stkT0[m] + p * stkSpd[m] * 1.5) % 1;
       if (u < 0) u += 1;
       const rp = dirIn ? 1 - u : u;                   // 0 = core, 1 = rim
-      const r1 = Math.pow(rp, 1.6) * 760;
-      const r2 = Math.pow(Math.max(0, rp - 0.05 * speedUp), 1.6) * 760;
+      const r1 = Math.pow(rp, STREAK_CURVE) * STREAK_REACH;
+      const r2 = Math.pow(Math.max(0, rp - 0.05 * speedUp), STREAK_CURVE) * STREAK_REACH;
       const a = (dirIn ? (0.12 + 0.8 * rp) : (0.12 + 0.8 * (1 - rp))) * 0.9;
-      const ca = Math.cos(stkA[m]), sa = Math.sin(stkA[m]) * 0.82;
-      streaks.lineStyle(1.6 + rp * 3, sampleGrad(mix), a);
+      const ca = stkCos[m], sa = stkSin[m];           // fixed per streak (pre-squashed)
+      streaks.lineStyle(1.6 + rp * 3, streakCol, a);
       streaks.lineBetween(CX + ca * r2, CY + sa * r2, CX + ca * r1, CY + sa * r1);
     }
 
     // Core lens: stacked filled ellipses + hot pupil + orbiting sparks.
+    const accent = lerpHex(0xfff3b8, 0xff7a8a, mix);  // warm pivot follows the same 0→1 mix
     const baseScale = (dirIn ? 0.35 + 0.95 * p : 1.30 - 0.95 * p) * (1 + 0.07 * Math.sin(p * 20));
     const cs = Math.max(0.12, baseScale);
     core.clear();
-    core.fillStyle(accent, 0.16); core.fillEllipse(CX, CY, 240 * cs, 240 * cs * 0.82);
-    core.fillStyle(accent, 0.30); core.fillEllipse(CX, CY, 150 * cs, 150 * cs * 0.82);
-    core.fillStyle(accent, 0.55); core.fillEllipse(CX, CY, 90 * cs, 90 * cs * 0.82);
-    core.fillStyle(0xffffff, 0.95); core.fillEllipse(CX, CY, 46 * cs, 46 * cs * 0.82);
+    core.fillStyle(accent, 0.16); core.fillEllipse(CX, CY, 240 * cs, 240 * cs * SQUASH);
+    core.fillStyle(accent, 0.30); core.fillEllipse(CX, CY, 150 * cs, 150 * cs * SQUASH);
+    core.fillStyle(accent, 0.55); core.fillEllipse(CX, CY, 90 * cs, 90 * cs * SQUASH);
+    core.fillStyle(0xffffff, 0.95); core.fillEllipse(CX, CY, 46 * cs, 46 * cs * SQUASH);
     for (let s = 0; s < 6; s++) {
       const sa2 = s / 6 * TAU + p * TAU * (dirIn ? 1.4 : -1.4);
       const sr = (120 + 60 * Math.sin(p * 12 + s)) * cs;
       core.fillStyle(0xffffff, 0.5 + 0.4 * Math.sin(p * 16 + s));
-      core.fillCircle(CX + Math.cos(sa2) * sr, CY + Math.sin(sa2) * sr * 0.82, 2.5 + 2 * cs);
+      core.fillCircle(CX + Math.cos(sa2) * sr, CY + Math.sin(sa2) * sr * SQUASH, 2.5 + 2 * cs);
     }
 
-    // Ship hero — driven by the clock. IN: big→swallowed (dives up into the core).
-    // OUT: bursts from the core toward the viewer, small→large (front-loaded so it
-    // reads as the hero almost immediately, not just at the very end).
-    // `csc` is the CONTAINER zoom (0.2 tiny … 1.0 full hero); effective ship size
-    // is HERO_BAKE × csc. IN: hero at the bottom → accelerates up + shrinks into
-    // the core. OUT: bursts from the core → grows toward the viewer (front-loaded
-    // easeOut so it's clearly the hero almost immediately).
-    let sy, csc, sal, srot;
+    // Ship hero — clock-driven. `csc` is the CONTAINER zoom (0.2 tiny … 1.0 full
+    // hero); effective ship size is HERO_BAKE × csc. IN: full-size hero at the
+    // bottom accelerates up and shrinks into the core. OUT: bursts from the core
+    // and grows toward the viewer (front-loaded easeOut so it reads as the hero
+    // almost immediately, not just at the very end).
+    const srot = Math.sin(p * Math.PI) * 0.06;   // gentle roll, identical both ways
+    let sy, csc, sal;
     if (dirIn) {
       const k = Math.min(1, p / 0.94); const ke = k * k;     // easeIn accelerate
-      sy = 1470 + (CY - 1470) * ke;
+      sy = SHIP_DIVE_START_Y + (CY - SHIP_DIVE_START_Y) * ke;
       csc = 1.0 - 0.8 * ke;
       sal = p < 0.74 ? 1 : Math.max(0.08, 1 - (p - 0.74) / 0.26 * 0.92);
-      srot = Math.sin(p * Math.PI) * 0.06;
     } else {
       const eo = 1 - (1 - p) * (1 - p);                       // easeOut, front-loaded
-      sy = CY + (1250 - CY) * eo;
+      sy = CY + (SHIP_SURFACE_REST_Y - CY) * eo;
       csc = 0.2 + 0.8 * eo;
       sal = Math.min(1, p / 0.16);
-      srot = Math.sin(p * Math.PI) * 0.06;
     }
     shipG.setPosition(CX, sy);
     shipG.setScale(csc);
@@ -236,21 +246,36 @@ export function playWormholeCinematic(scene, direction, onDone) {
     }
   }
 
-  // Expanding shockwave rings from the core at the climax.
+  // Expanding shockwave rings from the core at the climax. ALL rings are drawn
+  // from ONE tween + one onUpdate (clear once, then stroke every live ring) so
+  // the three rings can never erase each other. (The old version gave each ring
+  // its own tween sharing this `shock` graphics; every onUpdate's clear() wiped
+  // the others, so only the last-updated ring ever survived a frame.) Tracked in
+  // `shockTween` so finish() can kill it, and the onUpdate no-ops if `shock` was
+  // already torn down by the scene swap.
   function fireShockwave() {
     const tint = dirIn ? 0xff9ec7 : 0xbcd4ff;
-    for (let r = 0; r < 3; r++) {
-      const wave = { rad: 30, a: 0.85 };
-      scene.tweens.add({
-        targets: wave, rad: 1500, a: 0,
-        duration: 460, delay: r * 90, ease: 'Cubic.easeOut',
-        onUpdate: () => {
-          shock.clear();
-          shock.lineStyle(3 + 12 * wave.a, r === 0 ? 0xffffff : tint, wave.a);
-          shock.strokeEllipse(CX, CY, wave.rad, wave.rad * 0.82);
-        },
-      });
-    }
+    const RING_MS = 460, GAP_MS = 90, N = 3;
+    const total = RING_MS + GAP_MS * (N - 1);   // last ring still expanding here
+    const wave = { ms: 0 };
+    shockTween = scene.tweens.add({
+      targets: wave, ms: total,
+      duration: total, ease: 'Linear',
+      onUpdate: () => {
+        if (!shock.scene) return;               // graphics destroyed — bail
+        shock.clear();
+        for (let r = 0; r < N; r++) {
+          const local = (wave.ms - r * GAP_MS) / RING_MS;   // this ring's 0→1
+          if (local <= 0 || local >= 1) continue;
+          const eased = 1 - Math.pow(1 - local, 3);         // Cubic.easeOut
+          const rad = 30 + (SHOCK_MAX_R - 30) * eased;
+          const a = 0.85 * (1 - eased);
+          shock.lineStyle(3 + 12 * a, r === 0 ? 0xffffff : tint, a);
+          shock.strokeEllipse(CX, CY, rad, rad * 0.82);
+        }
+      },
+      onComplete: () => { if (shock.scene) shock.clear(); },
+    });
   }
 
   function punchOut() {
@@ -278,6 +303,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
     done = true;
     timers.forEach(t => t.remove?.());
     scene.tweens.killTweensOf(clock);
+    shockTween?.stop();   // shockwave can outlive the swap; kill it before teardown
     // The opaque `cover` must stay up until the scene ACTUALLY swaps. onDone()
     // restarts the scene, but Phaser defers the restart to the next step — so
     // destroying root synchronously here would pull the cover and flash the old
@@ -291,6 +317,9 @@ export function playWormholeCinematic(scene, direction, onDone) {
     if (punched || done) return;
     scene.tweens.killTweensOf(clock);
     clock.p = 1;
+    // Jump straight to the climax: suppress the mid-cross wink so it can't fire
+    // its camera-flash + tone in the same frame as punchOut's bloom (double kick).
+    winkFired = true;
     redraw();
     punchOut();
   }
@@ -298,7 +327,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
 
   // Master clock — the single frame loop.
   const clock = { p: 0 };
-  const clockTween = scene.tweens.add({
+  scene.tweens.add({
     targets: clock, p: 1,
     duration: CLOCK_MS, ease: 'Sine.easeInOut',
     onUpdate: redraw, onComplete: punchOut,
