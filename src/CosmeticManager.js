@@ -28,7 +28,7 @@ export const PET_COSMETICS = [
   { id: 'acc_boba',       slot: 'accessory', name: 'Boba Tea',      price: 300, color: 0xc77eff, rarity: 'rare' },
   { id: 'acc_icecream',   slot: 'accessory', name: 'Ice Cream',     price: 300, color: 0xff9ec7, rarity: 'rare' },
   { id: 'hat_onigiri',    slot: 'accessory', name: 'Onigiri',       price: 280, color: 0xffffff, rarity: 'rare' },
-  { id: 'hat_taiyaki',    slot: 'accessory', name: 'Kontatsu',      price: 300, color: 0xffd86b, rarity: 'rare' },
+  { id: 'hat_taiyaki',    slot: 'accessory', name: 'Taiyaki',       price: 300, color: 0xffd86b, rarity: 'rare' },
   { id: 'hat_sushi',      slot: 'accessory', name: 'Salmon Nigiri', price: 280, color: 0xff8b3d, rarity: 'rare' },
   { id: 'acc_basketball', slot: 'accessory', name: 'Basketball',    price: 350, color: 0xff8b3d, rarity: 'rare' },
   { id: 'acc_soccer',     slot: 'accessory', name: 'Soccer Ball',   price: 350, color: 0xffffff, rarity: 'rare' },
@@ -39,7 +39,7 @@ export const PET_COSMETICS = [
   { id: 'acc_trophy',     slot: 'accessory', name: 'Cosmic Trophy', price: 1500, color: 0xfff3b8, rarity: 'legendary' },
   { id: 'acc_cosmic_orb', slot: 'accessory', name: 'Cosmic Orb',    price: 1500, color: 0xc77eff, rarity: 'legendary' },
   { id: 'acc_dad_glasses', slot: 'accessory', name: "Dad's Glasses", price: 0, unlock_only: true, color: 0x0a0a1a, rarity: 'legendary', desc: 'Found in the workshop.' },
-  { id: 'acc_dried_mango', slot: 'accessory', name: 'Dried Mango', price: 0, unlock_only: true, color: 0xf2a13a, rarity: 'legendary', desc: 'A sweet recess treat.' },
+  { id: 'acc_dried_mango', slot: 'accessory', name: 'Dried Mango', price: 0, unlock_only: true, color: 0xf2a13a, rarity: 'legendary', desc: 'A sweet playground treat.' },
 
   // ---- AURAS ----
   { id: 'aura_none',      slot: 'aura', name: 'None',           price: 0,    isDefault: true, color: 0x000000, rarity: 'common' },

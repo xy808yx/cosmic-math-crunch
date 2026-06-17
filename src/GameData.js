@@ -6,7 +6,8 @@
 //
 // Each world also carries:
 //   - `villain`: the boss persona text (shown above the boss HP bar)
-//   - `flavorText`: the 1-line story card shown after the world is cleared
+//   - `flavorText`: a 1-line story beat per world. Authored but not yet
+//     surfaced in-game — kept as data for a future world-clear story card.
 
 export const WORLDS = [
   // ── Chapter 1 — "Outer Space" (the original campaign) ──────────────────────
@@ -424,7 +425,7 @@ export function getProblemSecondsForWorldAndMode(worldId, mode) {
 // pace can never define mastery down. The per-kid adaptivity lives in the
 // fall-speed pressure (getAdaptiveProblemSeconds), not in this definition.
 // ~2500ms includes reading the problem + finding + tapping the button.
-export const FLUENCY_CAP_MS = 2500;
+const FLUENCY_CAP_MS = 2500;
 const AUTOMATIC_FAST_STREAK = 3; // consecutive correct+fast reps to certify a fact
 
 // Adaptive per-problem fall window (seconds) derived from a kid's measured pace.
@@ -1686,7 +1687,7 @@ export const progress = new PlayerProgress();
 const WORLD_MUSIC_RATE = {
   1: 1.0,
   4: 1.0595,   // crystal sparkle: +1 semitone
-  6: 0.8909,   // frost: -2 semitones
+  6: 0.8909,   // black hole edge: -2 semitones
   9: 0.8409,   // void: -3 semitones
   11: 1.0293,  // final: +0.5 semitones
   // Chapter 2 — "Inner Space" reads warmer/closer than the cold cosmos. The

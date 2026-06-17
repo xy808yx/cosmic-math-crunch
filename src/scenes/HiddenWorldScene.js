@@ -89,14 +89,21 @@ export class HiddenWorldScene extends Phaser.Scene {
       const g = this.add.graphics();
       item.draw(g);
       node.add(g);
-      this.tweens.add({
-        targets: node,
-        scale: { from: 1, to: 1.04 },
-        duration: 1400 + Math.random() * 400,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut'
-      });
+      // Gentle "breathing" baseline so every object feels alive. The stroller
+      // brings its own rocking motion instead (a scale + rock combo reads odd).
+      if (item.id !== 'stroller') {
+        this.tweens.add({
+          targets: node,
+          scale: { from: 1, to: 1.04 },
+          duration: 1400 + Math.random() * 400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
+      // Distinctive idle animation for select objects (freezer lid opening,
+      // the 3D printer printing, the laptop glowing, …). No-op for the rest.
+      this.animateGarageItem(item.id, node);
 
       this.add.text(item.x, item.y + item.hitH / 2 + 16, item.label, style('caption', {
         fontSize: '20px',
@@ -352,7 +359,7 @@ export class HiddenWorldScene extends Phaser.Scene {
     })).setOrigin(0.5);
     wb.add(noteText);
 
-    // "NEW +10 ⭐" badge if this is a fresh claim — fades on tap.
+    // "NEW +10 ✨" badge if this is a fresh claim — fades on tap.
     let badge = null;
     if (stardustAwarded) {
       badge = this.add.container(208, -52);
@@ -367,7 +374,7 @@ export class HiddenWorldScene extends Phaser.Scene {
         fill: '#2a1f12',
         fontStyle: '900'
       })).setOrigin(0.5));
-      badge.add(this.add.text(0, 10, '+10 ⭐', style('caption', {
+      badge.add(this.add.text(0, 10, '+10 ✨', style('caption', {
         fontSize: '12px',
         fill: '#2a1f12'
       })).setOrigin(0.5));
@@ -517,6 +524,186 @@ export class HiddenWorldScene extends Phaser.Scene {
     this._garagePetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
     // addAt(…, 0) keeps the pet below the transparent tap hit-rect.
     this._garagePetContainer.addAt(this._garagePetSprite, 0);
+  }
+
+  // ----------------------------------------------------------
+  // GARAGE IDLE ANIMATIONS — small bits of life on each object.
+  // Routed by item id; objects with no entry just keep breathing.
+  // ----------------------------------------------------------
+  animateGarageItem(id, node) {
+    switch (id) {
+      case 'freezer':  return this._freezerLidOpen(node);
+      case 'printer':  return this._printerPrinting(node);
+      case 'laptop':   return this._laptopGlow(node);
+      case 'stroller': return this._strollerRock(node);
+      case 'ebike':    return this._ebikeCharging(node);
+      case 'squat':    return this._squatRackReps(node);
+    }
+  }
+
+  // Freezer: the lid cracks open every few seconds, a cold glow spills out and
+  // a little frost mist drifts up, then it settles closed again.
+  _freezerLidOpen(node) {
+    // Cold interior glow — sits at the rim, hidden under the closed lid.
+    const glow = this.add.graphics();
+    glow.fillStyle(0xbfe9f5, 1);
+    glow.fillRoundedRect(-104, -30, 208, 22, 7);
+    glow.fillStyle(0xffffff, 0.7);
+    glow.fillRect(-96, -26, 192, 6);
+    glow.setAlpha(0);
+    node.add(glow);
+
+    // Lid as its own object so it can lift + tilt open.
+    const lid = this.add.container(0, 0);
+    const lg = this.add.graphics();
+    drawFreezerLid(lg);
+    lid.add(lg);
+    node.add(lid);
+
+    const close = () => {
+      this.tweens.add({ targets: glow, alpha: 0, duration: 380, ease: 'Sine.easeIn' });
+      this.tweens.add({
+        targets: lid, y: 0, angle: 0, duration: 560, ease: 'Quad.easeIn',
+        onComplete: () => this.time.delayedCall(3200 + Math.random() * 2600, open)
+      });
+    };
+    const open = () => {
+      if (!node.active) return;
+      this.tweens.add({ targets: glow, alpha: 1, duration: 460, ease: 'Sine.easeOut' });
+      this.tweens.add({
+        targets: lid, y: -24, angle: -9, duration: 640, ease: 'Back.easeOut',
+        onComplete: () => { this._freezerFrost(node); this.time.delayedCall(1300, close); }
+      });
+    };
+    this.time.delayedCall(1400 + Math.random() * 2200, open);
+  }
+
+  // A few soft frost puffs rising out of the open freezer.
+  _freezerFrost(node) {
+    if (!node.active) return;
+    for (let i = 0; i < 6; i++) {
+      const puff = this.add.graphics();
+      puff.fillStyle(0xeaf7fb, 0.85);
+      puff.fillCircle(0, 0, 3 + Math.random() * 3);
+      puff.x = (Math.random() - 0.5) * 130;
+      puff.y = -20;
+      node.add(puff);
+      this.tweens.add({
+        targets: puff,
+        y: puff.y - 56 - Math.random() * 34,
+        x: puff.x + (Math.random() - 0.5) * 44,
+        alpha: 0,
+        duration: 900 + Math.random() * 500,
+        ease: 'Sine.easeOut',
+        onComplete: () => puff.destroy()
+      });
+    }
+  }
+
+  // 3D printer: the print head sweeps along the gantry while a little toy
+  // slowly prints up off the bed, then ejects and starts over.
+  _printerPrinting(node) {
+    const head = this.add.container(0, -44);
+    const hg = this.add.graphics();
+    drawPrinterHead(hg);
+    head.add(hg);
+    node.add(head);
+    this.tweens.add({
+      targets: head, x: { from: -44, to: 44 },
+      duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    // Toy grows up from the build plate (base anchored at the bed, scaleY 0→1).
+    const toy = this.add.container(0, 24);
+    const tg = this.add.graphics();
+    drawPrintedToy(tg);
+    toy.add(tg);
+    toy.scaleY = 0;
+    node.add(toy);
+    const grow = () => {
+      if (!node.active) return;
+      toy.scaleY = 0;
+      toy.alpha = 1;
+      this.tweens.add({
+        targets: toy, scaleY: 1, duration: 5200, ease: 'Linear',
+        onComplete: () => this.time.delayedCall(1400, () => {
+          this.tweens.add({
+            targets: toy, alpha: 0, duration: 420,
+            onComplete: () => this.time.delayedCall(700, grow)
+          });
+        })
+      });
+    };
+    grow();
+  }
+
+  // Laptop: the screen breathes a soft glow — Dad's game, still running.
+  _laptopGlow(node) {
+    const glow = this.add.graphics();
+    glow.fillStyle(0x6fa8ff, 1);
+    glow.fillRoundedRect(-90, -78, 180, 122, 3);
+    glow.setBlendMode(Phaser.BlendModes.ADD);
+    glow.setAlpha(0.12);
+    node.add(glow);
+    this.tweens.add({
+      targets: glow, alpha: { from: 0.10, to: 0.32 },
+      duration: 1900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+
+  // Stroller: a gentle rock, like soothing a baby. (Pivots near the wheels.)
+  _strollerRock(node) {
+    this.tweens.add({
+      targets: node, angle: { from: -2.4, to: 2.4 },
+      duration: 1700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+
+  // Ebike: the battery LEDs sweep up like it's charging + the headlight twinkles.
+  _ebikeCharging(node) {
+    const leds = [];
+    for (let i = 0; i < 4; i++) {
+      const d = this.add.graphics();
+      d.fillStyle(0x9dff6b, 1);
+      d.fillCircle(-70 + i * 14, 19, 3.2);
+      d.setAlpha(0.15);
+      node.add(d);
+      leds.push(d);
+    }
+    let lit = 0;
+    this.time.addEvent({
+      delay: 430, loop: true,
+      callback: () => {
+        leds.forEach((d, k) => this.tweens.add({
+          targets: d, alpha: k <= lit ? 0.95 : 0.15, duration: 220
+        }));
+        lit = (lit + 1) % (leds.length + 1);
+      }
+    });
+
+    const hl = this.add.graphics();
+    hl.fillStyle(0xfff3a0, 1);
+    hl.fillCircle(108, -10, 10);
+    hl.setBlendMode(Phaser.BlendModes.ADD);
+    hl.setAlpha(0.18);
+    node.add(hl);
+    this.tweens.add({
+      targets: hl, alpha: { from: 0.16, to: 0.6 },
+      duration: 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+  }
+
+  // Squat rack: the loaded barbell does slow, steady reps on the J-hooks.
+  _squatRackReps(node) {
+    const bar = this.add.container(0, 0);
+    const bg = this.add.graphics();
+    drawSquatBar(bg);
+    bar.add(bg);
+    node.add(bar);
+    this.tweens.add({
+      targets: bar, y: { from: 0, to: 16 },
+      duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
   }
 
   // ============================================================
@@ -744,7 +931,7 @@ export class HiddenWorldScene extends Phaser.Scene {
   // Dad's notes board on the woodchips. Same daily mechanic as the garage
   // whiteboard, but its own list (RECESS_NOTES) and its own once-per-day claim:
   // one note per real day off a separate shuffled deck, +10 stardust the first
-  // time it's tapped each day. A "NEW +10 ⭐" badge marks a fresh claim.
+  // time it's tapped each day. A "NEW +10 ✨" badge marks a fresh claim.
   createRecessNoteBoard(x, y) {
     const { isNewDay, message } = progress.claimDailyDadNoteIfDue(RECESS_NOTES, 'recessNoteState');
     let awarded = false;
@@ -777,7 +964,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       fontSize: '20px', fill: '#ffffff', stroke: '#1a3a18', strokeThickness: 3
     })).setOrigin(0.5).setDepth(8);
 
-    // NEW +10 ⭐ badge on a fresh day; fades + stops bobbing on tap.
+    // NEW +10 ✨ badge on a fresh day; fades + stops bobbing on tap.
     let badge = null;
     let badgeTween = null;
     if (awarded) {
@@ -787,7 +974,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       bg.lineStyle(2, 0x2a1f12, 1); bg.strokeRoundedRect(-50, -24, 100, 48, 9);
       badge.add(bg);
       badge.add(this.add.text(0, -6, 'NEW', style('caption', { fontSize: '15px', fill: '#2a1f12', fontStyle: '900' })).setOrigin(0.5));
-      badge.add(this.add.text(0, 11, '+10 ⭐', style('caption', { fontSize: '13px', fill: '#2a1f12' })).setOrigin(0.5));
+      badge.add(this.add.text(0, 11, '+10 ✨', style('caption', { fontSize: '13px', fill: '#2a1f12' })).setOrigin(0.5));
       node.add(badge);
       badgeTween = this.tweens.add({
         targets: badge, scale: { from: 1, to: 1.1 },
@@ -1399,16 +1586,6 @@ function drawFenceStrip(bg, y, h) {
   for (let px = 40; px < W; px += 200) bg.fillRect(px, y - 6, 6, h + 10);
 }
 
-// Railway-tie timber border framing the woodchip play area (front + back edges).
-function drawTimberBorder(bg, chipTop) {
-  bg.fillStyle(0x6e4a28, 1); bg.fillRect(0, H - 70, W, 70);
-  bg.fillStyle(0x855c34, 1); bg.fillRect(0, H - 70, W, 16);
-  bg.fillStyle(0x4a3018, 0.6);
-  for (let px = 0; px < W; px += 150) bg.fillRect(px, H - 70, 4, 70);
-  bg.fillStyle(0x6e4a28, 1); bg.fillRect(0, chipTop - 8, W, 10);
-  bg.fillStyle(0x855c34, 1); bg.fillRect(0, chipTop - 8, W, 4);
-}
-
 // Composite play tower — red posts, decks, green peaked roof, yellow panel.
 function drawPlayStructure(g) {
   g.fillStyle(0x000000, 0.18); g.fillEllipse(0, 200, 240, 30);
@@ -1513,7 +1690,6 @@ function drawClimbingWall(g) {
   for (const [hx, hy, hc] of holds) { g.fillStyle(hc, 1); g.fillCircle(hx, hy, 9); g.fillStyle(0xffffff, 0.5); g.fillCircle(hx - 2, hy - 2, 3); }
 }
 
-// Ring trek — hanging gold rings on chains between two red posts.
 // Zip line / track ride — an overhead rail with a rolling trolley + a handle
 // the kids grab and slide across.
 function drawZipLine(g) {
@@ -1575,29 +1751,6 @@ function drawMonkeyBars(g) {
   g.fillStyle(0xe85a52, 1);
   for (let rx = -140; rx <= 140; rx += 40) g.fillRect(rx - 5, -118, 10, 30);
   g.fillStyle(0xfff3b8, 0.9); g.fillCircle(0, -150, 4); g.fillCircle(70, -140, 3); g.fillCircle(-80, -138, 3);
-}
-
-// A patch of the blue running track with white lanes + autumn leaves.
-function drawTrackPatch(g) {
-  g.fillStyle(0x000000, 0.14); g.fillEllipse(0, 80, 300, 20);
-  g.fillStyle(0x4faa46, 1); g.fillRect(-180, -78, 360, 20);
-  g.fillStyle(0x2f78c8, 1); g.fillRoundedRect(-180, -60, 360, 130, 10);
-  g.fillStyle(0x3a86d8, 1); g.fillRoundedRect(-180, -60, 360, 30, 10);
-  g.lineStyle(4, 0xf4f8ff, 0.9); g.lineBetween(-180, -20, 180, -20); g.lineBetween(-180, 20, 180, 20);
-  for (const [lx, ly, lc] of [[-120, 40, 0xd9772f], [60, -40, 0xc94f2a], [120, 30, 0xe0a23a]]) { g.fillStyle(lc, 0.9); g.fillEllipse(lx, ly, 12, 7); }
-}
-
-// A little pile of woodchips.
-function drawWoodchipPatch(g) {
-  g.fillStyle(0x000000, 0.12); g.fillEllipse(0, 40, 140, 20);
-  g.fillStyle(0xc7a06a, 1); g.fillEllipse(0, 10, 150, 60);
-  for (let i = 0; i < 40; i++) {
-    const a = Math.random() * Math.PI * 2, r = Math.random() * 64;
-    const cx = Math.cos(a) * r, cy = 10 + Math.sin(a) * r * 0.4;
-    const sh = Math.random();
-    g.fillStyle(sh < 0.5 ? 0xb38a52 : (sh < 0.8 ? 0xa97f48 : 0xddc294), 0.95);
-    g.fillRect(cx, cy, 6 + Math.random() * 8, 3);
-  }
 }
 
 // Small map icon for the "King Coli" germ boss — a round green germ head with
@@ -1750,20 +1903,8 @@ function drawChestFreezer(g) {
   // Body bottom shadow band (depth)
   g.fillStyle(0xb8b0a0, 1);
   g.fillRect(-115, 80, 230, 12);
-  // Lid (sitting on top, slightly taller and with depth)
-  g.fillStyle(0xfbf8ee, 1);
-  g.fillRoundedRect(-118, -68, 236, 56, 8);
-  // Lid front face (light shadow under lid)
-  g.fillStyle(0x000000, 0.18);
-  g.fillRect(-115, -16, 230, 6);
-  // Lid top highlight
-  g.fillStyle(0xffffff, 0.4);
-  g.fillRoundedRect(-110, -66, 220, 10, 6);
-  // Lid handle — full-width bar
-  g.fillStyle(0xc0b8a8, 1);
-  g.fillRoundedRect(-70, -32, 140, 12, 6);
-  g.fillStyle(0x9a9080, 1);
-  g.fillRoundedRect(-66, -28, 132, 4, 2);
+  // NOTE: the lid is drawn separately (drawFreezerLid) so _freezerLidOpen can
+  // lift it; the cold glow in the gap is built by the animator too.
   // Snowflake badge on body
   g.fillStyle(0x6db4d0, 1);
   const sx = 0, sy = 30;
@@ -1778,6 +1919,24 @@ function drawChestFreezer(g) {
   // Side vents (right end)
   g.lineStyle(1, 0xb8b0a0, 0.9);
   for (let i = 0; i < 4; i++) g.lineBetween(85, 30 + i * 8, 105, 30 + i * 8);
+}
+
+// Freezer lid — its own piece so _freezerLidOpen can lift + tilt it open.
+function drawFreezerLid(g) {
+  // Lid slab
+  g.fillStyle(0xfbf8ee, 1);
+  g.fillRoundedRect(-118, -68, 236, 56, 8);
+  // Lid front face (light shadow under lid)
+  g.fillStyle(0x000000, 0.18);
+  g.fillRect(-115, -16, 230, 6);
+  // Lid top highlight
+  g.fillStyle(0xffffff, 0.4);
+  g.fillRoundedRect(-110, -66, 220, 10, 6);
+  // Lid handle — full-width bar
+  g.fillStyle(0xc0b8a8, 1);
+  g.fillRoundedRect(-70, -32, 140, 12, 6);
+  g.fillStyle(0x9a9080, 1);
+  g.fillRoundedRect(-66, -28, 132, 4, 2);
 }
 
 // 2. Wire pantry rack — vertical 4-shelf with boxes/cans/bottles.
@@ -1931,7 +2090,16 @@ function drawSquatRack(g) {
   // Cross-brace
   g.fillStyle(0x14141a, 1);
   g.fillRect(-60, -130, 120, 12);
-  // Barbell
+  // NOTE: the loaded barbell is drawn separately (drawSquatBar) so
+  // _squatRackReps can rep it up and down on the J-hooks.
+  // Safety pin
+  g.fillStyle(0x222230, 1);
+  g.fillRect(-60, 60, 120, 6);
+}
+
+// Loaded barbell for the squat rack — its own piece so it can do slow reps.
+function drawSquatBar(g) {
+  // Bar
   g.fillStyle(0x6a6a76, 1);
   g.fillRect(-90, -22, 180, 6);
   // Sleeve collars
@@ -1949,9 +2117,6 @@ function drawSquatRack(g) {
   g.lineStyle(2, 0xffffff, 0.25);
   g.strokeCircle(-92, -19, 30);
   g.strokeCircle(92, -19, 30);
-  // Safety pin
-  g.fillStyle(0x222230, 1);
-  g.fillRect(-60, 60, 120, 6);
 }
 
 // 5. Silver MacBook Pro — open laptop, glowing apple.
@@ -2018,12 +2183,8 @@ function drawBambuA1(g) {
   g.fillRect(-70, -64, 140, 6);
   // Vertical gantry rail (Z-axis on right)
   g.fillRect(58, -64, 6, 90);
-  // Print head — small block on gantry
-  g.fillStyle(0xfbbf24, 1);
-  g.fillRoundedRect(-20, -58, 40, 28, 3);
-  // Nozzle tip
-  g.fillStyle(0x14141a, 1);
-  g.fillTriangle(-2, -30, 2, -30, 0, -22);
+  // NOTE: the print head + the toy on the bed are drawn separately
+  // (drawPrinterHead / drawPrintedToy) so _printerPrinting can sweep + grow them.
   // Filament spool (top-left small)
   g.fillStyle(0x2a2a30, 1);
   g.fillCircle(-50, -80, 14);
@@ -2034,6 +2195,34 @@ function drawBambuA1(g) {
   // Brand mark
   g.fillStyle(0x39c97d, 1);
   g.fillCircle(-58, 80, 5);
+}
+
+// Print head block + nozzle, centered on its own origin so it can sweep the
+// gantry. (Origin placed at gantry height by _printerPrinting.)
+function drawPrinterHead(g) {
+  g.fillStyle(0xfbbf24, 1);
+  g.fillRoundedRect(-20, -14, 40, 28, 3);
+  // Nozzle tip
+  g.fillStyle(0x14141a, 1);
+  g.fillTriangle(-2, 14, 2, 14, 0, 22);
+}
+
+// A little rocket toy, printed bottom-up: base sits at local y=0, nose at
+// y=-40, so _printerPrinting can grow it with scaleY 0→1 off the bed.
+function drawPrintedToy(g) {
+  // Body
+  g.fillStyle(0x4ecdc4, 1);
+  g.fillRoundedRect(-9, -28, 18, 28, 5);
+  // Nose cone
+  g.fillStyle(0xff6b3d, 1);
+  g.fillTriangle(-9, -26, 9, -26, 0, -40);
+  // Window
+  g.fillStyle(0xfff5d8, 1);
+  g.fillCircle(0, -18, 4);
+  // Fins
+  g.fillStyle(0xff6b3d, 1);
+  g.fillTriangle(-9, -6, -9, -18, -16, -2);
+  g.fillTriangle(9, -6, 9, -18, 16, -2);
 }
 
 // 7. Premium bassinet stroller — side profile. Tan bassinet with black hood,

@@ -272,8 +272,9 @@ function universesEndHorizon(scene, opts) {
 }
 
 // Map ------------------------------------------------------------------------
+// Read only through getWorldBackground() below — kept module-private.
 
-export const WORLD_BACKGROUNDS = {
+const WORLD_BACKGROUNDS = {
   1:  { bgTop: 0x0a1030, bgBottom: 0x3a4470, drawHorizon: moonBaseHorizon },
   2:  { bgTop: 0x1a0e08, bgBottom: 0x4a2818, drawHorizon: asteroidBeltHorizon },
   3:  { bgTop: 0x180828, bgBottom: 0x4a2670, drawHorizon: crystalPlanetHorizon },

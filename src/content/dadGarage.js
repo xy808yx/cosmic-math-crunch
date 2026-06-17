@@ -30,11 +30,11 @@ export const GARAGE_ITEMS = [
   },
   {
     id: 'squat',
-    bubble: '"Where Dad puts in work to stay strong!."'
+    bubble: '"Where Dad puts in work to stay strong!"'
   },
   {
     id: 'laptop',
-    bubble: '"Where Dad built this game for you"'
+    bubble: '"Where Dad built this game for you."'
   },
   {
     id: 'printer',
@@ -54,7 +54,7 @@ export const GARAGE_ITEMS = [
   },
   {
     id: 'shoes',
-    bubble: '"Speed for chasing you kids"'
+    bubble: '"Speed for chasing you kids!"'
   }
 ];
 
