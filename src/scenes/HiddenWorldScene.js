@@ -527,7 +527,7 @@ export class HiddenWorldScene extends Phaser.Scene {
   createPlaygroundExploration() {
     this.drawPlaygroundBackdrop();
 
-    this.add.text(W / 2, 150, 'RECESS', style('display', {
+    this.add.text(W / 2, 150, 'PLAYGROUND', style('display', {
       fontSize: '72px',
       fill: '#7ed957',
       stroke: '#0a2a12',
@@ -542,19 +542,19 @@ export class HiddenWorldScene extends Phaser.Scene {
     // full-width band along the very bottom (added after this loop).
     const items = [
       { id: 'tower',   x: 250,  y: 900,  hitW: 320, hitH: 420, draw: drawPlayStructure, label: 'Play tower',
-        bubble: 'Up, up, up to the top deck!' },
+        bubble: "You can't catch me!" },
       { id: 'slide',   x: 470,  y: 980,  hitW: 270, hitH: 400, draw: drawWavySlide,     label: 'Big slide',
-        bubble: 'Wheee! All the way down!' },
+        bubble: 'Cheeeeoooh!' },
       { id: 'bars',    x: 840,  y: 920,  hitW: 360, hitH: 360, draw: drawMonkeyBars,    label: 'Monkey bars',
-        bubble: 'Again! Hand over hand!' },
+        bubble: 'Slow is smooth, smooth is fast.' },
       { id: 'wall',    x: 160,  y: 1330, hitW: 220, hitH: 280, draw: drawClimbingWall,  label: 'Climbing wall',
-        bubble: 'Grab the holds and climb!' },
+        bubble: 'Watch your step!' },
       { id: 'zipline', x: 490,  y: 1330, hitW: 280, hitH: 240, draw: drawZipLine,       label: 'Zip line',
-        bubble: 'Hold tight — zoom across!' },
+        bubble: 'Yeeehawww!' },
       { id: 'tire',    x: 850,  y: 1330, hitW: 250, hitH: 380, draw: drawTireSwing,     label: 'Tire swing',
-        bubble: 'Round and round on the tire!' },
+        bubble: 'Hold on tight!!' },
       { id: 'spinner', x: 230,  y: 1580, hitW: 170, hitH: 200, draw: drawSpinnerSeat,   label: 'Spinner',
-        bubble: 'Round and round!' }
+        bubble: 'Dizzy!' }
     ];
     // (The soccer goal now lives on the turf field at the top, not the woodchips;
     //  the bottom row pairs the spinner with Dad's notes board.)
@@ -594,8 +594,9 @@ export class HiddenWorldScene extends Phaser.Scene {
     }
 
     // Dad's notes board on the woodchips — same daily mechanic as the garage
-    // whiteboard (its own list + its own once-per-day stardust).
-    this.createRecessNoteBoard(560, 1580);
+    // whiteboard (its own list + its own once-per-day stardust). Sits low enough
+    // that it never overlaps the "Zip line" label in the row above.
+    this.createRecessNoteBoard(560, 1592);
 
     // The running track spans the entire bottom of the screen (drawn in the
     // backdrop). One full-width hit zone lets the pet dash a lap.
@@ -607,7 +608,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true }).setDepth(9);
     trackHit.on('pointerdown', () => {
       audio.playClick?.();
-      this.showBubble(W / 2, trackTop + 40, "Three laps and you're a champion!");
+      this.showBubble(W / 2, trackTop + 40, 'Super fast!');
       this.petRunTrack();
     });
 
@@ -764,15 +765,15 @@ export class HiddenWorldScene extends Phaser.Scene {
     });
 
     // Header + affordance lettered onto the parchment.
-    node.add(this.add.text(0, -94, "DAD'S NOTES", style('caption', {
+    node.add(this.add.text(0, -46, "DAD'S NOTES", style('caption', {
       fontSize: '22px', fill: '#2a1f12', fontStyle: '900'
     })).setOrigin(0.5));
-    node.add(this.add.text(0, -8, 'Tap to read', style('caption', {
+    node.add(this.add.text(0, 8, 'Tap to read', style('caption', {
       fontSize: '18px', fill: '#6a5a44', fontStyle: 'italic'
     })).setOrigin(0.5));
 
     // Ground label, matching the other equipment.
-    this.add.text(x, y + 150, "Dad's notes", style('caption', {
+    this.add.text(x, y + 132, "Dad's notes", style('caption', {
       fontSize: '20px', fill: '#ffffff', stroke: '#1a3a18', strokeThickness: 3
     })).setOrigin(0.5).setDepth(8);
 
@@ -780,7 +781,7 @@ export class HiddenWorldScene extends Phaser.Scene {
     let badge = null;
     let badgeTween = null;
     if (awarded) {
-      badge = this.add.container(98, -150);
+      badge = this.add.container(120, -72);
       const bg = this.add.graphics();
       bg.fillStyle(0xffd86b, 1); bg.fillRoundedRect(-50, -24, 100, 48, 9);
       bg.lineStyle(2, 0x2a1f12, 1); bg.strokeRoundedRect(-50, -24, 100, 48, 9);
@@ -794,7 +795,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       });
     }
 
-    const hit = this.add.rectangle(x, y, 244, 260, 0, 0)
+    const hit = this.add.rectangle(x, y, 244, 230, 0, 0)
       .setInteractive({ useHandCursor: true }).setDepth(9);
     hit.on('pointerdown', () => {
       audio.playClick?.();
@@ -947,7 +948,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       this.playMonkeyBarSwing(() => {
         this._returnPetHome(() => {
           if (firstTime) this.showRecessUnlock();
-          else this.showBubble(840, 1110, 'Again! Hand over hand!');
+          else this.showBubble(840, 1110, 'Slow is smooth, smooth is fast.');
         });
       });
     });
@@ -1302,76 +1303,68 @@ function drawConifer(bg, x, y, s = 1) {
   bg.fillTriangle(x, y - 34 * s, x + w * 0.3, y - 34 * s, x, y - 80 * s);
 }
 
-// Cream Collegiate-Gothic school modelled on Point Grey Secondary: a long
-// parapet-roofed classroom block with evenly-spaced tall pointed-arch windows
-// between buttresses, and a tall square TOWER WITH A POINTED SPIRE at the right
-// CORNER (not the middle). Drawn on the backdrop; the turf covers its base.
+// Pale Art-Deco school modelled on Point Grey Secondary (per the owner's photo):
+// a WIDE, FLAT-ROOFED concrete block with a regular grid of rectangular windows
+// in horizontal floors, a taller CENTRAL tower with vertical glazing strips and
+// twin slender roof fins (Art-Deco verticals). No spire, no arches — deliberately
+// not a church. Drawn on the backdrop; the turf covers its base.
 function drawSchoolTowerBack(bg, x, y) {
-  const cream = 0xdcd6c2, shade = 0xc7bfa6, trim = 0xb1a98e;
-  const win = 0x7193b0, winEdge = 0x32506b, glass = 0xa6c2d8;
-  const door = 0x4a3a28, roof = 0x586673, roofHi = 0x6d7c8a;
+  const wall = 0xdedbd0, wallShade = 0xc9c5b9, trim = 0xb7b3a6;
+  const glass = 0x8fa9bf, glassDark = 0x59707f, glassHi = 0xc6d4df;
+  const door = 0x454953, towerLite = 0xe7e4db;
 
-  const bBase = y + 182;                       // building meets the turf line
+  const bBase = y + 182;                                   // building meets the turf line
+  const bx0 = x - 320, bx1 = x + 320, bTop = y + 40;
+  const tx0 = x - 74, tx1 = x + 74, tTop = y - 34, tcx = x;
 
-  // ---- main classroom block (left + centre) ----
-  const bx0 = x - 300, bx1 = x + 172, bTop = y + 44;
-  bg.fillStyle(cream, 1); bg.fillRect(bx0, bTop, bx1 - bx0, bBase - bTop);
-  bg.fillStyle(shade, 1); bg.fillRect(bx0, bBase - 16, bx1 - bx0, 16);    // base shadow
-  bg.fillStyle(trim, 1);  bg.fillRect(bx0 - 4, bTop - 8, (bx1 - bx0) + 8, 10); // parapet coping
-  bg.fillStyle(cream, 1);                                                  // flat merlons
-  for (let mx = bx0 + 6; mx < bx1 - 14; mx += 38) bg.fillRect(mx, bTop - 16, 16, 8);
+  // ---- main block: flat slab + parapet coping + ground band ----
+  bg.fillStyle(wall, 1); bg.fillRect(bx0, bTop, bx1 - bx0, bBase - bTop);
+  bg.fillStyle(trim, 1); bg.fillRect(bx0 - 5, bTop - 9, (bx1 - bx0) + 10, 11);   // flat parapet
+  bg.fillStyle(wallShade, 1); bg.fillRect(bx0, bBase - 18, bx1 - bx0, 18);       // ground band
+  bg.fillStyle(trim, 0.5);                                                       // floor string-courses
+  bg.fillRect(bx0, bTop + 50, bx1 - bx0, 2); bg.fillRect(bx0, bTop + 90, bx1 - bx0, 2);
 
-  // buttresses on every bay edge, then a tall window centred in each bay
-  const bayN = 6, bayStart = bx0 + 16, bayEnd = bx1 - 16;
-  const pitch = (bayEnd - bayStart) / bayN;
-  bg.fillStyle(shade, 1);
-  for (let i = 0; i <= bayN; i++) bg.fillRect(bayStart + pitch * i - 4, bTop, 8, (bBase - bTop) - 16);
-  for (let i = 0; i < bayN; i++) {
-    const cxw = bayStart + pitch * (i + 0.5);
-    const wTop = bTop + 24, wBot = bBase - 30, hw = 11;
-    bg.fillStyle(win, 1);
-    bg.fillRect(cxw - hw, wTop, hw * 2, wBot - wTop);
-    bg.fillTriangle(cxw - hw, wTop, cxw + hw, wTop, cxw, wTop - 12);       // pointed arch
-    bg.fillStyle(glass, 0.5); bg.fillRect(cxw - hw + 2, wTop + 3, 4, (wBot - wTop) - 6);
-    bg.lineStyle(1.5, winEdge, 0.55);
-    bg.lineBetween(cxw, wTop - 10, cxw, wBot);                             // mullions
-    bg.lineBetween(cxw - hw, (wTop + wBot) / 2, cxw + hw, (wTop + wBot) / 2);
+  // rectangular window grid (3 floors), skipping the central tower zone
+  const drawWin = (cx, top) => {
+    bg.fillStyle(glassDark, 1); bg.fillRect(cx - 14, top - 1, 28, 30);          // frame
+    bg.fillStyle(glass, 1);     bg.fillRect(cx - 13, top, 26, 28);
+    bg.fillStyle(glassHi, 0.5); bg.fillRect(cx - 11, top + 2, 6, 24);           // sheen
+    bg.lineStyle(1.4, glassDark, 0.5);
+    bg.lineBetween(cx, top, cx, top + 28);                                       // mullions
+    bg.lineBetween(cx - 13, top + 14, cx + 13, top + 14);
+  };
+  const rowTops = [bTop + 14, bTop + 54, bTop + 94];
+  for (const [zs, ze] of [[bx0 + 22, tx0 - 18], [tx1 + 18, bx1 - 22]]) {
+    const cols = 4, pitch = (ze - zs) / cols;
+    for (let i = 0; i < cols; i++) {
+      const cx = zs + pitch * (i + 0.5);
+      for (const rt of rowTops) drawWin(cx, rt);
+    }
   }
 
-  // central pointed-arch entrance
-  const dcx = (bx0 + bx1) / 2, dHalf = 24, dTop = bBase - 70;
+  // ---- central tower: taller, slightly lighter, flat-topped ----
+  bg.fillStyle(towerLite, 1); bg.fillRect(tx0, tTop, tx1 - tx0, bBase - tTop);
+  bg.fillStyle(wallShade, 1); bg.fillRect(tx1 - 8, tTop, 8, bBase - tTop);       // shaded right face
+  bg.fillStyle(trim, 1); bg.fillRect(tx0 - 7, tTop - 8, (tx1 - tx0) + 14, 10);   // flat tower coping
+  for (const sx of [tcx - 44, tcx, tcx + 44]) {                                  // vertical glazing strips
+    const sT = tTop + 26, sB = bBase - 54;
+    bg.fillStyle(glassDark, 1); bg.fillRect(sx - 10, sT - 1, 20, (sB - sT) + 2);
+    bg.fillStyle(glass, 1);     bg.fillRect(sx - 9, sT, 18, sB - sT);
+    bg.fillStyle(glassHi, 0.4); bg.fillRect(sx - 7, sT + 2, 4, (sB - sT) - 4);
+    bg.lineStyle(1.2, glassDark, 0.45);
+    for (let yy = sT + 22; yy < sB; yy += 22) bg.lineBetween(sx - 9, yy, sx + 9, yy);
+  }
+  // twin slender roof fins (the two vertical projections in the photo)
+  bg.fillStyle(towerLite, 1);
+  bg.fillRect(tcx - 30, tTop - 30, 9, 34); bg.fillRect(tcx + 21, tTop - 30, 9, 34);
   bg.fillStyle(trim, 1);
-  bg.fillRect(dcx - dHalf - 4, dTop - 4, (dHalf + 4) * 2, (bBase - 16) - (dTop - 4));
-  bg.fillStyle(door, 1);
-  bg.fillRect(dcx - dHalf, dTop, dHalf * 2, (bBase - 16) - dTop);
-  bg.fillTriangle(dcx - dHalf, dTop, dcx + dHalf, dTop, dcx, dTop - 20);
+  bg.fillRect(tcx - 31, tTop - 32, 11, 5); bg.fillRect(tcx + 20, tTop - 32, 11, 5);
 
-  // ---- corner tower (right) ----
-  const tx0 = x + 172, tx1 = x + 300, tTop = y - 26;
-  bg.fillStyle(cream, 1); bg.fillRect(tx0, tTop, tx1 - tx0, bBase - tTop);
-  bg.fillStyle(shade, 1);
-  bg.fillRect(tx0, tTop, 8, bBase - tTop);                                 // shaded inner face
-  bg.fillRect(tx0, bBase - 16, tx1 - tx0, 16);                            // base shadow
-  bg.fillStyle(trim, 1); bg.fillRect(tx0 - 6, tTop - 6, (tx1 - tx0) + 12, 10); // top coping
-  const tcx = (tx0 + tx1) / 2;
-  // clock face
-  bg.fillStyle(0xf4efe0, 1); bg.fillCircle(tcx, tTop + 40, 17);
-  bg.lineStyle(3, trim, 1); bg.strokeCircle(tcx, tTop + 40, 17);
-  bg.lineStyle(2.5, winEdge, 1);
-  bg.lineBetween(tcx, tTop + 40, tcx, tTop + 29);
-  bg.lineBetween(tcx, tTop + 40, tcx + 9, tTop + 44);
-  // tall belfry window
-  const tw = 14, wT = tTop + 76, wB = bBase - 42;
-  bg.fillStyle(win, 1); bg.fillRect(tcx - tw, wT, tw * 2, wB - wT);
-  bg.fillTriangle(tcx - tw, wT, tcx + tw, wT, tcx, wT - 14);
-  bg.fillStyle(glass, 0.5); bg.fillRect(tcx - tw + 3, wT + 3, 5, (wB - wT) - 6);
-  bg.lineStyle(1.5, winEdge, 0.55); bg.lineBetween(tcx, wT - 12, tcx, wB);
-
-  // ---- pointed spire on the corner tower ----
-  const sBase = tTop - 6, sApex = tTop - 92;
-  bg.fillStyle(roof, 1);   bg.fillTriangle(tx0 - 10, sBase, tx1 + 10, sBase, tcx, sApex);
-  bg.fillStyle(roofHi, 1); bg.fillTriangle(tx0 - 10, sBase, tcx, sBase, tcx, sApex);  // lit face
-  bg.fillStyle(trim, 1);   bg.fillRect(tcx - 2, sApex - 16, 4, 18); bg.fillCircle(tcx, sApex - 18, 4); // finial
+  // ---- flat rectangular entrance under the tower ----
+  const dHalf = 30, dTop = bBase - 46;
+  bg.fillStyle(trim, 1); bg.fillRect(tcx - dHalf - 5, dTop - 7, (dHalf + 5) * 2, 7);   // flat canopy
+  bg.fillStyle(door, 1); bg.fillRect(tcx - dHalf, dTop, dHalf * 2, (bBase - 18) - dTop);
+  bg.fillStyle(glassDark, 1); bg.fillRect(tcx - dHalf + 6, dTop + 5, dHalf * 2 - 12, 10); // transom
 }
 
 // Small white soccer goal sitting on the turf (background).
@@ -1546,25 +1539,23 @@ function drawSpinnerSeat(g) {
 // the "Tap to read" affordance are added as text by createRecessNoteBoard.
 function drawDadNotesBoard(g) {
   // ground shadow
-  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 138, 158, 24);
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 124, 150, 22);
   // posts
-  g.fillStyle(0x6e4a28, 1); g.fillRect(-74, 24, 16, 114); g.fillRect(58, 24, 16, 114);
-  g.fillStyle(0x855c34, 1); g.fillRect(-74, 24, 5, 114); g.fillRect(58, 24, 5, 114);
+  g.fillStyle(0x6e4a28, 1); g.fillRect(-70, 38, 15, 86); g.fillRect(55, 38, 15, 86);
+  g.fillStyle(0x855c34, 1); g.fillRect(-70, 38, 5, 86); g.fillRect(55, 38, 5, 86);
   // dark wood frame
-  g.fillStyle(0x5e3d22, 1); g.fillRoundedRect(-122, -128, 244, 182, 12);
-  g.fillStyle(0x7a5230, 1); g.fillRoundedRect(-122, -128, 244, 10, 6);
+  g.fillStyle(0x5e3d22, 1); g.fillRoundedRect(-118, -96, 236, 146, 12);
+  g.fillStyle(0x7a5230, 1); g.fillRoundedRect(-118, -96, 236, 9, 6);
   // parchment surface
-  g.fillStyle(0xf5ecd6, 1); g.fillRoundedRect(-106, -112, 212, 152, 6);
-  g.fillStyle(0xe9dcbd, 1); g.fillRect(-106, 26, 212, 14);
+  g.fillStyle(0xf5ecd6, 1); g.fillRoundedRect(-104, -82, 208, 118, 6);
+  g.fillStyle(0xe9dcbd, 1); g.fillRect(-104, 22, 208, 14);
   // divider under the header
-  g.fillStyle(0xcdbf9a, 1); g.fillRect(-86, -74, 172, 3);
+  g.fillStyle(0xcdbf9a, 1); g.fillRect(-84, -26, 168, 3);
   // two red thumbtacks
-  for (const tx of [-86, 86]) {
-    g.fillStyle(0xc23a3a, 1); g.fillCircle(tx, -98, 6);
-    g.fillStyle(0xff9a9a, 0.85); g.fillCircle(tx - 2, -100, 2.2);
+  for (const tx of [-84, 84]) {
+    g.fillStyle(0xc23a3a, 1); g.fillCircle(tx, -68, 6);
+    g.fillStyle(0xff9a9a, 0.85); g.fillCircle(tx - 2, -70, 2.2);
   }
-  // a faint ruled line to suggest handwriting
-  g.fillStyle(0xddcfa9, 1); g.fillRect(-72, 18, 144, 2);
 }
 
 // Monkey bars — the hidden gem. Horizontal overhead ladder on tall red posts.

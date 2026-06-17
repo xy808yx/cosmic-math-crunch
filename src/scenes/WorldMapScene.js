@@ -1120,7 +1120,7 @@ export class WorldMapScene extends Phaser.Scene {
       return {
         x: pos.x,
         y: pos.y,
-        label: 'YOU FOUND RECESS',
+        label: 'YOU FOUND THE PLAYGROUND',
         accent: 0x7ed957,
         sound: 'playStardustChime'
       };

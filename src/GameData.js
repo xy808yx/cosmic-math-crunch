@@ -279,7 +279,7 @@ export const WORLDS = [
   {
     id: 18,
     chapter: 2,
-    name: 'Recess',
+    name: 'Playground',
     color: 0x4a90d9,
     accentColor: 0x7ed957,
     description: 'A patch of the outside world, tucked away.',
