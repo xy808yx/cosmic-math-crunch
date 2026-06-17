@@ -12,6 +12,9 @@
 //
 // Cap: each callback should be cheap. They run inside the GameScene tick.
 
+import { audio } from './AudioManager.js';
+import { style } from './textStyles.js';
+
 export function applyBossTwist(scene, worldId) {
   scene.bossTwistState = scene.bossTwistState || {};
   const twist = BOSS_TWISTS[worldId];
@@ -289,5 +292,95 @@ const BOSS_TWISTS = {
       const sub = BOSS_TWISTS[pick];
       if (sub?.onWrong) sub.onWrong(scene, asteroid, btn);
     }
+  },
+
+  // 17 — King Coli (hidden hygiene superboss): "WASH TO WIN". Soap bubbles drift
+  //      in from the sides every ~13–18s; tapping one SCRUBS the germ-king for a
+  //      bonus hit. Reinforces hand-washing. NB: unlike the other twists this
+  //      intentionally helps the player — it's King Coli's signature mechanic,
+  //      and the HP (40) + clock (110s) are tuned for it. The scrub never lands
+  //      the killing blow (capped at 1 HP), so the win always comes from a solved
+  //      problem and the normal defeat pipeline stays intact.
+  17: {
+    init(scene) {
+      const spawn = () => {
+        if (scene.state === 'ended' || scene.state === 'failed') return;
+        if (scene.state === 'playing' && (scene.bossHp || 0) > 1) {
+          spawnSoapBubble(scene);
+        }
+        scene.time.delayedCall(13000 + Math.random() * 5000, spawn);
+      };
+      // First bubble well into the fight, clear of the boss intro.
+      scene.time.delayedCall(9000, spawn);
+    }
   }
 };
+
+// A tappable soap bubble for King Coli's "wash to win" mechanic. Floats in the
+// left/right margin (clear of the centre problem and the bottom answer buttons),
+// bobs invitingly, and auto-pops after a few seconds if ignored.
+function spawnSoapBubble(scene) {
+  const W = scene.cameras.main.width;
+  const onLeft = Math.random() < 0.5;
+  const startX = onLeft ? 120 + Math.random() * 160 : W - 280 + Math.random() * 160;
+  const startY = 380 + Math.random() * 140;
+
+  const bubble = scene.add.container(startX, startY).setDepth(40);
+  const g = scene.add.graphics();
+  g.fillStyle(0xbfe9ff, 0.30); g.fillCircle(0, 0, 46);          // bubble body
+  g.lineStyle(4, 0xffffff, 0.85); g.strokeCircle(0, 0, 46);      // rim
+  g.fillStyle(0xffffff, 0.7); g.fillEllipse(-16, -18, 18, 12);   // sheen
+  g.fillStyle(0xfff3b8, 0.95); g.fillRoundedRect(-18, 6, 36, 18, 6); // soap bar
+  g.lineStyle(2, 0xffffff, 0.9); g.strokeRoundedRect(-18, 6, 36, 18, 6);
+  bubble.add(g);
+
+  scene.tweens.add({ targets: bubble, scale: { from: 0.85, to: 1 }, duration: 300, ease: 'Back.easeOut' });
+  scene.tweens.add({ targets: bubble, y: bubble.y - 28, duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+
+  const hit = scene.add.circle(0, 0, 52, 0, 0).setInteractive({ useHandCursor: true });
+  bubble.add(hit);
+
+  let popped = false;
+  const expire = scene.time.delayedCall(4200, () => {
+    if (popped) return;
+    popped = true;
+    scene.tweens.add({ targets: bubble, alpha: 0, scale: 0.6, duration: 300, onComplete: () => bubble.destroy() });
+  });
+
+  hit.on('pointerdown', () => {
+    if (popped) return;
+    popped = true;
+    expire.remove(false);
+    if (scene.state === 'playing' && (scene.bossHp || 0) > 1) {
+      scene.bossHp = Math.max(1, scene.bossHp - 1);
+      if (scene.drawBossHp) scene.drawBossHp();
+    }
+    audio.playStardustChime?.();
+    popSoap(scene, bubble.x, bubble.y);
+    bubble.destroy();
+  });
+}
+
+// Soap-suds burst + a "SCRUB!" pop when a bubble is tapped.
+function popSoap(scene, x, y) {
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const sud = scene.add.circle(x, y, 5 + Math.random() * 4, 0xffffff, 0.9).setDepth(41);
+    scene.tweens.add({
+      targets: sud,
+      x: x + Math.cos(a) * (50 + Math.random() * 30),
+      y: y + Math.sin(a) * (50 + Math.random() * 30),
+      alpha: 0, scale: 0.4,
+      duration: 500, ease: 'Quad.easeOut',
+      onComplete: () => sud.destroy()
+    });
+  }
+  const txt = scene.add.text(x, y - 10, 'SCRUB!', style('display', {
+    fontSize: '34px', fill: '#bfe9ff', stroke: '#0a2a3a', strokeThickness: 5
+  })).setOrigin(0.5).setDepth(42);
+  scene.tweens.add({
+    targets: txt, y: y - 70, alpha: 0, scale: 1.3,
+    duration: 700, ease: 'Quad.easeOut',
+    onComplete: () => txt.destroy()
+  });
+}

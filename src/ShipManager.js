@@ -15,6 +15,8 @@ export const SHIP_PARTS = [
   { id: 'hull_eclipse', slot: 'hull',  name: 'Eclipse Hull',   price: 1500, color: 0xfff3b8, rarity: 'legendary' },
   // Reward-only: the signature trophy of the Chapter 2 grand finale (World 28).
   { id: 'hull_nanocraft', slot: 'hull', name: 'Nanocraft Hull', price: 0, unlock_only: true, color: 0x4ecdc4, rarity: 'legendary', desc: 'Forged in the Singularity Cell.' },
+  // Reward-only: trophy for beating King Coli, the hidden hygiene superboss (W17).
+  { id: 'hull_aegis',     slot: 'hull', name: 'Aegis Hull',     price: 0, unlock_only: true, color: 0xd8e4ec, rarity: 'legendary', desc: 'Scrubbed sterile in the Royal Flush.' },
 
   // wings
   { id: 'wings_default', slot: 'wings', name: 'Stub Wings',  price: 0,   isDefault: true, color: 0x8b9bb4, rarity: 'common' },

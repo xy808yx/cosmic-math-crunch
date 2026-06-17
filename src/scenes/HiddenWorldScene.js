@@ -11,6 +11,7 @@ import { createModal } from '../modalHelper.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { cosmetics } from '../CosmeticManager.js';
 import { GARAGE_ITEMS, DAILY_NOTES } from '../content/dadGarage.js';
+import { RECESS_NOTES } from '../content/recessNotes.js';
 
 const W = 1080;
 const H = 1920;
@@ -38,8 +39,14 @@ export class HiddenWorldScene extends Phaser.Scene {
       return;
     }
 
-    this.createGarageExploration();
-    music.ensurePlaying(this, 'dadsGarage');
+    if (this.world.id === 18) {
+      // Quilchena playground / Point Grey track — the "RECESS" hidden world.
+      this.createPlaygroundExploration();
+      music.fadeToTrack(this, music.resolveTrack(this, 'playgroundTheme', 'homeTheme'));
+    } else {
+      this.createGarageExploration();
+      music.fadeToTrack(this, 'dadsGarage');
+    }
 
     new TransitionManager(this).fadeIn(300);
   }
@@ -117,7 +124,11 @@ export class HiddenWorldScene extends Phaser.Scene {
       color: 0x9a9aae,
       textOverrides: { fontSize: '24px', fill: '#ffffff' },
       onClick: () => {
-        music.ensurePlaying(this, 'homeTheme');
+        // Crossfade back to the host chapter's ambient (the map re-confirms it).
+        const homeKey = this.world?.chapter === 2
+          ? music.resolveTrack(this, 'innerSpaceHome', 'homeTheme')
+          : 'homeTheme';
+        music.fadeToTrack(this, homeKey);
         this.scene.start('WorldMapScene');
       }
     });
@@ -411,13 +422,17 @@ export class HiddenWorldScene extends Phaser.Scene {
     board.fillRoundedRect(-368, -268, 736, 536, 6);
     card.add(board);
 
+    // Scale the type to the note length so long recess notes still fit the board
+    // while short garage notes stay big and bold.
+    const len = message ? message.length : 0;
+    const fontSize = len > 190 ? 34 : len > 150 ? 38 : len > 110 ? 42 : len > 70 ? 48 : 52;
     card.add(this.add.text(0, 0, message, style('body', {
-      fontSize: '52px',
+      fontSize: fontSize + 'px',
       fill: '#2a1f12',
       align: 'center',
       wordWrap: { width: 680 },
       fontStyle: 'italic',
-      lineSpacing: 12
+      lineSpacing: Math.round(fontSize * 0.26)
     })).setOrigin(0.5));
   }
 
@@ -502,6 +517,540 @@ export class HiddenWorldScene extends Phaser.Scene {
     this._garagePetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
     // addAt(…, 0) keeps the pet below the transparent tap hit-rect.
     this._garagePetContainer.addAt(this._garagePetSprite, 0);
+  }
+
+  // ============================================================
+  // RECESS — Quilchena playground hidden inside "Inner Space".
+  // A nostalgic real-world running track / playground, rendered
+  // straight & cute. Same delightful trick as Dad's Garage.
+  // ============================================================
+  createPlaygroundExploration() {
+    this.drawPlaygroundBackdrop();
+
+    this.add.text(W / 2, 150, 'RECESS', style('display', {
+      fontSize: '72px',
+      fill: '#7ed957',
+      stroke: '#0a2a12',
+      strokeThickness: 6
+    })).setOrigin(0.5).setDepth(5);
+
+    // Companion pet standing on the woodchips, kept for the monkey-bar swing.
+    this.createRecessPet();
+
+    // Bubble copy lives inline — short, warm, kid-friendly.
+    // Roomy 3-row layout across the woodchips; the running track is a separate
+    // full-width band along the very bottom (added after this loop).
+    const items = [
+      { id: 'tower',   x: 250,  y: 900,  hitW: 320, hitH: 420, draw: drawPlayStructure, label: 'Play tower',
+        bubble: 'Up, up, up to the top deck!' },
+      { id: 'slide',   x: 470,  y: 980,  hitW: 270, hitH: 400, draw: drawWavySlide,     label: 'Big slide',
+        bubble: 'Wheee! All the way down!' },
+      { id: 'bars',    x: 840,  y: 920,  hitW: 360, hitH: 360, draw: drawMonkeyBars,    label: 'Monkey bars',
+        bubble: 'Again! Hand over hand!' },
+      { id: 'wall',    x: 160,  y: 1330, hitW: 220, hitH: 280, draw: drawClimbingWall,  label: 'Climbing wall',
+        bubble: 'Grab the holds and climb!' },
+      { id: 'zipline', x: 490,  y: 1330, hitW: 280, hitH: 240, draw: drawZipLine,       label: 'Zip line',
+        bubble: 'Hold tight — zoom across!' },
+      { id: 'tire',    x: 850,  y: 1330, hitW: 250, hitH: 380, draw: drawTireSwing,     label: 'Tire swing',
+        bubble: 'Round and round on the tire!' },
+      { id: 'spinner', x: 230,  y: 1580, hitW: 170, hitH: 200, draw: drawSpinnerSeat,   label: 'Spinner',
+        bubble: 'Round and round!' }
+    ];
+    // (The soccer goal now lives on the turf field at the top, not the woodchips;
+    //  the bottom row pairs the spinner with Dad's notes board.)
+
+    for (const item of items) {
+      const node = this.add.container(item.x, item.y).setDepth(8);
+      const g = this.add.graphics();
+      item.draw(g);
+      node.add(g);
+      // Stash each node so the spinner tap can rotate its own disc.
+      this['_recessNode_' + item.id] = node;
+      this.tweens.add({
+        targets: node,
+        scale: { from: 1, to: 1.03 },
+        duration: 1500 + Math.random() * 500,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+
+      this.add.text(item.x, item.y + item.hitH / 2 + 14, item.label, style('caption', {
+        fontSize: '20px',
+        fill: '#ffffff',
+        stroke: '#1a3a18',
+        strokeThickness: 3
+      })).setOrigin(0.5).setDepth(8);
+
+      const hit = this.add.rectangle(item.x, item.y, item.hitW, item.hitH, 0, 0)
+        .setInteractive({ useHandCursor: true }).setDepth(9);
+
+      hit.on('pointerdown', () => {
+        audio.playClick?.();
+        // The bars run their own unlock messaging; everyone else gets a bubble.
+        if (item.id !== 'bars') this.showBubble(item.x, item.y, item.bubble);
+        this.petInteract(item.id);
+      });
+    }
+
+    // Dad's notes board on the woodchips — same daily mechanic as the garage
+    // whiteboard (its own list + its own once-per-day stardust).
+    this.createRecessNoteBoard(560, 1580);
+
+    // The running track spans the entire bottom of the screen (drawn in the
+    // backdrop). One full-width hit zone lets the pet dash a lap.
+    const trackTop = H - 178;
+    this.add.text(W / 2, trackTop + 24, 'RUNNING TRACK', style('caption', {
+      fontSize: '20px', fill: '#f4f8ff', stroke: '#173a63', strokeThickness: 3
+    })).setOrigin(0.5).setDepth(9);
+    const trackHit = this.add.rectangle(W / 2, (trackTop + H) / 2, W, H - trackTop, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(9);
+    trackHit.on('pointerdown', () => {
+      audio.playClick?.();
+      this.showBubble(W / 2, trackTop + 40, "Three laps and you're a champion!");
+      this.petRunTrack();
+    });
+
+    const leaveBtn = createButton(this, {
+      x: W - 130, y: 100, label: 'Leave',
+      width: 200, height: 80,
+      color: 0x9a9aae,
+      textOverrides: { fontSize: '24px', fill: '#ffffff' },
+      onClick: () => {
+        const homeKey = this.world?.chapter === 2
+          ? music.resolveTrack(this, 'innerSpaceHome', 'homeTheme')
+          : 'homeTheme';
+        music.fadeToTrack(this, homeKey);
+        this.scene.start('WorldMapScene');
+      }
+    });
+    leaveBtn.setDepth(15);
+  }
+
+  drawPlaygroundBackdrop() {
+    // Warm sky tone behind everything.
+    this.cameras.main.setBackgroundColor('#bfe6ff');
+
+    const bg = this.add.graphics().setDepth(0);
+
+    // --- SKY GRADIENT (top → mid) ---
+    for (let i = 0; i < 16; i++) {
+      const t = i / 15;
+      const r = Math.round(0x9c + (0xdf - 0x9c) * t);
+      const gg = Math.round(0xd8 + (0xf2 - 0xd8) * t);
+      const b = Math.round(0xf6 + (0xff - 0xf6) * t);
+      bg.fillStyle((r << 16) | (gg << 8) | b, 1);
+      bg.fillRect(0, i * 28, W, 30);
+    }
+    // A couple of soft clouds.
+    bg.fillStyle(0xffffff, 0.85);
+    for (const [cx, cy, s] of [[220, 120, 1], [820, 180, 0.8], [560, 90, 0.6]]) {
+      bg.fillEllipse(cx, cy, 130 * s, 46 * s);
+      bg.fillEllipse(cx - 50 * s, cy + 8 * s, 80 * s, 36 * s);
+      bg.fillEllipse(cx + 55 * s, cy + 10 * s, 90 * s, 38 * s);
+    }
+
+    // --- BACKGROUND BAND: school + conifers, all rooted on the turf horizon ---
+    // drawConifer's trunk base sits at y + 28*scale; the turf rect (drawn after,
+    // starting at y=470) must overlap each trunk foot so no tree floats — so we
+    // aim every base a few px BELOW 470. The conifers flank the building (which
+    // spans x≈260–860) on either side.
+    drawConifer(bg, 70, 448, 1.0);    // trunk base ≈ 476 (into the turf)
+    drawConifer(bg, 152, 454, 0.8);   // trunk base ≈ 476
+    drawConifer(bg, 940, 451, 0.9);   // trunk base ≈ 476
+    drawConifer(bg, 1016, 445, 1.1);  // trunk base ≈ 477
+    // Cream Collegiate-Gothic Point Grey building with a corner spire tower.
+    drawSchoolTowerBack(bg, 560, 300);
+
+    // --- GREEN TURF FIELD with a soccer goal (≈ 470–632) ---
+    bg.fillStyle(0x4faa46, 1);
+    bg.fillRect(0, 470, W, 162);
+    bg.fillStyle(0x57b94e, 0.6);
+    bg.fillRect(0, 470, W, 56);
+    bg.fillStyle(0x46a03e, 0.5);
+    for (let sx = -40; sx < W; sx += 120) bg.fillRect(sx, 470, 56, 162);
+    bg.lineStyle(4, 0xffffff, 0.45);
+    bg.lineBetween(0, 556, W, 556);
+    drawGoalBack(bg, 250, 556);
+    // A soccer ball out on the field, in front of the goal.
+    bg.fillStyle(0xffffff, 1); bg.fillCircle(392, 590, 11);
+    bg.fillStyle(0x14142a, 1); bg.fillCircle(392, 590, 3.4);
+    for (let i = 0; i < 5; i++) { const a = i / 5 * Math.PI * 2 - Math.PI / 2; bg.fillCircle(392 + Math.cos(a) * 6.6, 590 + Math.sin(a) * 6.6, 2.2); }
+    bg.lineStyle(1.5, 0x9aa0aa, 0.5); bg.strokeCircle(392, 590, 11);
+
+    // Green chain-link fence between the field and the playground.
+    drawFenceStrip(bg, 634, 24);
+
+    // --- TAN WOODCHIP PLAY AREA (down to the running track) ---
+    const chipTop = 662;
+    const trackTop = H - 178;
+    bg.fillStyle(0xc7a06a, 1);
+    bg.fillRect(0, chipTop, W, trackTop - chipTop);
+    bg.fillStyle(0xd8b67e, 0.5);
+    bg.fillRect(0, chipTop, W, 150);
+    bg.fillStyle(0x9c7a4c, 0.30);
+    bg.fillRect(0, trackTop - 120, W, 120);
+    for (let i = 0; i < 240; i++) {
+      const cx = Math.random() * W;
+      const cy = chipTop + 8 + Math.random() * (trackTop - chipTop - 16);
+      const shade = Math.random();
+      bg.fillStyle(shade < 0.5 ? 0xb38a52 : (shade < 0.8 ? 0xa97f48 : 0xddc294), 0.7);
+      bg.fillRect(cx, cy, 5 + Math.random() * 7, 3);
+    }
+    // Railway-tie timber edge where the woodchips meet the track.
+    bg.fillStyle(0x6e4a28, 1); bg.fillRect(0, trackTop - 14, W, 16);
+    bg.fillStyle(0x855c34, 1); bg.fillRect(0, trackTop - 14, W, 5);
+    bg.fillStyle(0x4a3018, 0.6);
+    for (let px = 0; px < W; px += 150) bg.fillRect(px, trackTop - 14, 4, 16);
+
+    // --- FULL-WIDTH BLUE RUNNING TRACK along the entire bottom ---
+    drawRunningTrack(bg, trackTop);
+  }
+
+  // Companion pet on the woodchips; kept as `this._recessPet` for the swing.
+  createRecessPet() {
+    if (!companion.hasStarter()) return;
+    this._recessPetHome = { x: 770, y: 1650 };
+    const c = this.add.container(this._recessPetHome.x, this._recessPetHome.y).setDepth(11);
+    this._recessPet = c;
+    this._recessPetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    c.add(this._recessPetSprite);
+
+    this._recessPetBob = this.tweens.add({
+      targets: c,
+      y: this._recessPetHome.y - 8,
+      duration: 1500,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    const hit = this.add.rectangle(0, 0, 130, 130, 0, 0)
+      .setInteractive({ useHandCursor: true });
+    c.add(hit);
+    hit.on('pointerdown', () => {
+      audio.playPetChirp?.();
+      const heart = this.add.text(c.x + 40, c.y - 40, '♥', style('display', {
+        fontSize: '36px', fill: '#ff9ec7'
+      })).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: heart, y: heart.y - 50, alpha: 0, duration: 700,
+        onComplete: () => heart.destroy()
+      });
+    });
+  }
+
+  // Dad's notes board on the woodchips. Same daily mechanic as the garage
+  // whiteboard, but its own list (RECESS_NOTES) and its own once-per-day claim:
+  // one note per real day off a separate shuffled deck, +10 stardust the first
+  // time it's tapped each day. A "NEW +10 ⭐" badge marks a fresh claim.
+  createRecessNoteBoard(x, y) {
+    const { isNewDay, message } = progress.claimDailyDadNoteIfDue(RECESS_NOTES, 'recessNoteState');
+    let awarded = false;
+    if (isNewDay) {
+      progress.economy.stardust = (progress.economy.stardust || 0) + 10;
+      progress.save();
+      awarded = true;
+    }
+    this._recessNoteMessage = message;
+
+    const node = this.add.container(x, y).setDepth(8);
+    const g = this.add.graphics();
+    drawDadNotesBoard(g);
+    node.add(g);
+    this.tweens.add({
+      targets: node, scale: { from: 1, to: 1.03 },
+      duration: 1700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    // Header + affordance lettered onto the parchment.
+    node.add(this.add.text(0, -94, "DAD'S NOTES", style('caption', {
+      fontSize: '22px', fill: '#2a1f12', fontStyle: '900'
+    })).setOrigin(0.5));
+    node.add(this.add.text(0, -8, 'Tap to read', style('caption', {
+      fontSize: '18px', fill: '#6a5a44', fontStyle: 'italic'
+    })).setOrigin(0.5));
+
+    // Ground label, matching the other equipment.
+    this.add.text(x, y + 150, "Dad's notes", style('caption', {
+      fontSize: '20px', fill: '#ffffff', stroke: '#1a3a18', strokeThickness: 3
+    })).setOrigin(0.5).setDepth(8);
+
+    // NEW +10 ⭐ badge on a fresh day; fades + stops bobbing on tap.
+    let badge = null;
+    let badgeTween = null;
+    if (awarded) {
+      badge = this.add.container(98, -150);
+      const bg = this.add.graphics();
+      bg.fillStyle(0xffd86b, 1); bg.fillRoundedRect(-50, -24, 100, 48, 9);
+      bg.lineStyle(2, 0x2a1f12, 1); bg.strokeRoundedRect(-50, -24, 100, 48, 9);
+      badge.add(bg);
+      badge.add(this.add.text(0, -6, 'NEW', style('caption', { fontSize: '15px', fill: '#2a1f12', fontStyle: '900' })).setOrigin(0.5));
+      badge.add(this.add.text(0, 11, '+10 ⭐', style('caption', { fontSize: '13px', fill: '#2a1f12' })).setOrigin(0.5));
+      node.add(badge);
+      badgeTween = this.tweens.add({
+        targets: badge, scale: { from: 1, to: 1.1 },
+        duration: 700, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+      });
+    }
+
+    const hit = this.add.rectangle(x, y, 244, 260, 0, 0)
+      .setInteractive({ useHandCursor: true }).setDepth(9);
+    hit.on('pointerdown', () => {
+      audio.playClick?.();
+      if (badge) {
+        const fading = badge; badge = null;
+        badgeTween?.stop();
+        this.tweens.add({ targets: fading, alpha: 0, scale: 0.6, duration: 350, onComplete: () => fading.destroy() });
+      }
+      this.showDailyNotePopup(this._recessNoteMessage);
+    });
+  }
+
+  // ----- Pet interactions: the companion actually plays on each piece -----
+  // One shared busy-guard so taps can't overlap mid-animation.
+  _startPetAction() {
+    if (this._petActive || !this._recessPet) return false;
+    this._petActive = true;
+    this._recessPetBob?.pause();
+    this._recessPet.setScale(1);
+    this._recessPet.angle = 0;
+    return true;
+  }
+
+  _returnPetHome(onDone) {
+    const pet = this._recessPet;
+    const home = this._recessPetHome;
+    this.tweens.add({
+      targets: pet, x: home.x, y: home.y, angle: 0, duration: 440, ease: 'Quad.easeInOut',
+      onComplete: () => {
+        pet.angle = 0; pet.setScale(1);
+        this._petActive = false;
+        this._recessPetBob?.resume();
+        onDone?.();
+      }
+    });
+  }
+
+  _petMoveTo(x, y, dur, cb, ease) {
+    this.tweens.add({ targets: this._recessPet, x, y, duration: dur, ease: ease || 'Quad.easeInOut', onComplete: cb });
+  }
+
+  // Route an equipment tap to the matching pet activity (busy-guarded).
+  petInteract(id) {
+    if (!this._recessPet || this._petActive) return;
+    switch (id) {
+      case 'tower':   return this.petClimbTower();
+      case 'slide':   return this.petSlide();
+      case 'bars':    return this.handleMonkeyBars();
+      case 'wall':    return this.petClimbWall();
+      case 'zipline': return this.petZipLine();
+      case 'tire':    return this.petTireSwing();
+      case 'spinner': return this.petSpin();
+    }
+  }
+
+  // Play tower (250,900): climb to the top deck, happy hop, climb down.
+  petClimbTower() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    this._petMoveTo(262, 1120, 360, () => {
+      this._petMoveTo(262, 778, 640, () => {
+        this.tweens.add({ targets: pet, y: 752, duration: 220, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+          onComplete: () => this._returnPetHome() });
+      }, 'Sine.easeInOut');
+    });
+  }
+
+  // Big slide (470,980): climb the ladder, then ride the chute down.
+  petSlide() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    this._petMoveTo(388, 1160, 320, () => {
+      this._petMoveTo(402, 800, 520, () => {
+        this.tweens.add({ targets: pet, x: 590, duration: 640, ease: 'Quad.easeIn',
+          onUpdate: (tw) => { const p = tw.progress; pet.y = 805 + 318 * (p * p * (3 - 2 * p)); pet.angle = 12 * Math.sin(p * Math.PI); },
+          onComplete: () => this._returnPetHome() });
+      }, 'Sine.easeInOut');
+    });
+  }
+
+  // Climbing wall (160,1330): scoot up the holds with a little side-to-side.
+  petClimbWall() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    this._petMoveTo(160, 1478, 340, () => {
+      this.tweens.add({ targets: pet, y: 1208, duration: 900, ease: 'Sine.easeInOut',
+        onUpdate: (tw) => { pet.x = 160 + Math.sin(tw.progress * Math.PI * 5) * 12; },
+        onComplete: () => this._returnPetHome() });
+    });
+  }
+
+  // Zip line (490,1330): grab the handle and zoom along the rail.
+  petZipLine() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    this._petMoveTo(380, 1300, 340, () => {
+      this.tweens.add({ targets: pet, x: 604, duration: 950, ease: 'Sine.easeIn',
+        onUpdate: (tw) => { const p = tw.progress; pet.y = 1300 + Math.sin(p * Math.PI) * 10; pet.angle = 6 * Math.sin(p * Math.PI * 3); },
+        onComplete: () => this._returnPetHome() });
+    });
+  }
+
+  // Tire swing (850,1330): hop in and swing back and forth.
+  petTireSwing() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    this._petMoveTo(850, 1405, 360, () => {
+      const drv = { p: 0 };
+      this.tweens.add({ targets: drv, p: 1, duration: 1600, ease: 'Linear',
+        onUpdate: () => { const s = Math.sin(drv.p * Math.PI * 4); pet.x = 850 + s * 80; pet.angle = s * 14; },
+        onComplete: () => this._returnPetHome() });
+    });
+  }
+
+  // Spinner (230,1580): stand on the seat and spin (the disc spins too).
+  petSpin() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    const disc = this._recessNode_spinner;
+    this._petMoveTo(230, 1542, 340, () => {
+      if (disc) this.tweens.add({ targets: disc, angle: '+=720', duration: 900, ease: 'Cubic.easeOut' });
+      this.tweens.add({ targets: pet, angle: '+=720', duration: 900, ease: 'Cubic.easeOut',
+        onComplete: () => this._returnPetHome() });
+    });
+  }
+
+  // Running track: a wide lap along the full-width band at the bottom.
+  petRunTrack() {
+    if (!this._startPetAction()) return;
+    const pet = this._recessPet;
+    const trackY = H - 84;
+    const drv = { p: 0 };
+    this.tweens.add({
+      targets: drv, p: 1, duration: 1700, ease: 'Sine.easeInOut',
+      onUpdate: () => {
+        const a = drv.p * Math.PI * 2;
+        pet.x = W / 2 + Math.cos(a - Math.PI / 2) * 400;
+        pet.y = trackY + Math.sin(a - Math.PI / 2) * 26;
+      },
+      onComplete: () => this._returnPetHome()
+    });
+  }
+
+  // Monkey bars (840,920) — the hidden gem. Pet swings across; first clear
+  // pops the unlock, replays just say "Again!".
+  handleMonkeyBars() {
+    if (!this._startPetAction()) return;
+    const firstTime = !progress.isHiddenWorldCleared(18);
+    this._petMoveTo(700, 870, 360, () => {
+      this.playMonkeyBarSwing(() => {
+        this._returnPetHome(() => {
+          if (firstTime) this.showRecessUnlock();
+          else this.showBubble(840, 1110, 'Again! Hand over hand!');
+        });
+      });
+    });
+  }
+
+  // Hand-over-hand left→right along the bars (pet already at the start rung).
+  playMonkeyBarSwing(onDone) {
+    const pet = this._recessPet;
+    const barY = 870, startX = 700, endX = 980, rungs = 6;
+    pet.y = barY; pet.setScale(1);
+    let i = 0;
+    const stepX = (endX - startX) / rungs;
+    const swingNext = () => {
+      if (i >= rungs) { onDone?.(); return; }
+      const nx = startX + stepX * (i + 1);
+      this.tweens.add({
+        targets: pet, x: nx, angle: { from: -8, to: 8 }, duration: 280, ease: 'Sine.easeInOut',
+        onUpdate: (tw) => { pet.y = barY - Math.sin(tw.progress * Math.PI) * 26; },
+        onComplete: () => { pet.angle = 0; i++; swingNext(); }
+      });
+    };
+    swingNext();
+  }
+
+  // Found-it celebration — models on showUnlockCelebration.
+  showRecessUnlock() {
+    progress.clearHiddenWorld(18);
+    cosmetics.addAndEquip('acc_dried_mango');
+    audio.playMatch?.();
+
+    const { card, close } = createModal(this, {
+      width: 880, height: 660,
+      accentColor: 0x7ed957,
+      showCloseHint: false
+    });
+    card.add(this.add.text(0, -220, 'YOU FOUND IT!', style('display', {
+      fontSize: '60px',
+      fill: '#7ed957',
+      stroke: '#0a2a12',
+      strokeThickness: 5
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -130, 'You crossed the monkey bars!', style('caption', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      align: 'center'
+    })).setOrigin(0.5));
+
+    // Pet preview holding the freshly-equipped dried mango.
+    const previewPet = drawCompanion(this, 0, 20, { scale: 1.4 });
+    card.add(previewPet);
+
+    card.add(this.add.text(0, 150, 'Unlocked: Dried Mango', style('subhead', {
+      fontSize: '32px',
+      fill: '#7ed957',
+      align: 'center'
+    })).setOrigin(0.5));
+
+    card.add(createButton(this, {
+      x: 0, y: 240, width: 320, height: 92,
+      label: 'Awesome',
+      color: 0x7ed957,
+      textOverrides: { fontSize: '28px', fill: '#0a2a12', fontStyle: '900' },
+      onClick: () => {
+        this.refreshRecessPet();
+        close();
+      }
+    }));
+    return card;
+  }
+
+  // Redraw the in-scene pet so the just-equipped medal shows up immediately.
+  refreshRecessPet() {
+    if (!this._recessPet?.active || !this._recessPetSprite) return;
+    this._recessPetSprite.destroy();
+    this._recessPetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    this._recessPet.addAt(this._recessPetSprite, 0);
+  }
+
+
+  // Woodchips tap → a few chips scatter up and settle back.
+  scatterWoodchips(cx, cy) {
+    for (let i = 0; i < 7; i++) {
+      const chip = this.add.graphics().setDepth(10);
+      const tone = Math.random() < 0.5 ? 0xb38a52 : 0xddc294;
+      chip.fillStyle(tone, 1);
+      chip.fillRect(-5, -2, 10, 4);
+      chip.setPosition(cx + (Math.random() - 0.5) * 40, cy);
+      chip.rotation = Math.random() * Math.PI;
+      const dx = (Math.random() - 0.5) * 120;
+      const up = 40 + Math.random() * 50;
+      this.tweens.add({
+        targets: chip,
+        x: chip.x + dx,
+        duration: 520,
+        ease: 'Quad.easeOut',
+        onUpdate: (tw) => {
+          const p = tw.progress;
+          chip.y = cy - Math.sin(p * Math.PI) * up;
+          chip.rotation += 0.12;
+        },
+        onComplete: () => chip.destroy()
+      });
+    }
   }
 }
 
@@ -729,6 +1278,460 @@ export function drawGarageNode(scene, x, y, R) {
       ease: 'Sine.easeInOut'
     });
   }
+  return c;
+}
+
+// ============================================================
+// RECESS — playground/track draw helpers (module-level, like the garage's).
+// Backdrop helpers draw on the shared `bg` graphics in absolute coords;
+// item helpers draw a fresh Graphics `g` centered at (0,0).
+// ============================================================
+
+// Evergreen conifer (background band). Brown trunk + 3 stacked green tiers.
+function drawConifer(bg, x, y, s = 1) {
+  const w = 56 * s;
+  bg.fillStyle(0x6b4a2a, 1);
+  bg.fillRect(x - 5 * s, y, 10 * s, 28 * s);
+  bg.fillStyle(0x2f6e36, 1);
+  bg.fillTriangle(x, y + 4 * s, x - w / 2, y + 4 * s, x, y - 40 * s);
+  bg.fillTriangle(x, y + 4 * s, x + w / 2, y + 4 * s, x, y - 40 * s);
+  bg.fillTriangle(x, y - 16 * s, x - w * 0.42, y - 16 * s, x, y - 64 * s);
+  bg.fillTriangle(x, y - 16 * s, x + w * 0.42, y - 16 * s, x, y - 64 * s);
+  bg.fillStyle(0x3a8044, 1);
+  bg.fillTriangle(x, y - 34 * s, x - w * 0.3, y - 34 * s, x, y - 80 * s);
+  bg.fillTriangle(x, y - 34 * s, x + w * 0.3, y - 34 * s, x, y - 80 * s);
+}
+
+// Cream Collegiate-Gothic school modelled on Point Grey Secondary: a long
+// parapet-roofed classroom block with evenly-spaced tall pointed-arch windows
+// between buttresses, and a tall square TOWER WITH A POINTED SPIRE at the right
+// CORNER (not the middle). Drawn on the backdrop; the turf covers its base.
+function drawSchoolTowerBack(bg, x, y) {
+  const cream = 0xdcd6c2, shade = 0xc7bfa6, trim = 0xb1a98e;
+  const win = 0x7193b0, winEdge = 0x32506b, glass = 0xa6c2d8;
+  const door = 0x4a3a28, roof = 0x586673, roofHi = 0x6d7c8a;
+
+  const bBase = y + 182;                       // building meets the turf line
+
+  // ---- main classroom block (left + centre) ----
+  const bx0 = x - 300, bx1 = x + 172, bTop = y + 44;
+  bg.fillStyle(cream, 1); bg.fillRect(bx0, bTop, bx1 - bx0, bBase - bTop);
+  bg.fillStyle(shade, 1); bg.fillRect(bx0, bBase - 16, bx1 - bx0, 16);    // base shadow
+  bg.fillStyle(trim, 1);  bg.fillRect(bx0 - 4, bTop - 8, (bx1 - bx0) + 8, 10); // parapet coping
+  bg.fillStyle(cream, 1);                                                  // flat merlons
+  for (let mx = bx0 + 6; mx < bx1 - 14; mx += 38) bg.fillRect(mx, bTop - 16, 16, 8);
+
+  // buttresses on every bay edge, then a tall window centred in each bay
+  const bayN = 6, bayStart = bx0 + 16, bayEnd = bx1 - 16;
+  const pitch = (bayEnd - bayStart) / bayN;
+  bg.fillStyle(shade, 1);
+  for (let i = 0; i <= bayN; i++) bg.fillRect(bayStart + pitch * i - 4, bTop, 8, (bBase - bTop) - 16);
+  for (let i = 0; i < bayN; i++) {
+    const cxw = bayStart + pitch * (i + 0.5);
+    const wTop = bTop + 24, wBot = bBase - 30, hw = 11;
+    bg.fillStyle(win, 1);
+    bg.fillRect(cxw - hw, wTop, hw * 2, wBot - wTop);
+    bg.fillTriangle(cxw - hw, wTop, cxw + hw, wTop, cxw, wTop - 12);       // pointed arch
+    bg.fillStyle(glass, 0.5); bg.fillRect(cxw - hw + 2, wTop + 3, 4, (wBot - wTop) - 6);
+    bg.lineStyle(1.5, winEdge, 0.55);
+    bg.lineBetween(cxw, wTop - 10, cxw, wBot);                             // mullions
+    bg.lineBetween(cxw - hw, (wTop + wBot) / 2, cxw + hw, (wTop + wBot) / 2);
+  }
+
+  // central pointed-arch entrance
+  const dcx = (bx0 + bx1) / 2, dHalf = 24, dTop = bBase - 70;
+  bg.fillStyle(trim, 1);
+  bg.fillRect(dcx - dHalf - 4, dTop - 4, (dHalf + 4) * 2, (bBase - 16) - (dTop - 4));
+  bg.fillStyle(door, 1);
+  bg.fillRect(dcx - dHalf, dTop, dHalf * 2, (bBase - 16) - dTop);
+  bg.fillTriangle(dcx - dHalf, dTop, dcx + dHalf, dTop, dcx, dTop - 20);
+
+  // ---- corner tower (right) ----
+  const tx0 = x + 172, tx1 = x + 300, tTop = y - 26;
+  bg.fillStyle(cream, 1); bg.fillRect(tx0, tTop, tx1 - tx0, bBase - tTop);
+  bg.fillStyle(shade, 1);
+  bg.fillRect(tx0, tTop, 8, bBase - tTop);                                 // shaded inner face
+  bg.fillRect(tx0, bBase - 16, tx1 - tx0, 16);                            // base shadow
+  bg.fillStyle(trim, 1); bg.fillRect(tx0 - 6, tTop - 6, (tx1 - tx0) + 12, 10); // top coping
+  const tcx = (tx0 + tx1) / 2;
+  // clock face
+  bg.fillStyle(0xf4efe0, 1); bg.fillCircle(tcx, tTop + 40, 17);
+  bg.lineStyle(3, trim, 1); bg.strokeCircle(tcx, tTop + 40, 17);
+  bg.lineStyle(2.5, winEdge, 1);
+  bg.lineBetween(tcx, tTop + 40, tcx, tTop + 29);
+  bg.lineBetween(tcx, tTop + 40, tcx + 9, tTop + 44);
+  // tall belfry window
+  const tw = 14, wT = tTop + 76, wB = bBase - 42;
+  bg.fillStyle(win, 1); bg.fillRect(tcx - tw, wT, tw * 2, wB - wT);
+  bg.fillTriangle(tcx - tw, wT, tcx + tw, wT, tcx, wT - 14);
+  bg.fillStyle(glass, 0.5); bg.fillRect(tcx - tw + 3, wT + 3, 5, (wB - wT) - 6);
+  bg.lineStyle(1.5, winEdge, 0.55); bg.lineBetween(tcx, wT - 12, tcx, wB);
+
+  // ---- pointed spire on the corner tower ----
+  const sBase = tTop - 6, sApex = tTop - 92;
+  bg.fillStyle(roof, 1);   bg.fillTriangle(tx0 - 10, sBase, tx1 + 10, sBase, tcx, sApex);
+  bg.fillStyle(roofHi, 1); bg.fillTriangle(tx0 - 10, sBase, tcx, sBase, tcx, sApex);  // lit face
+  bg.fillStyle(trim, 1);   bg.fillRect(tcx - 2, sApex - 16, 4, 18); bg.fillCircle(tcx, sApex - 18, 4); // finial
+}
+
+// Small white soccer goal sitting on the turf (background).
+function drawGoalBack(bg, x, y) {
+  bg.lineStyle(5, 0xffffff, 0.95);
+  bg.strokeRect(x - 60, y - 56, 120, 56);
+  bg.lineStyle(1.5, 0xffffff, 0.5);
+  for (let gx = x - 54; gx < x + 60; gx += 14) bg.lineBetween(gx, y - 50, gx, y);
+  for (let gy = y - 50; gy < y; gy += 12) bg.lineBetween(x - 56, gy, x + 56, gy);
+}
+
+// Green chain-link fence strip across the canvas at height `y`, thickness `h`.
+function drawFenceStrip(bg, y, h) {
+  bg.fillStyle(0x3a6b4a, 0.9);
+  bg.fillRect(0, y, W, 4);
+  bg.fillRect(0, y + h - 4, W, 4);
+  bg.lineStyle(1.2, 0x6fa080, 0.5);
+  for (let mx = -h; mx < W; mx += 16) {
+    bg.lineBetween(mx, y, mx + h, y + h);
+    bg.lineBetween(mx + h, y, mx, y + h);
+  }
+  bg.fillStyle(0x2f5a3e, 0.9);
+  for (let px = 40; px < W; px += 200) bg.fillRect(px, y - 6, 6, h + 10);
+}
+
+// Railway-tie timber border framing the woodchip play area (front + back edges).
+function drawTimberBorder(bg, chipTop) {
+  bg.fillStyle(0x6e4a28, 1); bg.fillRect(0, H - 70, W, 70);
+  bg.fillStyle(0x855c34, 1); bg.fillRect(0, H - 70, W, 16);
+  bg.fillStyle(0x4a3018, 0.6);
+  for (let px = 0; px < W; px += 150) bg.fillRect(px, H - 70, 4, 70);
+  bg.fillStyle(0x6e4a28, 1); bg.fillRect(0, chipTop - 8, W, 10);
+  bg.fillStyle(0x855c34, 1); bg.fillRect(0, chipTop - 8, W, 4);
+}
+
+// Composite play tower — red posts, decks, green peaked roof, yellow panel.
+function drawPlayStructure(g) {
+  g.fillStyle(0x000000, 0.18); g.fillEllipse(0, 200, 240, 30);
+  g.fillStyle(0xd6342b, 1);
+  for (const px of [-110, -40, 40, 110]) g.fillRect(px - 7, -150, 14, 350);
+  g.fillStyle(0x2f6ea0, 1); g.fillRoundedRect(-120, 20, 240, 26, 6);
+  g.fillStyle(0x3a8044, 1); g.fillRoundedRect(-120, -60, 240, 24, 6);
+  g.fillStyle(0x3aa0c0, 1); g.fillRect(-120, -30, 8, 50); g.fillRect(112, -30, 8, 50);
+  g.fillStyle(0x2f8a4a, 1); g.fillTriangle(0, -210, -90, -150, 90, -150);
+  g.fillStyle(0x37a257, 1); g.fillTriangle(0, -196, -70, -152, 70, -152);
+  g.fillStyle(0xf2c43a, 1); g.fillRoundedRect(-30, 70, 60, 84, 8);
+  g.fillStyle(0x2f6ea0, 1); for (const hx of [-16, 0, 16]) g.fillCircle(hx, 112, 6);
+}
+
+// A nice, thick playground slide — red ladder/tower on the left, a smooth wide
+// blue chute sweeping down to the right with raised side rails + a run-out lip.
+function drawWavySlide(g) {
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(30, 188, 210, 26);
+  // ladder / tower posts + rungs
+  g.fillStyle(0xd6342b, 1);
+  g.fillRect(-118, -176, 14, 366);
+  g.fillRect(-78, -176, 14, 366);
+  g.fillStyle(0xe85a52, 1);
+  for (let ry = -150; ry < 170; ry += 40) g.fillRect(-118, ry, 54, 9);
+  // top platform
+  g.fillStyle(0x2f6ea0, 1); g.fillRoundedRect(-126, -198, 96, 22, 5);
+
+  // smooth thick chute: parametric centerline → offset upper/lower edges
+  const N = 26, half = 30;
+  const cx = (t) => -70 + 168 * t;
+  const cy = (t) => -176 + 330 * (t * t * (3 - 2 * t));      // smoothstep down
+  const ang = (t) => Math.atan2(
+    cy(Math.min(1, t + 0.001)) - cy(Math.max(0, t - 0.001)),
+    cx(Math.min(1, t + 0.001)) - cx(Math.max(0, t - 0.001)));
+  const edge = (off) => {
+    const pts = [];
+    for (let i = 0; i <= N; i++) { const t = i / N, a = ang(t); pts.push([cx(t) + Math.sin(a) * off, cy(t) - Math.cos(a) * off]); }
+    return pts;
+  };
+  const upper = edge(half), lower = edge(-half), inner = edge(half * 0.4);
+  const fillBetween = (a, b, color) => {
+    g.fillStyle(color, 1);
+    g.beginPath(); g.moveTo(a[0][0], a[0][1]);
+    for (const p of a) g.lineTo(p[0], p[1]);
+    for (let i = b.length - 1; i >= 0; i--) g.lineTo(b[i][0], b[i][1]);
+    g.closePath(); g.fillPath();
+  };
+  fillBetween(upper, lower, 0x2f78c8);     // bed
+  fillBetween(upper, inner, 0x6fb3ef);     // bright top surface
+  // raised side rails
+  g.lineStyle(8, 0x1f5a99, 1);
+  g.beginPath(); g.moveTo(upper[0][0], upper[0][1]); for (const p of upper) g.lineTo(p[0], p[1]); g.strokePath();
+  g.beginPath(); g.moveTo(lower[0][0], lower[0][1]); for (const p of lower) g.lineTo(p[0], p[1]); g.strokePath();
+  // run-out lip
+  g.fillStyle(0x2f6ea0, 1); g.fillRoundedRect(70, 150, 64, 16, 6);
+}
+
+// Tire swing — red A-frame with a black tire on chains (hole shows woodchips).
+function drawTireSwing(g) {
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 182, 150, 24);
+  g.lineStyle(14, 0xd6342b, 1);
+  g.lineBetween(-104, 176, -46, -148);     // splayed legs
+  g.lineBetween(104, 176, 46, -148);
+  g.lineStyle(15, 0xc02d24, 1);
+  g.lineBetween(-58, -150, 58, -150);       // top bar
+  g.lineStyle(4, 0x8a8a96, 1);              // chains
+  g.lineBetween(-20, -146, -20, 34);
+  g.lineBetween(20, -146, 20, 34);
+  g.lineBetween(0, -146, 0, 30);
+  g.fillStyle(0x17171c, 1); g.fillCircle(0, 82, 56);       // tire
+  g.fillStyle(0xc7a06a, 1); g.fillCircle(0, 82, 28);       // hole → woodchips
+  g.fillStyle(0x0d0d11, 1);
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2; g.fillCircle(Math.cos(a) * 47, 82 + Math.sin(a) * 47, 4.5); }
+  g.lineStyle(3, 0x39393f, 1); g.strokeCircle(0, 82, 56); g.strokeCircle(0, 82, 28);
+  g.fillStyle(0xffffff, 0.12); g.fillEllipse(-18, 64, 26, 12);
+}
+
+// Full-width blue running track band along the bottom (drawn on the backdrop).
+function drawRunningTrack(bg, top) {
+  const h = H - top;
+  bg.fillStyle(0x2f78c8, 1); bg.fillRect(0, top, W, h);
+  bg.fillStyle(0x3a86d8, 1); bg.fillRect(0, top, W, 24);
+  bg.fillStyle(0x2769b0, 0.5); bg.fillRect(0, H - 38, W, 38);
+  // lane lines
+  bg.lineStyle(5, 0xf4f8ff, 0.9);
+  for (let i = 1; i < 4; i++) bg.lineBetween(0, top + h * i / 4, W, top + h * i / 4);
+  bg.lineStyle(6, 0xf4f8ff, 0.95); bg.lineBetween(0, top + 7, W, top + 7);
+  // scattered autumn leaves
+  for (const [lx, ly, lc] of [[260, top + 40, 0xd9772f], [620, top + 110, 0xc94f2a], [900, top + 60, 0xe0a23a], [990, top + 130, 0xd9772f], [380, top + 140, 0xe0a23a]]) {
+    bg.fillStyle(lc, 0.9); bg.fillEllipse(lx, ly, 13, 8);
+  }
+}
+
+// Yellow + blue wavy climbing wall with colorful holds, red frame posts.
+function drawClimbingWall(g) {
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 142, 150, 22);
+  g.fillStyle(0xd6342b, 1); g.fillRect(-92, -130, 12, 272); g.fillRect(80, -130, 12, 272);
+  g.fillStyle(0xf2c43a, 1); g.fillRoundedRect(-78, -120, 78, 250, 10);
+  g.fillStyle(0x2f78c8, 1); g.fillRoundedRect(0, -120, 78, 250, 10);
+  const holds = [[-50, -80, 0xff5b6e], [-20, -20, 0x39b54a], [-55, 40, 0x6a4ec0], [-25, 100, 0xff8b3d],
+    [30, -70, 0xf2c43a], [55, -10, 0xff5b6e], [20, 60, 0xffffff], [50, 110, 0x39b54a]];
+  for (const [hx, hy, hc] of holds) { g.fillStyle(hc, 1); g.fillCircle(hx, hy, 9); g.fillStyle(0xffffff, 0.5); g.fillCircle(hx - 2, hy - 2, 3); }
+}
+
+// Ring trek — hanging gold rings on chains between two red posts.
+// Zip line / track ride — an overhead rail with a rolling trolley + a handle
+// the kids grab and slide across.
+function drawZipLine(g) {
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 110, 220, 22);
+  // two red end posts (right slightly taller — the cable rides downhill)
+  g.fillStyle(0xd6342b, 1); g.fillRect(-128, -96, 14, 206); g.fillRect(114, -110, 14, 220);
+  g.fillStyle(0xc02d24, 1); g.fillRect(-128, -96, 14, 30); g.fillRect(114, -110, 14, 30);
+  // top rail / cable
+  g.lineStyle(7, 0x7a828c, 1); g.lineBetween(-122, -86, 122, -100);
+  g.lineStyle(2, 0xb6bcc4, 1); g.lineBetween(-122, -89, 122, -103);
+  // trolley on the rail
+  g.fillStyle(0x3a3f47, 1); g.fillRoundedRect(-28, -102, 56, 20, 5);
+  g.fillStyle(0x9aa0aa, 1); g.fillCircle(-15, -84, 6); g.fillCircle(15, -84, 6);
+  // ropes down to a grip handle
+  g.lineStyle(5, 0x2f6ea0, 1); g.lineBetween(-13, -82, -16, 18); g.lineBetween(13, -82, 16, 18);
+  // yellow grip bar
+  g.fillStyle(0xf2c43a, 1); g.fillRoundedRect(-30, 14, 60, 18, 9);
+  g.lineStyle(3, 0xd99a1f, 1); g.strokeRoundedRect(-30, 14, 60, 18, 9);
+}
+
+// Blue disc spinner-seat on a red post.
+function drawSpinnerSeat(g) {
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 95, 90, 18);
+  g.fillStyle(0xd6342b, 1); g.fillRect(-8, -10, 16, 105);
+  g.fillStyle(0x1f5a99, 1); g.fillEllipse(0, -10, 120, 20);
+  g.fillStyle(0x2f78c8, 1); g.fillEllipse(0, -22, 120, 40);
+  g.fillStyle(0x3a86d8, 1); g.fillEllipse(0, -28, 110, 30);
+  g.fillStyle(0xffffff, 0.4); g.fillEllipse(-24, -32, 40, 12);
+}
+
+// Dad's notes board — a parchment notice board on two wooden posts. Headers and
+// the "Tap to read" affordance are added as text by createRecessNoteBoard.
+function drawDadNotesBoard(g) {
+  // ground shadow
+  g.fillStyle(0x000000, 0.16); g.fillEllipse(0, 138, 158, 24);
+  // posts
+  g.fillStyle(0x6e4a28, 1); g.fillRect(-74, 24, 16, 114); g.fillRect(58, 24, 16, 114);
+  g.fillStyle(0x855c34, 1); g.fillRect(-74, 24, 5, 114); g.fillRect(58, 24, 5, 114);
+  // dark wood frame
+  g.fillStyle(0x5e3d22, 1); g.fillRoundedRect(-122, -128, 244, 182, 12);
+  g.fillStyle(0x7a5230, 1); g.fillRoundedRect(-122, -128, 244, 10, 6);
+  // parchment surface
+  g.fillStyle(0xf5ecd6, 1); g.fillRoundedRect(-106, -112, 212, 152, 6);
+  g.fillStyle(0xe9dcbd, 1); g.fillRect(-106, 26, 212, 14);
+  // divider under the header
+  g.fillStyle(0xcdbf9a, 1); g.fillRect(-86, -74, 172, 3);
+  // two red thumbtacks
+  for (const tx of [-86, 86]) {
+    g.fillStyle(0xc23a3a, 1); g.fillCircle(tx, -98, 6);
+    g.fillStyle(0xff9a9a, 0.85); g.fillCircle(tx - 2, -100, 2.2);
+  }
+  // a faint ruled line to suggest handwriting
+  g.fillStyle(0xddcfa9, 1); g.fillRect(-72, 18, 144, 2);
+}
+
+// Monkey bars — the hidden gem. Horizontal overhead ladder on tall red posts.
+function drawMonkeyBars(g) {
+  g.fillStyle(0x000000, 0.18); g.fillEllipse(0, 172, 300, 28);
+  g.fillStyle(0xd6342b, 1); g.fillRect(-160, -120, 16, 290); g.fillRect(144, -120, 16, 290);
+  g.fillStyle(0xd6342b, 1); g.fillRect(-160, -120, 320, 14); g.fillRect(-160, -98, 320, 10);
+  g.fillStyle(0xe85a52, 1);
+  for (let rx = -140; rx <= 140; rx += 40) g.fillRect(rx - 5, -118, 10, 30);
+  g.fillStyle(0xfff3b8, 0.9); g.fillCircle(0, -150, 4); g.fillCircle(70, -140, 3); g.fillCircle(-80, -138, 3);
+}
+
+// A patch of the blue running track with white lanes + autumn leaves.
+function drawTrackPatch(g) {
+  g.fillStyle(0x000000, 0.14); g.fillEllipse(0, 80, 300, 20);
+  g.fillStyle(0x4faa46, 1); g.fillRect(-180, -78, 360, 20);
+  g.fillStyle(0x2f78c8, 1); g.fillRoundedRect(-180, -60, 360, 130, 10);
+  g.fillStyle(0x3a86d8, 1); g.fillRoundedRect(-180, -60, 360, 30, 10);
+  g.lineStyle(4, 0xf4f8ff, 0.9); g.lineBetween(-180, -20, 180, -20); g.lineBetween(-180, 20, 180, 20);
+  for (const [lx, ly, lc] of [[-120, 40, 0xd9772f], [60, -40, 0xc94f2a], [120, 30, 0xe0a23a]]) { g.fillStyle(lc, 0.9); g.fillEllipse(lx, ly, 12, 7); }
+}
+
+// A little pile of woodchips.
+function drawWoodchipPatch(g) {
+  g.fillStyle(0x000000, 0.12); g.fillEllipse(0, 40, 140, 20);
+  g.fillStyle(0xc7a06a, 1); g.fillEllipse(0, 10, 150, 60);
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2, r = Math.random() * 64;
+    const cx = Math.cos(a) * r, cy = 10 + Math.sin(a) * r * 0.4;
+    const sh = Math.random();
+    g.fillStyle(sh < 0.5 ? 0xb38a52 : (sh < 0.8 ? 0xa97f48 : 0xddc294), 0.95);
+    g.fillRect(cx, cy, 6 + Math.random() * 8, 3);
+  }
+}
+
+// Small map icon for the "King Coli" germ boss — a round green germ head with
+// a tiny gold crown and a smug face. Modelled on drawGarageNode's structure.
+export function drawKingColiNode(scene, x, y, R) {
+  const c = scene.add.container(x, y);
+
+  // Soft sickly-green halo.
+  const halo = scene.add.graphics();
+  halo.fillStyle(0x8ddf5a, 0.18);
+  halo.fillCircle(0, 0, R + 14);
+  c.add(halo);
+
+  const g = scene.add.graphics();
+  // Germ body — round green blob with a few pseudopod bumps around the rim.
+  g.fillStyle(0x5fae3a, 1);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    g.fillCircle(Math.cos(a) * R * 0.9, Math.sin(a) * R * 0.9, R * 0.22);
+  }
+  g.fillStyle(0x6cc043, 1);
+  g.fillCircle(0, 0, R * 0.92);
+  // Shading crescent lower-right.
+  g.fillStyle(0x3f8a28, 0.4);
+  g.fillCircle(R * 0.2, R * 0.22, R * 0.85);
+  // Belly highlight.
+  g.fillStyle(0xa6e87a, 0.5);
+  g.fillEllipse(-R * 0.3, -R * 0.32, R * 0.6, R * 0.34);
+  // Little flagella tails.
+  g.lineStyle(3, 0x4f9630, 1);
+  g.lineBetween(-R * 0.7, R * 0.6, -R * 1.15, R * 0.95);
+  g.lineBetween(R * 0.6, R * 0.7, R * 1.05, R * 1.05);
+  c.add(g);
+
+  // Smug face.
+  const face = scene.add.graphics();
+  face.fillStyle(0x0c2a08, 1);
+  // Half-lidded eyes.
+  face.fillEllipse(-R * 0.3, -R * 0.05, R * 0.22, R * 0.16);
+  face.fillEllipse(R * 0.3, -R * 0.05, R * 0.22, R * 0.16);
+  face.fillStyle(0x0c2a08, 1);
+  face.lineStyle(3, 0x0c2a08, 1);
+  // Smirk.
+  face.beginPath();
+  face.moveTo(-R * 0.28, R * 0.32);
+  face.lineTo(R * 0.05, R * 0.42);
+  face.lineTo(R * 0.34, R * 0.24);
+  face.strokePath();
+  c.add(face);
+
+  // Tiny gold crown.
+  const crown = scene.add.graphics();
+  crown.fillStyle(0xffd24a, 1);
+  const cw = R * 0.9, cy = -R * 0.78, ch = R * 0.42;
+  crown.fillRect(-cw / 2, cy, cw, ch * 0.55);
+  // Three points.
+  crown.fillTriangle(-cw / 2, cy, -cw / 2 + cw / 3, cy, -cw / 2 + cw / 6, cy - ch * 0.7);
+  crown.fillTriangle(-cw / 6, cy, cw / 6, cy, 0, cy - ch * 0.85);
+  crown.fillTriangle(cw / 2 - cw / 3, cy, cw / 2, cy, cw / 2 - cw / 6, cy - ch * 0.7);
+  // Jewels.
+  crown.fillStyle(0xff5b6e, 1);
+  crown.fillCircle(0, cy + ch * 0.28, R * 0.09);
+  crown.fillStyle(0x4a90d9, 1);
+  crown.fillCircle(-cw * 0.28, cy + ch * 0.28, R * 0.07);
+  crown.fillCircle(cw * 0.28, cy + ch * 0.28, R * 0.07);
+  // Crown shine.
+  crown.fillStyle(0xfff0b0, 0.7);
+  crown.fillRect(-cw / 2 + 2, cy + 2, cw - 4, 2);
+  c.add(crown);
+
+  return c;
+}
+
+// Small map icon evoking the playground / track — a blue running-track loop
+// with a green infield and a tiny red slide. Returns the container.
+export function drawPlaygroundNode(scene, x, y, R) {
+  const c = scene.add.container(x, y);
+  const cleared = progress.isHiddenWorldCleared(18);
+
+  // Warm halo — brighter once "RECESS" has been found.
+  const halo = scene.add.graphics();
+  halo.fillStyle(0x7ed957, cleared ? 0.26 : 0.14);
+  halo.fillCircle(0, 0, R + (cleared ? 16 : 12));
+  c.add(halo);
+
+  const g = scene.add.graphics();
+  // Blue oval track.
+  g.fillStyle(0x2f78c8, 1);
+  g.fillEllipse(0, R * 0.12, R * 1.9, R * 1.4);
+  // Green infield turf.
+  g.fillStyle(0x57b94e, 1);
+  g.fillEllipse(0, R * 0.12, R * 1.1, R * 0.7);
+  // White lane line on the track.
+  g.lineStyle(2, 0xf4f8ff, 0.9);
+  g.strokeEllipse(0, R * 0.12, R * 1.5, R * 1.05);
+  c.add(g);
+
+  // A tiny red slide rising from the infield.
+  const slide = scene.add.graphics();
+  // Ladder posts.
+  slide.fillStyle(0xe23b3b, 1);
+  slide.fillRect(R * 0.45, -R * 0.55, R * 0.12, R * 0.85);
+  slide.fillRect(R * 0.7, -R * 0.55, R * 0.12, R * 0.85);
+  // Rungs.
+  slide.fillStyle(0xc62f2f, 1);
+  for (let i = 0; i < 3; i++) slide.fillRect(R * 0.45, -R * 0.4 + i * R * 0.22, R * 0.37, R * 0.06);
+  // Blue slide chute curving down-left.
+  slide.fillStyle(0x3a86d8, 1);
+  slide.beginPath();
+  slide.moveTo(R * 0.5, -R * 0.5);
+  slide.lineTo(R * 0.62, -R * 0.5);
+  slide.lineTo(-R * 0.5, R * 0.35);
+  slide.lineTo(-R * 0.66, R * 0.22);
+  slide.closePath();
+  slide.fillPath();
+  // Slide lip highlight.
+  slide.fillStyle(0x9fd0ff, 0.8);
+  slide.fillRect(-R * 0.66, R * 0.18, R * 0.18, R * 0.06);
+  c.add(slide);
+
+  // Cleared: small green check badge at the corner.
+  if (cleared) {
+    const badge = scene.add.graphics();
+    badge.fillStyle(0x0a2a12, 1);
+    badge.fillCircle(R * 0.78, -R * 0.78, R * 0.3);
+    badge.lineStyle(3, 0x7ed957, 1);
+    badge.beginPath();
+    badge.moveTo(R * 0.78 - R * 0.14, -R * 0.78);
+    badge.lineTo(R * 0.78 - R * 0.03, -R * 0.67);
+    badge.lineTo(R * 0.78 + R * 0.16, -R * 0.92);
+    badge.strokePath();
+    c.add(badge);
+  }
+
   return c;
 }
 

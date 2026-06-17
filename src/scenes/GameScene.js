@@ -94,9 +94,10 @@ export class GameScene extends Phaser.Scene {
     this.mode = this.registry.get('levelMode') || 'mult';
     this.world = findWorld(this.worldId);
     this.isBoss = this.mode === 'boss';
-    // Data-driven: the Glitch World is the lone 'gauntlet'-kind world (see
-    // GameData WORLDS), so behavior keys off that instead of a hardcoded id.
-    this.isGlitchBoss = this.isBoss && this.world?.kind === 'gauntlet';
+    // The DATAMOSH visuals/math belong to Glitch World (id 15) ONLY. Other
+    // 'gauntlet'-kind hidden worlds (e.g. King Coli, id 17) are normal-art boss
+    // fights — they must NOT inherit the glitch corruption/colors/problems.
+    this.isGlitchBoss = this.isBoss && this.worldId === 15;
     this.freePlay = !!this.registry.get('freePlay');
 
     // Arcade modes (Endless, Boss Rush) run on THIS engine. The launcher scenes
@@ -180,7 +181,15 @@ export class GameScene extends Phaser.Scene {
 
   create() {
     audio.init();
-    music.ensurePlaying(this, this.isBoss ? 'bossTheme' : 'levelTheme');
+    // Chapter 2 prefers its bespoke Inner Space tracks; resolveTrack falls back
+    // to the Chapter 1 themes until those MP3s ship, so the chapter is never
+    // silent. Crossfade in so map→level→boss transitions don't hard-cut.
+    const isCh2 = this.world?.chapter === 2;
+    const musicKey = this.isBoss
+      ? (isCh2 ? music.resolveTrack(this, 'innerSpaceBoss', 'bossTheme') : 'bossTheme')
+      : (isCh2 ? music.resolveTrack(this, 'innerSpaceLevel', 'levelTheme') : 'levelTheme');
+    music.fadeToTrack(this, musicKey);
+    this._bossEscalated = false;
     // Pitch the level theme per-world; boss theme stays unmodified so boss
     // fights read distinctly regardless of world.
     if (!this.isBoss) {
@@ -994,6 +1003,14 @@ export class GameScene extends Phaser.Scene {
     if (asteroid.isBoss) {
       this.bossHp = Math.max(0, this.bossHp - 1);
       this.drawBossHp();
+      // Big-fight panic: speed the boss theme up once for the final third of HP.
+      // Reserved for the grand finale (Patient Zero, W28) and the King Coli
+      // superboss (W17) so smaller fights stay steady.
+      if ((this.worldId === 28 || this.worldId === 17) && !this._bossEscalated
+        && this.bossHp > 0 && this.bossHp <= this.bossMaxHp / 3) {
+        this._bossEscalated = true;
+        music.setPlaybackRate(1.06, 1500);
+      }
       audio.playBossImpact?.();
       this.recoilBoss(asteroid);
       if (this.isGlitchBoss) {
@@ -2335,6 +2352,19 @@ export class GameScene extends Phaser.Scene {
       this.stardustEarned += glitchBonus;
     }
 
+    // King Coli (W17) — the hidden hygiene superboss. First win clears the world
+    // (which grants the exclusive Aegis hull via grantSecretReward), pays a big
+    // stardust bonus, and flags the summary banner.
+    let kingColiUnlocked = false;
+    let kingColiBonus = 0;
+    if (bossWin && this.worldId === 17 && !progress.isHiddenWorldCleared(17)) {
+      kingColiUnlocked = true;
+      kingColiBonus = 1000;
+      progress.clearHiddenWorld(17);
+      economy.addStardust(kingColiBonus);
+      this.stardustEarned += kingColiBonus;
+    }
+
     const dailyBonus = claimDailyBonusIfDue();
     this.stardustEarned += dailyBonus;
 
@@ -2347,7 +2377,7 @@ export class GameScene extends Phaser.Scene {
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
     const clearedThisRun = bossWin && !wasFullyCleared && worldFullyCleared;
 
-    const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus, glitchUnlocked, glitchBonus };
+    const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus, glitchUnlocked, glitchBonus, kingColiUnlocked, kingColiBonus };
 
     const proceedToSummary = () => {
       if (evolvedTo) {
@@ -2434,7 +2464,9 @@ export class GameScene extends Phaser.Scene {
     // kid, so give it a small 3-star damage budget — you can slip up to twice
     // and still earn 3 stars. Normal bosses are shorter, so they keep the
     // flawless-run requirement for 3 stars.
-    if (this.isGlitchBoss) {
+    if (this.isGlitchBoss || this.worldId === 17) {
+      // King Coli (17) is a ~40-hit superboss like the Glitch gauntlet — a
+      // flawless run is unrealistic, so allow a small mistake budget for 3 stars.
       if (lost <= 2) return 3;
       if (lost <= 3) return 2;
       return 1;
@@ -2444,7 +2476,7 @@ export class GameScene extends Phaser.Scene {
     return 1;
   }
 
-  showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0, glitchUnlocked = false, glitchBonus = 0 }) {
+  showSummary({ stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus = 0, masteryBonus = 0, dailyBonus = 0, glitchUnlocked = false, glitchBonus = 0, kingColiUnlocked = false, kingColiBonus = 0 }) {
     if (this.scoreGroup) {
       this.scoreGroup.forEach(o => this.tweens.add({
         targets: o, alpha: 1, duration: 240, ease: 'Quad.easeOut'
@@ -2634,8 +2666,29 @@ export class GameScene extends Phaser.Scene {
       audio.playGlitchStatic?.({ duration: 0.28, peakGain: 0.15 });
     }
 
+    if (kingColiUnlocked) {
+      const banner = this.add.container(0, -panelH / 2 + (evolvedTo ? 90 : 30));
+      const bg2 = this.add.graphics();
+      bg2.fillStyle(0x6b8f3a, 1);
+      bg2.fillRoundedRect(-360, -34, 720, 68, 34);
+      bg2.lineStyle(3, 0xeed25a, 1);
+      bg2.strokeRoundedRect(-360, -34, 720, 68, 34);
+      banner.add(bg2);
+      banner.add(this.add.text(0, 0, `UNLOCKED: AEGIS HULL + ${kingColiBonus} STARDUST`, style('subhead', {
+        fontSize: '24px',
+        fill: '#0a0a1a',
+        fontStyle: '900'
+      })).setOrigin(0.5));
+      panel.add(banner);
+      this.tweens.add({
+        targets: banner, scale: { from: 0.6, to: 1 },
+        duration: 320, ease: 'Back.easeOut'
+      });
+      audio.playStardustChime?.();
+    }
+
     if (firstMastery) {
-      const banner = this.add.container(0, -panelH / 2 + (evolvedTo || glitchUnlocked ? 90 : 30));
+      const banner = this.add.container(0, -panelH / 2 + (evolvedTo || glitchUnlocked || kingColiUnlocked ? 90 : 30));
       const bg2 = this.add.graphics();
       bg2.fillStyle(COLORS.warning, 1);
       bg2.fillRoundedRect(-340, -34, 680, 68, 34);

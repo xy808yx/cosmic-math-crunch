@@ -255,6 +255,40 @@ export const WORLDS = [
     hidden: true,
     discoveredFrom: { worldId: 9, modes: ['mult', 'mixed'] },
     kind: 'exploration'
+  },
+  // Chapter 2 secret — King Coli, the hidden hygiene superboss. A regal E. coli
+  // germ-king on a porcelain throne. Discovered via the mixed-mode warp asteroid
+  // in Neuron Forest (W24). Tough-but-fair (~40 HP, below Patient Zero's 46).
+  {
+    id: 17,
+    chapter: 2,
+    name: 'The Royal Flush',
+    color: 0x6b8f3a,
+    accentColor: 0xeed25a,
+    description: 'A throne where forgotten germs grow strong.',
+    villain: 'King Coli',
+    flavorText: 'Scrubbed clean. The throne sits empty and gleaming.',
+    levelsRequired: 1,
+    hidden: true,
+    discoveredFrom: { worldId: 24, mode: 'mixed' },
+    kind: 'gauntlet'
+  },
+  // Chapter 2 secret — "Recess": a real-world playground + running track tucked
+  // inside the body (the Dad's-Garage trick). Discovered via the div-mode warp
+  // asteroid in Immune Front (W26). Non-combat exploration.
+  {
+    id: 18,
+    chapter: 2,
+    name: 'Recess',
+    color: 0x4a90d9,
+    accentColor: 0x7ed957,
+    description: 'A patch of the outside world, tucked away.',
+    villain: null,
+    flavorText: 'You found it. The bell never rings here.',
+    levelsRequired: 1,
+    hidden: true,
+    discoveredFrom: { worldId: 26, mode: 'div' },
+    kind: 'exploration'
   }
 ];
 
@@ -431,6 +465,7 @@ const CHAPTER2_BOSS_HP = {
 export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
   if (worldId === 15) return 22;       // Glitch World boss (Datamosh) — mid-game spike.
+  if (worldId === 17) return 40;       // King Coli — hidden superboss, just under Patient Zero.
   if (CHAPTER2_BOSS_HP[worldId]) return CHAPTER2_BOSS_HP[worldId];
   return 8 + worldId * 2;
 }
@@ -442,6 +477,7 @@ export function getBossHpForWorld(worldId) {
 // target age. Tuning dial: lower W28's HP or raise this if playtests disagree.
 export function getBossDurationForWorld(worldId) {
   if (worldId === 28) return 120;
+  if (worldId === 17) return 110;   // King Coli — 40 HP superboss, needs a bigger clock.
   return 90;
 }
 
@@ -814,6 +850,7 @@ class PlayerProgress {
         this.arcade = { endlessBest: 0, bossRushBest: null, ...(data.arcade || {}) };
         this.petHelperUsed = !!data.petHelperUsed; // big-boss helper consumed
         this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
+        this.recessNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.recessNoteState || {}) };
         this.tutorialSeen = !!data.tutorialSeen;
         this.cosmicHintSeen = !!data.cosmicHintSeen;
         // Chapter 2 ("Inner Space") additions — backward-compatible defaults so
@@ -849,6 +886,7 @@ class PlayerProgress {
     this.arcade = { endlessBest: 0, bossRushBest: null };
     this.petHelperUsed = false;
     this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
+    this.recessNoteState = { lastClaimDate: null, nextIndex: 0 };
     this.tutorialSeen = false;
     this.cosmicHintSeen = false;
     this.currentChapter = 1;
@@ -1069,6 +1107,7 @@ class PlayerProgress {
         arcade: this.arcade,
         petHelperUsed: this.petHelperUsed,
         dadNoteState: this.dadNoteState,
+        recessNoteState: this.recessNoteState,
         tutorialSeen: this.tutorialSeen,
         cosmicHintSeen: this.cosmicHintSeen,
         currentChapter: this.currentChapter,
@@ -1151,7 +1190,22 @@ class PlayerProgress {
   clearHiddenWorld(worldId) {
     if (this.hiddenWorldCleared[worldId]) return;
     this.hiddenWorldCleared[worldId] = true;
+    this.grantSecretReward(worldId);
     this.save();
+  }
+
+  // Idempotently grant a hidden world's signature reward on first clear. King
+  // Coli (17) drops the exclusive Aegis hull (auto-equipped). Exploration
+  // secrets (e.g. Recess, 18) grant their cosmetic in-scene via CosmeticManager.
+  // Mutates the save shape directly to avoid a circular import of ShipManager.
+  grantSecretReward(worldId) {
+    if (worldId === 17) {
+      const ship = this.ship;
+      if (ship && Array.isArray(ship.ownedParts) && !ship.ownedParts.includes('hull_aegis')) {
+        ship.ownedParts.push('hull_aegis');
+        if (ship.parts) ship.parts.hull = 'hull_aegis'; // auto-equip the trophy
+      }
+    }
   }
 
   isHiddenWorldDiscovered(worldId) {
@@ -1224,7 +1278,11 @@ class PlayerProgress {
   // the note as "today's". Draws notes in RANDOM order from a shuffled deck:
   // every note is shown once before any repeats, and the deck reshuffles each
   // cycle — so it's unpredictable but never skips a note.
-  claimDailyDadNoteIfDue(notes) {
+  // Pull today's note for a daily board. `stateKey` selects which independent
+  // board's state to use — 'dadNoteState' (the garage whiteboard) by default, or
+  // 'recessNoteState' for the recess playground board — so each board rotates and
+  // pays out once per day independently of the other.
+  claimDailyDadNoteIfDue(notes, stateKey = 'dadNoteState') {
     if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
     // Local calendar date (YYYY-MM-DD) — must match EconomyManager.todayString so
     // the note and its daily stardust reset together at LOCAL midnight. Using UTC
@@ -1232,7 +1290,7 @@ class PlayerProgress {
     const d = new Date();
     const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const N = notes.length;
-    const state = this.dadNoteState || {};
+    const state = this[stateKey] || {};
     const isNewDay = state.lastClaimDate !== today;
 
     if (!isNewDay) {
@@ -1254,7 +1312,7 @@ class PlayerProgress {
       deck = this._shuffledNoteDeck(N, state.lastIndex);
     }
     const index = deck.shift();
-    this.dadNoteState = { lastClaimDate: today, deck, deckN: N, lastIndex: index };
+    this[stateKey] = { lastClaimDate: today, deck, deckN: N, lastIndex: index };
     this.save();
     return { isNewDay: true, message: notes[index], index };
   }
@@ -1631,11 +1689,17 @@ const WORLD_MUSIC_RATE = {
   6: 0.8909,   // frost: -2 semitones
   9: 0.8409,   // void: -3 semitones
   11: 1.0293,  // final: +0.5 semitones
-  // Chapter 2 — "Inner Space" reads warmer/closer than the cold cosmos.
-  21: 1.0293,  // bloodstream: +0.5 semitones (a little quickened pulse)
-  23: 1.0595,  // nucleus: +1 semitone (bright, crystalline)
-  27: 0.9439,  // mitochondria furnace: -1 semitone (low rumble)
-  28: 0.8909,  // singularity cell: -2 semitones (finale gravitas)
+  // Chapter 2 — "Inner Space" reads warmer/closer than the cold cosmos. The
+  // bespoke level theme is organic/wet, so per-world pitch stays subtle (≤ ±1
+  // semitone): deep downshifts on a resampled organic track turn muddy.
+  21: 1.0293,  // bloodstream: +0.5 (a quickened pulse)
+  22: 1.0,     // cell city: neutral
+  23: 1.0595,  // nucleus vault: +1 (bright, crystalline)
+  24: 0.9439,  // neuron forest: -1 (low, electric hush)
+  25: 1.0,     // marrow caverns: neutral
+  26: 0.9719,  // immune front: -0.5 (tense)
+  27: 0.9439,  // mitochondria core: -1 (furnace rumble)
+  28: 0.9439,  // singularity cell: -1 (finale gravitas, kept clean)
 };
 export function getWorldMusicRate(worldId) {
   return WORLD_MUSIC_RATE[worldId] ?? 1.0;

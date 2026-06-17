@@ -55,6 +55,80 @@ class MusicManager {
     this.currentKey = key;
   }
 
+  // Resolve to `preferred` if that audio is actually loaded, else `fallback`.
+  // Lets Chapter 2 prefer its bespoke Inner Space tracks but transparently fall
+  // back to the Chapter 1 tracks until the new MP3s are dropped into
+  // public/audio/ — so the chapter is never silent while assets are pending.
+  resolveTrack(scene, preferred, fallback = 'homeTheme') {
+    return scene?.cache?.audio?.exists?.(preferred) ? preferred : fallback;
+  }
+
+  // Crossfade from the current track to `key` over `durationMs`: the new track
+  // fades up from silence while the old one fades down, then stops. Falls back
+  // to a hard switch (ensurePlaying) when the target audio is missing or nothing
+  // is playing yet. GameScene re-applies its per-world playbackRate after this.
+  fadeToTrack(scene, key = 'homeTheme', durationMs = 500) {
+    const oldKey = this.currentKey;
+    if (oldKey === key) { this.ensurePlaying(scene, key); return; }
+
+    // Kill any track still fading out from a prior transition so overlapping
+    // crossfades (rapid scene changes) can't leave a ghost loop playing.
+    if (this._fadeOutTrack) {
+      try { this._fadeOutTrack.stop(); } catch (e) { /* ignore */ }
+      this._fadeOutTrack = null;
+    }
+
+    if (!scene.cache.audio.exists(key)) { this.ensurePlaying(scene, key); return; }
+
+    if (!this.tracks[key]) {
+      this.tracks[key] = scene.sound.add(key, { loop: true, volume: this.volume });
+      this._applyMuteToTrack(this.tracks[key]);
+    }
+    const nt = this.tracks[key];
+    // New track starts at natural pitch (a cached level theme may still carry a
+    // per-world rate); the consumer re-applies its own rate after this call.
+    if (typeof nt.setRate === 'function') nt.setRate(1); else nt.rate = 1;
+    this.volumeMultiplier = 1;
+    try { if (typeof nt.setVolume === 'function') nt.setVolume(0); else nt.volume = 0; } catch (e) { /* ignore */ }
+    if (nt.isPaused) nt.resume(); else if (!nt.isPlaying) nt.play();
+    this._rampGain(nt, 0, this.volume, durationMs);
+
+    const oldTrack = oldKey ? this.tracks[oldKey] : null;
+    if (oldTrack && (oldTrack.isPlaying || oldTrack.isPaused)) {
+      this._rampGain(oldTrack, null, 0, durationMs);
+      this._fadeOutTrack = oldTrack;
+      const done = () => {
+        try { oldTrack.stop(); } catch (e) { /* ignore */ }
+        if (this._fadeOutTrack === oldTrack) this._fadeOutTrack = null;
+      };
+      if (scene.time?.delayedCall) scene.time.delayedCall(durationMs + 40, done);
+      else setTimeout(done, durationMs + 40);
+    }
+
+    this.currentKey = key;
+  }
+
+  // Ramp a track's WebAudio gain from `fromVal` (null = current value) to
+  // `toVal` over `durationMs`. No-op-safe: if the sound has no gain node yet
+  // (context still locked / HTML5Audio fallback), snaps the volume instead.
+  _rampGain(t, fromVal, toVal, durationMs) {
+    if (!t) return;
+    const node = t.volumeNode;
+    if (!node || !node.gain || !node.context) {
+      try { if (typeof t.setVolume === 'function') t.setVolume(toVal); else t.volume = toVal; } catch (e) { /* ignore */ }
+      return;
+    }
+    try {
+      const ctx = node.context;
+      const now = ctx.currentTime;
+      node.gain.cancelScheduledValues(now);
+      node.gain.setValueAtTime(fromVal == null ? node.gain.value : fromVal, now);
+      node.gain.linearRampToValueAtTime(toVal, now + durationMs / 1000);
+    } catch (e) {
+      try { if (typeof t.setVolume === 'function') t.setVolume(toVal); else t.volume = toVal; } catch (_) { /* ignore */ }
+    }
+  }
+
   pause() {
     if (!this.currentKey) return;
     const t = this.tracks[this.currentKey];

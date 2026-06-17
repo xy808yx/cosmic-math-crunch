@@ -105,18 +105,28 @@ export function tForNodeIndex(idx, chapter = 1) {
 // of the map so each reads as a distinct "side branch" off its host world.
 export const HIDDEN_NODE_POSITIONS = {
   15: { x: 970, y: 880 },  // Glitch — branches up-right from W5 (700, 1060)
-  16: { x: 465, y: 548 }   // Garage — short branch up-left from its host Galactic
+  16: { x: 465, y: 548 },  // Garage — short branch up-left from its host Galactic
                            // Core (660, 658), tucked in the open pocket below the
                            // Universe's End label and above the Supernova→Core
                            // path edge. Sits right beside its host instead of
                            // being tethered diagonally across the whole map.
+  // --- Chapter 2 secrets (positions are on the CH2 map) ---
+  17: { x: 880, y: 790 },  // The Royal Flush (King Coli) — branches up-right from
+                           // its host Neuron Forest (660, 1040) into the open
+                           // pocket under Mitochondria Core (860, 560).
+  18: { x: 230, y: 700 }   // Recess — branches up-left of its host Immune Front
+                           // (560, 720), into the open left pocket below Marrow Caverns.
 };
 
 // Host world id each hidden world is connected to. Used to draw the dashed
-// branch connector from host → hidden.
+// branch connector from host → hidden. NB: the index is into the host world's
+// CHAPTER position array — Ch1 hidden worlds index POSITIONS_CH1, Ch2 ones
+// POSITIONS_CH2 (resolved via the active map's nodePositions).
 export const HIDDEN_HOST_INDEX = {
-  15: 4,  // W5 (index 4)
-  16: 8   // W9 (index 8)
+  15: 4,  // W5  (CH1 index 4)
+  16: 8,  // W9  (CH1 index 8)
+  17: 3,  // W24 Neuron Forest (CH2 index 3)
+  18: 5   // W26 Immune Front  (CH2 index 5)
 };
 
 // Control point for the quadratic-Bezier arc that connects a host world to a

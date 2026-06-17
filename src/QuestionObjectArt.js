@@ -684,6 +684,45 @@ NORMAL_DRAWERS[28] = function (g, r) {
   g.lineStyle(2, 0xcabf80, 0.7); g.strokeCircle(0, 0, r * 0.88);
 };
 
+// 17 — The Royal Flush (secret): E. coli germ minion — green capsule + pili + face
+NORMAL_DRAWERS[17] = function (g, r) {
+  drawShadow(g, r, 4, 8);
+  // Short hair-like pili poking out around the capsule.
+  g.lineStyle(3, 0x4f7a28, 0.9);
+  for (let i = 0; i < 9; i++) {
+    const a = (i / 9) * Math.PI * 2;
+    const px = Math.cos(a) * r * 0.82, py = Math.sin(a) * r * 0.5;
+    g.lineBetween(px, py, px + Math.cos(a) * r * 0.22, py + Math.sin(a) * r * 0.18);
+  }
+  // A short wavy flagellum tail trailing off one end.
+  g.lineStyle(3, 0x4f7a28, 0.85);
+  g.beginPath();
+  g.moveTo(-r * 0.92, r * 0.1);
+  g.lineTo(-r * 1.14, -r * 0.06);
+  g.lineTo(-r * 1.32, r * 0.12);
+  g.strokePath();
+  // Rod/capsule body.
+  g.fillStyle(0x6b8f3a, 1);
+  g.fillRoundedRect(-r * 0.92, -r * 0.5, r * 1.84, r * 1.0, r * 0.5);
+  g.fillStyle(0x9bc35a, 1);
+  g.fillRoundedRect(-r * 0.82, -r * 0.42, r * 1.64, r * 0.84, r * 0.42);
+  g.fillStyle(0xc8e89a, 0.8);
+  g.fillEllipse(-r * 0.12, -r * 0.2, r * 1.0, r * 0.24);
+  // Tiny face — two eyes + a little smirk.
+  g.fillStyle(0x2f4d16, 1);
+  g.fillCircle(-r * 0.22, -r * 0.05, r * 0.1);
+  g.fillCircle(r * 0.22, -r * 0.05, r * 0.1);
+  g.fillStyle(0xffffff, 0.95);
+  g.fillCircle(-r * 0.25, -r * 0.08, r * 0.04);
+  g.fillCircle(r * 0.19, -r * 0.08, r * 0.04);
+  g.lineStyle(3, 0x2f4d16, 0.9);
+  g.beginPath();
+  g.arc(0, r * 0.08, r * 0.22, 0.12 * Math.PI, 0.88 * Math.PI, false);
+  g.strokePath();
+  g.lineStyle(3, 0x3a5a1c, 0.8);
+  g.strokeRoundedRect(-r * 0.82, -r * 0.42, r * 1.64, r * 0.84, r * 0.42);
+};
+
 // =========================================================================
 // BOSS BODIES — bespoke per world (radius is large, ~374)
 // =========================================================================
@@ -1267,6 +1306,105 @@ BOSS_DRAWERS[28] = function (g, accent, r) {
   g.lineBetween(-r * 0.5, -r * 0.34, -r * 0.18, -r * 0.28);
   g.lineBetween(r * 0.5, -r * 0.34, r * 0.18, -r * 0.28);
   outline(g, r, 0x8a6a1f, 0.95, 5);
+};
+
+// 17 — King Coli (secret superboss): regal E. coli germ-king of "The Royal Flush"
+// A green capsule body standing upright with pili + flagella, a gold porcelain
+// crown of rounded merlons, a smug royal face, and a tiny scepter. Echoes
+// Patient Zero's regal layering — but germier and a touch comedic.
+BOSS_DRAWERS[17] = function (g, accent, r) {
+  bossShadow(g, r);
+  // Faint sickly aura.
+  g.fillStyle(0x9bc35a, 0.1); g.fillCircle(0, 0, r * 1.3);
+  g.fillStyle(0x9bc35a, 0.14); g.fillCircle(0, 0, r * 1.12);
+
+  // Wavy flagella tails trailing off behind the body (drawn first, behind).
+  g.lineStyle(r * 0.045, 0x4f7a28, 0.9);
+  for (const side of [-1, 1]) {
+    g.beginPath();
+    g.moveTo(side * r * 0.55, r * 0.95);
+    g.lineTo(side * r * 0.78, r * 1.18);
+    g.lineTo(side * r * 0.58, r * 1.38);
+    g.lineTo(side * r * 0.86, r * 1.55);
+    g.strokePath();
+  }
+
+  // Short hair-like pili poking out all around the capsule.
+  g.lineStyle(r * 0.025, 0x4f7a28, 0.95);
+  const pili = 22;
+  for (let i = 0; i < pili; i++) {
+    const a = (i / pili) * Math.PI * 2;
+    const ex = Math.cos(a) * r * 0.96, ey = Math.sin(a) * r * 1.04;
+    g.lineBetween(Math.cos(a) * r * 0.84, Math.sin(a) * r * 0.92, ex, ey);
+    g.fillStyle(0x6b8f3a, 1);
+    g.fillCircle(ex, ey, r * 0.02);
+  }
+
+  // Rod/capsule body — tall green germ standing upright.
+  g.fillStyle(0x6b8f3a, 1);
+  g.fillRoundedRect(-r * 0.82, -r * 0.92, r * 1.64, r * 1.84, r * 0.82);
+  g.fillStyle(0x9bc35a, 1);
+  g.fillRoundedRect(-r * 0.72, -r * 0.84, r * 1.44, r * 1.68, r * 0.72);
+  // Bright rim light on the upper-left.
+  g.fillStyle(0xc8e89a, 0.85);
+  g.fillEllipse(-r * 0.22, -r * 0.5, r * 0.85, r * 0.55);
+  // A couple of darker germ-speckle blemishes for texture.
+  g.fillStyle(0x4f7a28, 0.7);
+  g.fillCircle(r * 0.42, r * 0.32, r * 0.12);
+  g.fillCircle(-r * 0.38, r * 0.5, r * 0.09);
+  g.fillCircle(r * 0.5, -r * 0.18, r * 0.07);
+
+  // Tiny royal scepter held to the side — green stick + gold knob.
+  g.lineStyle(r * 0.06, 0xb8902f, 1);
+  g.lineBetween(r * 0.74, r * 0.55, r * 0.98, -r * 0.3);
+  g.fillStyle(0xeed25a, 1); g.fillCircle(r * 1.0, -r * 0.4, r * 0.14);
+  g.fillStyle(0xfffade, 0.9); g.fillCircle(r * 0.96, -r * 0.44, r * 0.06);
+
+  // Smug royal face — two eyes with highlights + a confident smirk.
+  bossEyes(g, r, 0x2f4d16);
+  // Half-lidded brows for the smug look.
+  g.lineStyle(r * 0.03, 0x3a5a1c, 0.9);
+  g.lineBetween(-r * 0.46, -r * 0.36, -r * 0.18, -r * 0.3);
+  g.lineBetween(r * 0.46, -r * 0.36, r * 0.18, -r * 0.3);
+  // Confident smirk — an off-center arc.
+  g.lineStyle(r * 0.04, 0x2f4d16, 1);
+  g.beginPath();
+  g.arc(r * 0.04, r * 0.04, r * 0.3, 0.05 * Math.PI, 0.78 * Math.PI, false);
+  g.strokePath();
+  // A little rosy cheek blush for the comedic touch.
+  g.fillStyle(0xc8e89a, 0.5);
+  g.fillEllipse(-r * 0.42, r * 0.12, r * 0.18, r * 0.1);
+  g.fillEllipse(r * 0.42, r * 0.12, r * 0.18, r * 0.1);
+
+  // Gold porcelain crown perched on top — rounded merlons (toilet-bowl-meets-crown).
+  const crownY = -r * 0.92;
+  const crownW = r * 1.3;
+  // Crown band.
+  g.fillStyle(0xb8902f, 1);
+  g.fillRoundedRect(-crownW / 2, crownY - r * 0.14, crownW, r * 0.26, r * 0.08);
+  g.fillStyle(0xeed25a, 1);
+  g.fillRoundedRect(-crownW / 2, crownY - r * 0.14, crownW, r * 0.16, r * 0.08);
+  // Rounded merlons sitting on the band — porcelain bumps with gold rims.
+  const merlons = 5;
+  for (let i = 0; i < merlons; i++) {
+    const mx = -crownW / 2 + (i + 0.5) * (crownW / merlons);
+    const big = i === Math.floor(merlons / 2);
+    const mr = big ? r * 0.2 : r * 0.15;
+    g.fillStyle(0xeed25a, 1);
+    g.fillCircle(mx, crownY - r * 0.14, mr);
+    g.fillStyle(0xfffade, 1);
+    g.fillCircle(mx, crownY - r * 0.16, mr * 0.66);
+    // Tiny gold pip on each merlon.
+    g.fillStyle(0xb8902f, 1);
+    g.fillCircle(mx, crownY - r * 0.14 - mr * 0.5, mr * 0.22);
+  }
+  // Crown rim light + band glints.
+  g.fillStyle(0xfffade, 0.9);
+  g.fillRoundedRect(-crownW / 2 + r * 0.04, crownY - r * 0.12, crownW * 0.4, r * 0.05, r * 0.025);
+
+  // Capsule outline last so it reads cleanly against any backdrop.
+  g.lineStyle(5, 0x3a5a1c, 0.95);
+  g.strokeRoundedRect(-r * 0.72, -r * 0.84, r * 1.44, r * 1.68, r * 0.72);
 };
 
 function drawDefaultBoss(g, accent, r) {

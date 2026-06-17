@@ -27,6 +27,13 @@ export class BootScene extends Phaser.Scene {
     this.load.audio('levelTheme', 'audio/levels.mp3');
     this.load.audio('bossTheme',  'audio/boss-fight.mp3');
     this.load.audio('dadsGarage', 'audio/dads-garage.mp3');
+    // Chapter 2 "Inner Space" bespoke soundtrack. Until these MP3s exist they
+    // fail softly (loaderror below) and MusicManager.resolveTrack falls back to
+    // the Chapter 1 themes, so Inner Space is never silent.
+    this.load.audio('innerSpaceHome',  'audio/inner-space-home.mp3');
+    this.load.audio('innerSpaceLevel', 'audio/inner-space-level.mp3');
+    this.load.audio('innerSpaceBoss',  'audio/inner-space-boss.mp3');
+    this.load.audio('playgroundTheme', 'audio/playground.mp3');
     this.load.on('loaderror', (file) => {
       console.info(`[boot] optional audio "${file?.key}" unavailable — skipped`);
     });

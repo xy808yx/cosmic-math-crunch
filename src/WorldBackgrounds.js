@@ -293,6 +293,7 @@ export const WORLD_BACKGROUNDS = {
   26: { bgTop: 0x0a1a06, bgBottom: 0x2a5a18, drawHorizon: ch2ImmuneFrontHorizon },
   27: { bgTop: 0x1a0c04, bgBottom: 0x5a2810, drawHorizon: ch2MitochondriaCoreHorizon },
   28: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: ch2TheSingularityCellHorizon },
+  17: { bgTop: 0x10241a, bgBottom: 0x2f5a3a, drawHorizon: ch2RoyalFlushHorizon },
   15: { bgTop: 0x0a0010, bgBottom: 0x200030, drawHorizon: glitchWorldHorizon }
 };
 
@@ -596,6 +597,84 @@ function ch2TheSingularityCellHorizon(scene, opts) {
   for (let i = 0; i < 9; i++) {
     const x = (i + 0.5) * (W / 9) + Phaser.Math.Between(-20, 20);
     g.fillCircle(x, baseY + 130 + Phaser.Math.Between(-16, 16), Phaser.Math.Between(2, 5));
+  }
+  return g;
+}
+
+// World 17 — The Royal Flush (secret): murky-green sewer-cell throne room with a
+// porcelain-white dais glow, dripping pipes/valves, rising bubbles, and depths.
+function ch2RoyalFlushHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Murky green depths — layered ellipses receding into the gloom.
+  g.fillStyle(0x123a26, 1);
+  g.fillEllipse(W / 2, baseY + 380, W * 1.6, 480);
+  g.fillStyle(0x1f5236, 1);
+  g.fillEllipse(W / 2, baseY + 360, W * 1.55, 440);
+
+  // The porcelain throne / dais on the horizon — a broad white glow and a
+  // rounded pedestal stepping up out of the murk.
+  const cx = W / 2;
+  const daisY = baseY + 40;
+  g.fillStyle(0xeaf2ec, 0.16);
+  g.fillEllipse(cx, daisY, 560, 220);
+  g.fillStyle(0xf6faf6, 0.22);
+  g.fillEllipse(cx, daisY, 360, 140);
+  // Pedestal steps (porcelain).
+  g.fillStyle(0xcfe0d2, 1);
+  g.fillRoundedRect(cx - 230, daisY - 10, 460, 90, 28);
+  g.fillStyle(0xeaf2ec, 1);
+  g.fillRoundedRect(cx - 160, daisY - 60, 320, 80, 26);
+  // Throne back — a tall rounded porcelain bowl-back behind the dais.
+  g.fillStyle(0xdce8df, 1);
+  g.fillEllipse(cx, daisY - 110, 280, 180);
+  g.fillStyle(0xf6faf6, 0.9);
+  g.fillEllipse(cx, daisY - 130, 200, 120);
+  g.fillStyle(0xb8cdbd, 0.7);
+  g.fillEllipse(cx, daisY - 70, 150, 50);
+  // Glints on the porcelain.
+  g.fillStyle(0xffffff, 0.8);
+  g.fillEllipse(cx - 70, daisY - 150, 60, 26);
+
+  // Dripping pipes / valves descending from the top on both flanks.
+  for (const px of [W * 0.12, W * 0.88]) {
+    // Pipe.
+    g.fillStyle(0x2a4a36, 1);
+    g.fillRect(px - 18, baseY - 260, 36, 280);
+    g.fillStyle(0x3f6b4e, 1);
+    g.fillRect(px - 12, baseY - 260, 12, 280);
+    // Valve wheel (a plain ring + spokes — purely mechanical).
+    g.lineStyle(8, 0x6f9a7e, 1);
+    g.strokeCircle(px, baseY - 200, 34);
+    g.lineStyle(6, 0x6f9a7e, 1);
+    g.lineBetween(px - 34, baseY - 200, px + 34, baseY - 200);
+    g.lineBetween(px, baseY - 234, px, baseY - 166);
+    g.fillStyle(0x8fb89c, 1);
+    g.fillCircle(px, baseY - 200, 9);
+    // A glistening drip hanging from the pipe mouth.
+    g.fillStyle(0x9be0c0, 0.85);
+    g.fillCircle(px, baseY + 30, 8);
+    g.fillEllipse(px, baseY + 48, 10, 18);
+  }
+
+  // A couple of low cross-pipes / outflow valves along the floor.
+  g.fillStyle(0x2a4a36, 1);
+  g.fillRoundedRect(W * 0.30, baseY + 96, 120, 26, 10);
+  g.fillRoundedRect(W * 0.56, baseY + 110, 140, 26, 10);
+  g.fillStyle(0x3f6b4e, 1);
+  g.fillCircle(W * 0.30, baseY + 109, 20);
+  g.fillCircle(W * 0.70, baseY + 123, 22);
+
+  // Rising bubbles drifting up through the murky green throne room.
+  g.fillStyle(0xbafee0, 0.5);
+  for (let i = 0; i < 18; i++) {
+    const x = Phaser.Math.Between(0, W);
+    const y = baseY - Phaser.Math.Between(0, 220);
+    const br = Phaser.Math.Between(2, 7);
+    g.fillCircle(x, y, br);
+    g.fillStyle(0xffffff, 0.6);
+    g.fillCircle(x - br * 0.3, y - br * 0.3, br * 0.35);
+    g.fillStyle(0xbafee0, 0.5);
   }
   return g;
 }

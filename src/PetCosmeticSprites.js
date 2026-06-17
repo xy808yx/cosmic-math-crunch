@@ -567,10 +567,30 @@ function cosmicOrb() {
   ], { O, p, h, c, k, d, g }];
 }
 
+// Dried Mango — a plump amber slice with darker wrinkles + a sugary sheen.
+// Earned by crossing the monkey bars in the hidden "Recess" playground (W18).
+function driedMango() {
+  const m = 0xf2a13a, d = 0xcf7a1c, h = 0xffce82;
+  return [[
+    '...OOOOOO...',
+    '..OmmhhmmO..',
+    '.OmhhmmhhmO.',
+    'OmmmmddmmmmO',
+    'OmmddmmddmmO',
+    'OmmmmddmmmmO',
+    'OdmmmmmmmmdO',
+    '.OdmmmmmmdO.',
+    '..OdmmmmdO..',
+    '...OdddO....',
+    '....OOO.....'
+  ], { O, m, d, h }];
+}
+
 // `hat_*` drawer ids are preserved because they're what player saves reference.
 const ACC_DRAWERS = {
   acc_shades: shades,
   acc_dad_glasses: dadGlasses,
+  acc_dried_mango: driedMango,
   hat_strawberry: strawberryHat,
   hat_banana: bananaHat,
   hat_avocado: avocadoHat,

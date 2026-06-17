@@ -5,7 +5,7 @@
 
 import Phaser from 'phaser';
 import {
-  WORLDS, HIDDEN_WORLDS,
+  WORLDS, HIDDEN_WORLDS, findWorld,
   progress, getNextVisibleWorldId, getChapterWorlds, CHAPTER1_FINAL_ID
 } from '../GameData.js';
 import { audio } from '../AudioManager.js';
@@ -25,7 +25,7 @@ import {
   hiddenBranchControlPoint, sampleHiddenBranch
 } from '../MapPath.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
-import { drawGlitchPlanetNode, drawGarageNode } from './HiddenWorldScene.js';
+import { drawGlitchPlanetNode, drawGarageNode, drawKingColiNode, drawPlaygroundNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
 import {
   drawSparkleIcon, drawStarIcon,
@@ -46,7 +46,7 @@ export class WorldMapScene extends Phaser.Scene {
 
   create() {
     audio.init();
-    music.ensurePlaying(this);
+    // Map ambient is chosen per chapter below, once currentChapter is resolved.
 
     // Returning to the map always ends a free-play / arcade session, so the next
     // normal tap into a level plays for progression as usual.
@@ -70,8 +70,20 @@ export class WorldMapScene extends Phaser.Scene {
     // land on the Chapter 1 map — that's where their host worlds + branch
     // geometry live. Resolved BEFORE the backdrop so each chapter paints its own.
     this.currentChapter = progress.currentChapter || 1;
-    if (this.registry.get('warpArrivalHiddenId')) this.currentChapter = 1;
+    // A fresh warp arrival lands on the host's chapter map (where the hidden
+    // world's branch geometry lives) — Ch1 secrets on the Ch1 map, Ch2 secrets
+    // (King Coli, Recess) on the Ch2 map.
+    const arrivalId = this.registry.get('warpArrivalHiddenId');
+    if (arrivalId) this.currentChapter = findWorld(arrivalId)?.chapter || 1;
     this.chapterWorlds = getChapterWorlds(this.currentChapter);
+
+    // Chapter 2 gets its own warm "Inner Space" ambient (falls back to the
+    // Chapter 1 home theme until that MP3 ships). Crossfade so chapter swaps
+    // and returns from levels glide rather than hard-cut.
+    const mapMusic = this.currentChapter === 2
+      ? music.resolveTrack(this, 'innerSpaceHome', 'homeTheme')
+      : 'homeTheme';
+    music.fadeToTrack(this, mapMusic);
 
     // Backdrop: cold cosmic starfield for Outer Space, warm breathing living
     // interior for Inner Space — so the two chapters never look alike.
@@ -861,10 +873,11 @@ export class WorldMapScene extends Phaser.Scene {
   // HIDDEN WORLD NODES
   // ============================================================
   createHiddenNodes() {
-    // Hidden worlds (Glitch / Garage) branch off Chapter 1 host worlds; their
-    // node + branch geometry only exists on the Chapter 1 map.
-    if (this.currentChapter !== 1) return;
+    // Each hidden world branches off a host in its OWN chapter, so only draw the
+    // ones belonging to the map currently being viewed (Ch1 secrets on the Ch1
+    // map, Ch2 secrets — King Coli / Recess — on the Ch2 map).
     for (const h of HIDDEN_WORLDS) {
+      if ((h.chapter || 1) !== this.currentChapter) continue;
       if (!progress.isHiddenWorldDiscovered(h.id)) continue;
       const pos = HIDDEN_NODE_POSITIONS[h.id];
       if (!pos) continue;
@@ -902,6 +915,26 @@ export class WorldMapScene extends Phaser.Scene {
           repeat: -1,
           ease: 'Sine.easeInOut'
         });
+      } else if (h.id === 17) {
+        node.add(drawKingColiNode(this, 0, 0, NODE_R));
+        this.tweens.add({
+          targets: node,
+          y: pos.y - 6,
+          duration: 1500,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      } else if (h.id === 18) {
+        node.add(drawPlaygroundNode(this, 0, 0, NODE_R));
+        this.tweens.add({
+          targets: node,
+          y: pos.y - 6,
+          duration: 1900,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
       }
 
       // Label — sits below the larger node
@@ -913,11 +946,12 @@ export class WorldMapScene extends Phaser.Scene {
         strokeThickness: 3
       })).setOrigin(0.5).setDepth(6);
 
-      // Glitch World has no Level Select screen to surface its rating, so show
-      // the boss star score (levelStars[1], 0-3) right under the node label —
-      // otherwise a 3-star datamosh win records but never displays anywhere.
-      if (h.id === 15) {
-        const best = progress.worldProgress[15]?.levelStars?.[1] || 0;
+      // Gauntlet secrets (Glitch World, King Coli) have no Level Select screen
+      // to surface their rating, so show the boss star score (levelStars[1], 0-3)
+      // right under the node label — otherwise a 3-star win records but never
+      // displays anywhere. Exploration secrets (Garage, Recess) have no stars.
+      if (h.kind === 'gauntlet') {
+        const best = progress.worldProgress[h.id]?.levelStars?.[1] || 0;
         const starGap = 46;
         const starY = pos.y + NODE_R + 64;
         for (let s = 0; s < 3; s++) {
@@ -935,8 +969,8 @@ export class WorldMapScene extends Phaser.Scene {
         audio.playClick();
         this.registry.set('selectedWorld', h.id);
         this.registry.set('hiddenWorldId', h.id);
-        if (h.id === 15) {
-          this.registry.set('currentWorldId', 15);
+        if (h.kind === 'gauntlet') {
+          this.registry.set('currentWorldId', h.id);
           this.registry.set('currentLevel', 1);
           this.registry.set('levelMode', 'boss');
           new TransitionManager(this).fadeToScene('GameScene');
@@ -1018,9 +1052,10 @@ export class WorldMapScene extends Phaser.Scene {
     // (created at depth 900) both captures the tap-to-skip and shields the map
     // nodes. Disabling input here previously killed the skip entirely.
 
-    // Glitch path: GameScene swaps to bossTheme on arrival. Pause the home
-    // theme here so the brief travel beat isn't backed by the wrong music.
-    if (hiddenId === 15) {
+    // Gauntlet path (Glitch, King Coli): GameScene swaps to the boss theme on
+    // arrival. Pause the map ambient here so the brief travel beat isn't backed
+    // by the wrong music. (Exploration arrivals fade to their own theme.)
+    if (findWorld(hiddenId)?.kind === 'gauntlet') {
       music.pause();
     }
 
@@ -1080,6 +1115,28 @@ export class WorldMapScene extends Phaser.Scene {
         sound: 'playStardustChime'
       };
     }
+    if (hiddenId === 18) {
+      // Recess — warm single-line, like the garage.
+      return {
+        x: pos.x,
+        y: pos.y,
+        label: 'YOU FOUND RECESS',
+        accent: 0x7ed957,
+        sound: 'playStardustChime'
+      };
+    }
+    if (hiddenId === 17) {
+      // King Coli — celebratory two-line secret-boss reveal.
+      return {
+        x: pos.x,
+        y: pos.y,
+        label: 'SECRET BOSS DISCOVERED',
+        subtitle: 'THE ROYAL FLUSH',
+        accent: 0xfbbf24,
+        subtitleColor: '#eed25a',
+        sound: 'playStar'
+      };
+    }
     // Glitch — celebratory two-line: gold "SECRET WORLD DISCOVERED" +
     // magenta "GLITCH WORLD" subtitle.
     return {
@@ -1119,8 +1176,10 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   _enterHiddenDestination(hiddenId) {
-    if (hiddenId === 15) {
-      this.registry.set('currentWorldId', 15);
+    // Gauntlet secrets (Glitch, King Coli) drop into a GameScene boss fight;
+    // exploration secrets (Garage, Recess) open their HiddenWorldScene.
+    if (findWorld(hiddenId)?.kind === 'gauntlet') {
+      this.registry.set('currentWorldId', hiddenId);
       this.registry.set('currentLevel', 1);
       this.registry.set('levelMode', 'boss');
       this.scene.start('GameScene');

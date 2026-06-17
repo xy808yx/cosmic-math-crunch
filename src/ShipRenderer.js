@@ -205,6 +205,32 @@ const HULL_ECLIPSE = [
   '......FfF.......'
 ];
 
+// Aegis — broad, armored "shield" hull with a chromed highlight ring around the
+// cockpit. The trophy for scrubbing out King Coli (the hidden hygiene superboss).
+const HULL_AEGIS = [
+  '......XXXX......',
+  '....XXHHHHXX....',
+  '..XXHHBBBBHHXX..',
+  '.XHHBBBBBBBBHHX.',
+  'XHBBBBBBBBBBBBHX',
+  'XBBBBBHHHHBBBBBX',
+  'XBBBBHPPPPHBBBBX',
+  'XBBBHPPPPPPHBBBX',
+  'XBBBHPPPPPPHBBBX',
+  'XBBBBHPPPPHBBBBX',
+  'XBBBBBHHHHBBBBBX',
+  'XHBBBBBBBBBBBBHX',
+  'XHBBBBBBBBBBBBHX',
+  '.XLBBBBBBBBBBLX.',
+  '.XLLBBBBBBBBLLX.',
+  '..XLLBBBBBBLLX..',
+  '...XLLLLLLLLX...',
+  '....XLLLLLLX....',
+  '.....X....X.....',
+  '.....FfffF......',
+  '......FfF.......'
+];
+
 // Nanocraft — smooth rounded nanopod, big central cockpit dome, twin highlight
 // edges. The Chapter 2 "Inner Space" finale trophy hull.
 const HULL_NANOCRAFT = [
@@ -374,6 +400,7 @@ export function drawShip(scene, x, y, opts = {}) {
                  : parts.hull === 'hull_finned' ? HULL_FINNED
                  : parts.hull === 'hull_eclipse' ? HULL_ECLIPSE
                  : parts.hull === 'hull_nanocraft' ? HULL_NANOCRAFT
+                 : parts.hull === 'hull_aegis' ? HULL_AEGIS
                  : HULL_STANDARD;
   const hullW = hullGrid[0].length * pixelSize;
   const hullH = hullGrid.length * pixelSize;
