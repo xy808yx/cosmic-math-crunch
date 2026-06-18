@@ -6,11 +6,14 @@ import {
   BOSS_CONFIG,
   UPPER_LEVEL_CONFIG,
   getProblemForWorld,
+  getReviewProblem,
   getTwistedProblem,
   getGlitchProblem,
   getDistractors,
   getProblemSecondsForWorldAndMode,
   getAdaptiveProblemSeconds,
+  getComfortableProblemSeconds,
+  isRoundMastered,
   getAsteroidCountForWorld,
   getBossHpForWorld,
   getBossDurationForWorld,
@@ -108,6 +111,10 @@ export class GameScene extends Phaser.Scene {
     this.arcadeMode = this.registry.get('arcadeMode') || null;
     this.arcadeState = this.registry.get('arcadeState') || null;
     if (this.arcadeMode) this.freePlay = true;
+    // The Tune-Up (spaced-repetition review) rides the arcade short-circuit so no
+    // campaign progression runs; it only differs in fact selection (100% due/rusty
+    // facts) and its results copy. Untimed, ends on ship loss like Endless.
+    this.reviewMode = this.arcadeMode === 'review';
 
     // Hidden-world warp asteroid: when the kid plays a host level (e.g. W5
     // div) for the first time, a warp asteroid will spawn ~30-45s in. State
@@ -135,10 +142,20 @@ export class GameScene extends Phaser.Scene {
     // Adaptive fall speed: Chapter 2 worlds + Arcade self-level to the kid's
     // measured pace (pushes ~10% faster than comfort). Chapter 1 keeps its
     // original hand-designed speed curve.
-    const adaptiveEligible = this.world?.chapter === 2 || !!this.arcadeMode;
-    this.problemSeconds = adaptiveEligible
-      ? getAdaptiveProblemSeconds(this.worldId, this.mode, records.getPaceMs())
-      : getProblemSecondsForWorldAndMode(this.worldId, this.mode);
+    if (this.world?.chapter === 2 || this.arcadeMode) {
+      this.problemSeconds = getAdaptiveProblemSeconds(this.worldId, this.mode, records.getPaceMs());
+    } else {
+      // Chapter 1 keeps its hand-tuned curve for capable kids, but never gives a
+      // SLOWER kid a fall window shorter than their measured recall — otherwise
+      // the fast fixed windows (W9-11: 4.0/3.5/3.0s) time out every problem and
+      // the mastery gate becomes unreachable. getComfortableProblemSeconds returns
+      // 0 at cold start and stays below the designed window for fast kids, so the
+      // original curve is unchanged for them; it only ever ADDS time for a slow kid.
+      this.problemSeconds = Math.max(
+        getProblemSecondsForWorldAndMode(this.worldId, this.mode),
+        getComfortableProblemSeconds(this.worldId, this.mode, records.getPaceMs())
+      );
+    }
 
     this.score = 0;
     this.attempts = 0;
@@ -438,9 +455,11 @@ export class GameScene extends Phaser.Scene {
     // Decide variants up front so the rest of the function reads top-down.
     // Mini-boss and stardust share the "special spawn" slot — never both on
     // the same asteroid. Boss spawns and warp spawns are excluded entirely.
+    // A Tune-Up (review mode) is a clean, focused field of plain review asteroids —
+    // no mini-boss/stardust variants, so "Facts refreshed" reflects facts answered.
     let isMiniBoss = false;
     let isStardust = false;
-    if (!this.isBoss) {
+    if (!this.isBoss && !this.reviewMode) {
       if (this.worldId >= UPPER_LEVEL_CONFIG.miniBoss.minWorldId) {
         this._miniBossCounter = (this._miniBossCounter || 0) + 1;
         if (this._miniBossCounter % UPPER_LEVEL_CONFIG.miniBoss.oneIn === 0) {
@@ -458,11 +477,13 @@ export class GameScene extends Phaser.Scene {
     // Mini-boss / stardust use the untwisted problem so the special visual
     // marker isn't competing with a twist overlay. Regular upper-world spawns
     // roll for a twist via getTwistedProblem.
-    const problem = this.isGlitchBoss
-      ? getGlitchProblem()
-      : (this.isBoss || isMiniBoss || isStardust)
-        ? getProblemForWorld(this.worldId, this.mode)
-        : getTwistedProblem(this.worldId, this.mode);
+    const problem = this.reviewMode
+      ? getReviewProblem(this.worldId, this.mode)
+      : this.isGlitchBoss
+        ? getGlitchProblem()
+        : (this.isBoss || isMiniBoss || isStardust)
+          ? getProblemForWorld(this.worldId, this.mode)
+          : getTwistedProblem(this.worldId, this.mode);
 
     const radius = isMiniBoss ? ASTEROID_RADIUS * 1.6 : ASTEROID_RADIUS;
 
@@ -1091,7 +1112,9 @@ export class GameScene extends Phaser.Scene {
     if (asteroid.fallTween) asteroid.fallTween.stop();
     asteroid.phase = 'falling';
 
-    const newProblem = getProblemForWorld(this.worldId, this.mode);
+    const newProblem = this.reviewMode
+      ? getReviewProblem(this.worldId, this.mode)
+      : getProblemForWorld(this.worldId, this.mode);
     asteroid.problem = newProblem;
     asteroid.startedAtMs = performance.now();
     asteroid.text?.setText(newProblem.display);
@@ -2321,11 +2344,17 @@ export class GameScene extends Phaser.Scene {
     const prevBestStars = progress.worldProgress[this.worldId]?.levelStars?.[this.currentLevel] || 0;
     const firstMastery = stars === 3 && prevBestStars < 3;
 
-    // Capture pre-completion state so we know if THIS run cleared the world
-    // (vs a replay of the boss after it was already cleared).
-    const wasFullyCleared = progress.isWorldFullyCleared(this.worldId);
+    // Mastery gate: only a solid round advances the campaign (see isRoundMastered).
+    // A boss WIN always counts; practice levels need high accuracy + real volume.
+    const mastered = isRoundMastered({
+      isBoss: this.isBoss, bossWin, score: this.score, accuracy, scoreThreshold: this.scoreThreshold
+    });
 
-    progress.completeLevel(this.worldId, this.currentLevel, stars);
+    // Capture pre-completion mastery so we can tell when THIS run was the one
+    // that completed the world (all 4 mastered) and thus unlocked the next.
+    const wasMastered = progress.isWorldMastered(this.worldId);
+
+    progress.completeLevel(this.worldId, this.currentLevel, stars, mastered);
 
     let baseBonus = 0;
     if (stars > 0) {
@@ -2375,7 +2404,19 @@ export class GameScene extends Phaser.Scene {
     const evolvedTo = this.pendingEvolution || companion.checkEvolutionEligibility();
 
     const worldFullyCleared = progress.isWorldFullyCleared(this.worldId);
-    const clearedThisRun = bossWin && !wasFullyCleared && worldFullyCleared;
+    // The "World Cleared!" banner + map ship auto-advance now fire when the world
+    // becomes fully MASTERED — which is also exactly when the next world unlocks,
+    // so the ship never flies toward a still-locked node. With the boss gated
+    // behind mastering the 3 practice levels (see LevelSelectScene), beating the
+    // boss is normally the move that completes mastery; a world cleared long ago
+    // under the old rules just behaves like a replay (worldJustMastered=false).
+    // The next world unlocks the moment the world is fully mastered (via
+    // completeLevel→checkWorldUnlock), independent of this flag. The celebratory
+    // banner + ship auto-advance stay tied to a BOSS defeat (the world's climax),
+    // so a legacy save that happens to complete its 4th mastery on a practice
+    // replay still advances but doesn't fire the boss-payoff banner mid-practice.
+    const worldJustMastered = !wasMastered && progress.isWorldMastered(this.worldId);
+    const clearedThisRun = worldJustMastered && (this.isBoss || bossWin);
 
     const summaryArgs = { stars, accuracy, bossWin, evolvedTo, firstMastery, baseBonus, masteryBonus, dailyBonus, glitchUnlocked, glitchBonus, kingColiUnlocked, kingColiBonus };
 

@@ -2,7 +2,7 @@
 // cards in front (×, ÷, mixed, boss). Locked modes show a lock icon.
 
 import Phaser from 'phaser';
-import { WORLDS, MODES, progress, findWorld, getWorldMusicRate } from '../GameData.js';
+import { WORLDS, MODES, progress, findWorld, getWorldMusicRate, getNextVisibleWorldId } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -136,17 +136,20 @@ export class LevelSelectScene extends Phaser.Scene {
       const levelNum = i + 1;
       const isBoss = modeKey === 'boss';
       const stars = this.worldProgress.levelStars[levelNum] || 0;
+      const mastered = progress.isLevelMastered(this.world.id, levelNum);
 
-      // Boss is locked until the other 3 are done
-      const others = [1, 2, 3].filter(n => n !== levelNum);
-      const otherStars = others.every(n => (this.worldProgress.levelStars[n] || 0) > 0);
-      const isLocked = isBoss && !otherStars;
+      // The boss now opens only once the 3 practice missions are MASTERED — so
+      // beating the boss is always the move that truly clears the world. Legacy
+      // exception: a world already fully cleared under the old (touch-to-clear)
+      // rules keeps its boss unlocked, so revisiting never re-locks it.
+      const practiceMastered = [1, 2, 3].every(n => progress.isLevelMastered(this.world.id, n));
+      const isLocked = isBoss && !practiceMastered && !progress.isWorldFullyCleared(this.world.id);
 
-      this.createMissionCard(x, y, cardW, cardH, levelNum, modeKey, stars, isBoss, isLocked);
+      this.createMissionCard(x, y, cardW, cardH, levelNum, modeKey, stars, isBoss, isLocked, mastered);
     });
   }
 
-  createMissionCard(x, y, w, h, levelNum, modeKey, stars, isBoss, isLocked) {
+  createMissionCard(x, y, w, h, levelNum, modeKey, stars, isBoss, isLocked, mastered = false) {
     const c = this.add.container(x, y).setDepth(10);
     const accent = isBoss ? COLORS.error : this.world.accentColor;
 
@@ -230,6 +233,26 @@ export class LevelSelectScene extends Phaser.Scene {
       starG.x = (s - 1) * starGap;
       starG.y = starY;
       c.add(starG);
+    }
+
+    // Gold "mastered" badge (top-left) — the mark that this mission counts
+    // toward unlocking the next world. Distinct from the star row, which just
+    // shows the best result.
+    if (mastered && !isLocked) {
+      const bx = -w / 2 + 44;
+      const by = -h / 2 + 40;
+      const badge = this.add.graphics();
+      badge.fillStyle(COLORS.warning, 1);
+      badge.fillCircle(bx, by, 26);
+      badge.lineStyle(3, 0xffffff, 0.9);
+      badge.strokeCircle(bx, by, 26);
+      badge.lineStyle(5, COLORS.bgDark, 1);
+      badge.beginPath();
+      badge.moveTo(bx - 11, by + 1);
+      badge.lineTo(bx - 3, by + 10);
+      badge.lineTo(bx + 12, by - 10);
+      badge.strokePath();
+      c.add(badge);
     }
 
     if (isLocked) {
@@ -332,6 +355,31 @@ export class LevelSelectScene extends Phaser.Scene {
       fontSize: '34px',
       fill: '#aaaac0'
     })).setOrigin(0.5).setDepth(11);
+
+    // Advance status — the brake made visible. While the next world is still
+    // locked, show how many missions are mastered and what mastering them all
+    // opens, so a gated next world is never a mystery. Hidden once unlocked
+    // (no nagging) and on worlds with no sequential successor.
+    const nextId = getNextVisibleWorldId(this.world.id);
+    const nextWorld = nextId ? findWorld(nextId) : null;
+    if (nextWorld && !progress.isWorldUnlocked(nextId)) {
+      const mastered = progress.getMasteredLevelCount(this.world.id);
+      const need = this.world.levelsRequired;
+      // Raised a touch so the 2nd line (which wraps for long world names like
+      // "The Singularity Cell") keeps a comfortable margin above the 1920 bottom.
+      const ay = barY + barH / 2 + 112;
+      this.add.text(W / 2, ay, `${mastered} / ${need} missions mastered`, style('subhead', {
+        fontSize: '38px',
+        fill: mastered >= need ? '#9affc0' : '#ffd479',
+        fontStyle: '900'
+      })).setOrigin(0.5).setDepth(11);
+      this.add.text(W / 2, ay + 50,
+        `Master every mission to chart a course to ${nextWorld.name}`,
+        style('subhead', {
+          fontSize: '30px', fill: '#cfcfe0', align: 'center',
+          wordWrap: { width: W - 160 }
+        })).setOrigin(0.5).setDepth(11);
+    }
   }
 
   startLevel(levelNum, modeKey) {

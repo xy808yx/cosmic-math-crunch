@@ -360,6 +360,30 @@ export const MODES = {
   mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
 
+// ── Mastery gate ─────────────────────────────────────────────────────────────
+// A level only ADVANCES the campaign (unlocks the next world) when it's truly
+// "mastered", not merely touched. Before this gate, any single correct answer
+// (≥1 star) cleared a level and the next world unlocked on a raw count — so a
+// capable kid could blast through a world in minutes. Mastery means a SOLID
+// round: high accuracy AND a real volume of correct answers (a lucky tap or a
+// fast-but-sloppy spray no longer counts). Bosses: beating the boss IS the
+// demonstration (it's already ~12+ correct, 100% weak facts). Stars still record
+// the kid's best result for display/reward; mastery is a separate, additive flag
+// (worldProgress[w].levelMastered) so this can never RE-LOCK already-earned
+// progress — `unlocked` is sticky (checkWorldUnlock only ever flips → true).
+// Two dials, one place: raise MASTERY_ACCURACY for stricter, lower the ratio to
+// require fewer correct answers. The ratio must stay low enough that the volume
+// floor is reachable in a single 60s round at a YOUNGER kid's answering pace —
+// at 0.5 the floors are 9 (mult) / 7 (div) / 8 (mixed) correct, hittable in ~60s
+// even when a slow kid answers every ~5-6s. Accuracy (80%) carries the rigor.
+export const MASTERY_ACCURACY = 80;     // percent correct on a practice level
+export const MASTERY_SCORE_RATIO = 0.5; // × the 3-star scoreThreshold = min correct
+export function isRoundMastered({ isBoss, bossWin, score, accuracy, scoreThreshold }) {
+  if (isBoss) return !!bossWin;
+  return accuracy >= MASTERY_ACCURACY &&
+         score >= Math.ceil(scoreThreshold * MASTERY_SCORE_RATIO);
+}
+
 // Per-problem timer (seconds) keyed by world id. Drives asteroid descent speed
 // and spawn cadence.
 const WORLD_PROBLEM_SECONDS = {
@@ -443,6 +467,24 @@ export function getAdaptiveProblemSeconds(worldId, mode, paceMs) {
   const target = (paceMs / 1000) * ADAPTIVE_PUSH;
   let s = Math.min(ADAPTIVE_CEIL_S, Math.max(ADAPTIVE_FLOOR_S, target));
   if (mode === 'boss') s += BOSS_TIMER_BONUS_S; // boss keeps its accuracy cushion
+  return s;
+}
+
+// Chapter 1 SAFETY FLOOR (not a replacement for the hand-tuned curve). Returns the
+// fall window a slower kid genuinely needs — their measured pace plus a small
+// cushion — so the GameScene can take max(designedCurve, thisFloor). A capable
+// kid's value here is well below the designed window, so they always get the
+// original curve unchanged; a slow kid never gets a window shorter than they can
+// answer in (which on W9-11's fast fixed windows would otherwise time out every
+// problem and make the mastery gate unreachable). Returns 0 on cold start (no
+// pace data) so the designed curve wins. Used ONLY for Chapter 1; Chapter 2 +
+// Arcade still use the pushy getAdaptiveProblemSeconds.
+const COMFORT_PUSH = 1.15;  // give a slower kid ~15% more than their comfy pace
+const COMFORT_CEIL_S = 7.0; // never absurdly slow
+export function getComfortableProblemSeconds(worldId, mode, paceMs) {
+  if (!paceMs || paceMs <= 0) return 0;
+  let s = Math.min(COMFORT_CEIL_S, (paceMs / 1000) * COMFORT_PUSH);
+  if (mode === 'boss') s += BOSS_TIMER_BONUS_S;
   return s;
 }
 
@@ -647,7 +689,7 @@ export function getDistractors(problem, count = 3) {
 //     attempted (>=2 tries).
 //
 // Returns { display, a, b, op, answer, factKey }.
-export function getProblemForWorld(_worldId, mode = 'mult') {
+export function getProblemForWorld(_worldId, mode = 'mult', factOverride = null) {
   // Decide operation
   let op = mode;
   if (mode === 'mixed' || mode === 'boss') {
@@ -655,12 +697,19 @@ export function getProblemForWorld(_worldId, mode = 'mult') {
   }
 
   let a, b;
-  const useWeak = mode === 'boss' ? true : Math.random() < 0.6;
-  if (useWeak) {
-    const weak = progress.pickWeakFact();
-    if (weak) {
-      a = weak.a;
-      b = weak.b;
+  // factOverride (used by the Tune-Up) forces a specific fact; otherwise weight
+  // toward weak facts as before.
+  if (factOverride && factOverride.a) {
+    a = factOverride.a;
+    b = factOverride.b;
+  } else {
+    const useWeak = mode === 'boss' ? true : Math.random() < 0.6;
+    if (useWeak) {
+      const weak = progress.pickWeakFact();
+      if (weak) {
+        a = weak.a;
+        b = weak.b;
+      }
     }
   }
 
@@ -708,6 +757,14 @@ export function getProblemForWorld(_worldId, mode = 'mult') {
     answer: product,
     factKey
   };
+}
+
+// One problem for the Tune-Up (spaced-repetition review). Draws from the kid's
+// due/rusty facts (pickReviewFact); falls back to weak, then random. `mixed` so
+// the refresh field is a varied ×/÷ mix.
+export function getReviewProblem(worldId, mode = 'mixed') {
+  const fact = progress.pickReviewFact();
+  return getProblemForWorld(worldId, mode, fact || undefined);
 }
 
 // Wraps getProblemForWorld with a W8+ "twist" — same underlying fact, different
@@ -1066,11 +1123,26 @@ class PlayerProgress {
     for (const w of WORLDS) {
       const s = saved[w.id];
       if (s) {
+        // Back-fill levelMastered for LEGACY saves (those predating this field):
+        // any level already cleared for >=1 star under the old touch-to-clear
+        // rules counts as mastered, so tightening the gate never RE-LOCKS access
+        // a kid already had — notably a boss they'd unlocked but not yet beaten.
+        // A NEW save always serializes levelMastered (at least {}), so s.levelMastered
+        // === undefined reliably means "legacy", and this back-fill fires once.
+        const levelStars = s.levelStars || {};
+        let levelMastered = s.levelMastered;
+        if (levelMastered === undefined) {
+          levelMastered = {};
+          for (const k of Object.keys(levelStars)) {
+            if (levelStars[k] > 0) levelMastered[k] = true;
+          }
+        }
         defaults[w.id] = {
           unlocked: s.unlocked || defaults[w.id].unlocked,
           levelsCompleted: s.levelsCompleted || 0,
           starsEarned: s.starsEarned || 0,
-          levelStars: s.levelStars || {}
+          levelStars,
+          levelMastered
         };
       }
     }
@@ -1084,7 +1156,8 @@ class PlayerProgress {
         unlocked: world.id === 1,
         levelsCompleted: 0,
         starsEarned: 0,
-        levelStars: {} // levelNum: stars (1-3)
+        levelStars: {},   // levelNum: stars (1-3) — cosmetic best result
+        levelMastered: {} // levelNum: true — the campaign-advance gate
       };
     }
     return progress;
@@ -1260,8 +1333,10 @@ class PlayerProgress {
       const wp = this.worldProgress[w.id];
       if (!wp) continue;
       const stars = {};
-      for (let lvl = 1; lvl <= w.levelsRequired; lvl++) stars[lvl] = 3;
+      const mastered = {};
+      for (let lvl = 1; lvl <= w.levelsRequired; lvl++) { stars[lvl] = 3; mastered[lvl] = true; }
       wp.levelStars = stars;
+      wp.levelMastered = mastered;
       wp.levelsCompleted = w.levelsRequired;
       wp.starsEarned = w.levelsRequired * 3;
       wp.unlocked = true;
@@ -1451,8 +1526,9 @@ class PlayerProgress {
     return total > 0 ? Math.round((correct / total) * 100) : 0;
   }
 
-  // Complete a level
-  completeLevel(worldId, levelNum, stars) {
+  // Complete a level. `mastered` (see isRoundMastered) is what actually advances
+  // the campaign — stars are only the cosmetic best-result record.
+  completeLevel(worldId, levelNum, stars, mastered = false) {
     const wp = this.worldProgress[worldId];
     const prevStars = wp.levelStars[levelNum] || 0;
 
@@ -1462,6 +1538,11 @@ class PlayerProgress {
       wp.starsEarned += (stars - prevStars);
       this.totalStars += (stars - prevStars);
     }
+
+    // Mastery is additive and sticky — once a level is mastered it stays so,
+    // so this gate can never strip a kid of access they've already earned.
+    if (!wp.levelMastered) wp.levelMastered = {};
+    if (mastered) wp.levelMastered[levelNum] = true;
 
     // Update levels completed
     wp.levelsCompleted = Object.keys(wp.levelStars).length;
@@ -1500,7 +1581,11 @@ class PlayerProgress {
         }
         const prev = worlds[i - 1];
         const prevWp = this.worldProgress[prev.id];
-        const prevCleared = prevWp && Object.keys(prevWp.levelStars).length >= prev.levelsRequired;
+        // The brake: the next world opens only when EVERY level of the previous
+        // world is mastered (not merely touched for ≥1 star). Sticky `unlocked`
+        // below means tightening this gate never re-locks a world a kid already
+        // reached — it only adds friction to worlds not yet unlocked.
+        const prevCleared = prevWp && Object.keys(prevWp.levelMastered || {}).length >= prev.levelsRequired;
         if (prevCleared && !wp.unlocked) {
           wp.unlocked = true;
         }
@@ -1560,6 +1645,50 @@ class PlayerProgress {
     return facts;
   }
 
+  // ── Resurfacing / spaced repetition ─────────────────────────────────────────
+  // The dormant other half of the automaticity engine, finally surfaced. A fact
+  // is "rusty" once it reached fluency (automatic) AND its spaced-repetition
+  // review date has since passed — i.e. a fact the kid LEARNED and is now quietly
+  // forgetting. Because mastery is distributed across real calendar days, rust
+  // can't be crammed away in one sitting; tending it is what keeps a finite map
+  // calling kids back. Most-overdue first.
+  getRustyFacts() {
+    const now = Date.now();
+    const out = [];
+    for (const [key, d] of Object.entries(this.factMastery)) {
+      if (!d || !d.automatic || !d.nextReview || now <= d.nextReview) continue;
+      const [a, b] = key.split('x').map(Number);
+      if (a >= 1 && b >= 1 && a <= 12 && b <= 12) out.push({ a, b, overdueMs: now - d.nextReview });
+    }
+    out.sort((x, y) => y.overdueMs - x.overdueMs);
+    return out;
+  }
+
+  getRustyFactCount() {
+    return this.getRustyFacts().length;
+  }
+
+  // Fact for one Tune-Up rep: most-overdue rusty fact first; if nothing is rusty,
+  // any attempted fact past its review date; else the weakest fact; else null
+  // (caller then samples a random fact). Keeps the refresh always non-empty.
+  pickReviewFact() {
+    const rusty = this.getRustyFacts();
+    if (rusty.length) {
+      const pool = rusty.slice(0, Math.min(rusty.length, 8));
+      const f = pool[Math.floor(Math.random() * pool.length)];
+      return { a: f.a, b: f.b };
+    }
+    const now = Date.now();
+    const due = [];
+    for (const [key, d] of Object.entries(this.factMastery)) {
+      if (!d || (d.total || 0) < 1 || !d.nextReview || now <= d.nextReview) continue;
+      const [a, b] = key.split('x').map(Number);
+      if (a >= 1 && b >= 1 && a <= 12 && b <= 12) due.push({ a, b });
+    }
+    if (due.length) return due[Math.floor(Math.random() * due.length)];
+    return this.pickWeakFact(); // {a,b,...} or null
+  }
+
   // Returns null on fresh saves so callers can fall back to random sampling.
   // Top third by need, floor 3 / cap 8 — focused without becoming repetitive
   // on a single fact.
@@ -1571,11 +1700,30 @@ class PlayerProgress {
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
+  // "Cleared" = every level touched for ≥1 star. Kept count-based and UNCHANGED
+  // so narrative/banner gates (world-clear banner, Chapter 2 entry, finale) and
+  // existing saves behave exactly as before. The mastery gate below is separate.
   isWorldFullyCleared(worldId) {
     const wp = this.worldProgress[worldId];
     const world = WORLDS.find(w => w.id === worldId);
     if (!wp || !world) return false;
     return Object.keys(wp.levelStars).length >= world.levelsRequired;
+  }
+
+  // ── Mastery queries (drive the advance gate + Mission Briefing UI) ──────────
+  isLevelMastered(worldId, levelNum) {
+    return !!this.worldProgress[worldId]?.levelMastered?.[levelNum];
+  }
+
+  getMasteredLevelCount(worldId) {
+    const wp = this.worldProgress[worldId];
+    return wp ? Object.keys(wp.levelMastered || {}).length : 0;
+  }
+
+  // Every level mastered — the condition that unlocks the next world.
+  isWorldMastered(worldId) {
+    const world = WORLDS.find(w => w.id === worldId);
+    return !!world && this.getMasteredLevelCount(worldId) >= world.levelsRequired;
   }
 
   isWorldUnlocked(worldId) {

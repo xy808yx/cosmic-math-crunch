@@ -11,6 +11,7 @@ import { CreditsScene } from './scenes/CreditsScene.js';
 import { HiddenWorldScene } from './scenes/HiddenWorldScene.js';
 import { ArcadeMenuScene } from './scenes/ArcadeMenuScene.js';
 import { EndlessScene } from './scenes/EndlessScene.js';
+import { ReviewScene } from './scenes/ReviewScene.js';
 import { BossRushScene } from './scenes/BossRushScene.js';
 import { DevMenuScene } from './scenes/DevMenuScene.js';
 import { SettingsScene } from './scenes/SettingsScene.js';
@@ -41,7 +42,7 @@ const config = {
     BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene,
     ShopScene, RecordsScene, ParentDashboardScene,
     CreditsScene, HiddenWorldScene,
-    ArcadeMenuScene, EndlessScene, BossRushScene, DevMenuScene, SettingsScene
+    ArcadeMenuScene, EndlessScene, ReviewScene, BossRushScene, DevMenuScene, SettingsScene
   ]
 };
 

@@ -19,6 +19,7 @@ export function showArcadeResults(scene, opts) {
   const { mode } = opts;
 
   let title, accent, lines, launcherKey;
+  let doneScene = 'ArcadeMenuScene';
   let wasBest = false;
 
   if (mode === 'bossRush') {
@@ -29,6 +30,20 @@ export function showArcadeResults(scene, opts) {
     const acc = attempts > 0 ? Math.round((correct / attempts) * 100) : 0;
     lines = [`Accuracy: ${acc}%`, `Time: ${(timeMs / 1000).toFixed(1)}s`];
     launcherKey = 'BossRushScene';
+  } else if (mode === 'review') {
+    // Tune-Up: spaced-repetition refresh. No best/score tracking — the reward is
+    // the rusty-fact count dropping as freshly-answered facts get their review
+    // dates pushed back out. Done returns to the map (not the arcade hub).
+    const { score } = opts;
+    const rustyLeft = progress.getRustyFactCount();
+    title = 'TUNE-UP DONE!';
+    accent = 0xfbbf24;
+    lines = [
+      `Facts refreshed: ${score}`,
+      rustyLeft > 0 ? `${rustyLeft} still need a tune-up` : 'All facts fresh — nice!'
+    ];
+    launcherKey = 'ReviewScene';
+    doneScene = 'WorldMapScene';
   } else {
     // Endless ends only on ship death — score is how many you crunched.
     const { score } = opts;
@@ -83,7 +98,7 @@ export function showArcadeResults(scene, opts) {
     x: 130, y: btnY, label: 'Done',
     width: 250, height: 88,
     color: accent,
-    onClick: () => new TransitionManager(scene).fadeToScene('ArcadeMenuScene')
+    onClick: () => new TransitionManager(scene).fadeToScene(doneScene)
   }));
 
   scene.tweens.add({ targets: panel, y: H / 2, duration: 480, ease: 'Back.easeOut' });

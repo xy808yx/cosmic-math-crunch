@@ -106,6 +106,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.createChapterGates();
     this.createShipOnActiveWorld();
     this.createBottomChrome();
+    this.createTuneUpNudge();
 
     // Warp arrival (from the warp asteroid) takes precedence over the
     // normal auto-advance flow. If a warp arrival is in flight, still
@@ -642,6 +643,49 @@ export class WorldMapScene extends Phaser.Scene {
       fontSize: '32px',
       fill: '#cfcfe0'
     })).setOrigin(0.5).setDepth(11);
+  }
+
+  // Tune-Up nudge — the resurfacing call-to-action. Appears only once the kid has
+  // facts going "rusty" (mastered facts now overdue for spaced-repetition review),
+  // so beginners never see it. Tapping launches the Tune-Up (ReviewScene), which
+  // drills exactly those facts. As facts get refreshed the count falls and the
+  // pill quietly disappears — a finite map that keeps calling kids back.
+  createTuneUpNudge() {
+    const rusty = progress.getRustyFactCount();
+    if (rusty <= 0) return;
+
+    // Docked in the clear band between the lowest map node (~y1500) and the
+    // bottom world-info chrome (y1700) — verified clear of every node's tap
+    // circle in BOTH chapters. (At the old y=300 the wide pill's hit area
+    // overlapped and stole taps from the top-center finale node.)
+    const c = this.add.container(W / 2, 1648).setDepth(40);
+    const label = `${rusty} fact${rusty === 1 ? '' : 's'} getting rusty · Tune-Up ↻`;
+    const txt = this.add.text(0, 0, label, style('subhead', {
+      fontSize: '34px', fill: '#1a1a2e', fontStyle: '900'
+    })).setOrigin(0.5);
+
+    const w = txt.width + 80;
+    const h = txt.height + 40;
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.warning, 0.97);
+    bg.fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    bg.lineStyle(3, 0xffffff, 0.7);
+    bg.strokeRoundedRect(-w / 2, -h / 2, w, h, h / 2);
+    c.add(bg);
+    c.add(txt);
+
+    const hit = this.add.rectangle(0, 0, w, h, 0, 0).setInteractive({ useHandCursor: true });
+    c.add(hit);
+    hit.on('pointerdown', () => {
+      audio.playClick();
+      new TransitionManager(this).fadeToScene('ReviewScene');
+    });
+
+    // Gentle breathing pulse to draw the eye without nagging.
+    this.tweens.add({
+      targets: c, scale: { from: 1, to: 1.045 },
+      duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
   }
 
   // ============================================================
