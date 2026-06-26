@@ -6,12 +6,12 @@
 import Phaser from 'phaser';
 import {
   WORLDS, HIDDEN_WORLDS, findWorld,
-  progress, getNextVisibleWorldId, getChapterWorlds, CHAPTER1_FINAL_ID
+  progress, getNextVisibleWorldId, getChapterWorlds, CHAPTER1_FINAL_ID, CHAPTER2_FINAL_ID
 } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
-import { createStarfield, createInnerSpaceBase } from '../starfieldHelper.js';
+import { createStarfield, createInnerSpaceBase, createMakerSpaceBase } from '../starfieldHelper.js';
 import { playWormholeCinematic } from '../WormholeCinematic.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
@@ -27,6 +27,7 @@ import {
 import { drawWorldNode } from '../WorldNodeArt.js';
 import { drawGlitchPlanetNode, drawGarageNode, drawKingColiNode, drawPlaygroundNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
+import { drawMasteryWall } from '../MasteryWall.js';
 import {
   drawSparkleIcon, drawStarIcon,
   drawGearIcon, drawShoppingBagIcon, drawHelmetIcon, drawSoundIcon
@@ -75,20 +76,26 @@ export class WorldMapScene extends Phaser.Scene {
     // (King Coli, Recess) on the Ch2 map.
     const arrivalId = this.registry.get('warpArrivalHiddenId');
     if (arrivalId) this.currentChapter = findWorld(arrivalId)?.chapter || 1;
+    // Ship-dark guard: never render the Maker Space map while Chapter 3 is disabled
+    // (e.g. the owner toggled it off after parking there). Drop back to Chapter 2.
+    if (this.currentChapter === 3 && !progress.chapter3Enabled) this.currentChapter = 2;
     this.chapterWorlds = getChapterWorlds(this.currentChapter);
 
     // Chapter 2 gets its own warm "Inner Space" ambient (falls back to the
     // Chapter 1 home theme until that MP3 ships). Crossfade so chapter swaps
     // and returns from levels glide rather than hard-cut.
-    const mapMusic = this.currentChapter === 2
-      ? music.resolveTrack(this, 'innerSpaceHome', 'homeTheme')
-      : 'homeTheme';
+    let mapMusic = 'homeTheme';
+    if (this.currentChapter === 2) mapMusic = music.resolveTrack(this, 'innerSpaceHome', 'homeTheme');
+    else if (this.currentChapter === 3) mapMusic = music.resolveTrack(this, 'makerHome', 'homeTheme');
     music.fadeToTrack(this, mapMusic);
 
     // Backdrop: cold cosmic starfield for Outer Space, warm breathing living
-    // interior for Inner Space — so the two chapters never look alike.
+    // interior for Inner Space, warm daytime workshop for Maker Space — so no two
+    // chapters ever look alike.
     if (this.currentChapter === 2) {
       createInnerSpaceBase(this, { width: W, height: H });
+    } else if (this.currentChapter === 3) {
+      createMakerSpaceBase(this, { width: W, height: H });
     } else {
       createStarfield(this, { width: W, height: H, accentStrength: 0 });
     }
@@ -273,31 +280,88 @@ export class WorldMapScene extends Phaser.Scene {
     const cy = 175;
     const chipW = 240;
     const gap = 32;
-    const totalW = chipW * 2 + gap;
-    const startX = W / 2 - totalW / 2 + chipW / 2;
 
-    this.starsChip = this.makeChip(startX, cy, chipW, {
-      icon: g => drawStarIcon(g, 0, 0, 18),
-      accent: COLORS.warning,
-      value: () => `${progress.totalStars}`,
-      onClick: () => this.showInfoPopup({
+    // Chapter 3 "Maker Space" adds a Mastery Garden chip — the persistent
+    // bloom display of automatic facts (the Grid Gardens graft), reachable from
+    // the map as well as between rounds.
+    const chips = [
+      {
+        field: 'starsChip',
+        icon: g => drawStarIcon(g, 0, 0, 18),
         accent: COLORS.warning,
-        drawIcon: (g, size) => drawStarIcon(g, 0, 0, size),
-        title: 'STARS',
-        body: 'You earn up to 3 stars on every mission — more answers right, more stars. They track how well you\'re mastering each math fact.'
-      })
-    });
-    this.stardustChip = this.makeChip(startX + chipW + gap, cy, chipW, {
-      icon: g => drawSparkleIcon(g, 0, 0, 18),
-      accent: COLORS.accentPurple,
-      value: () => `${economy.getStardust()}`,
-      onClick: () => this.showInfoPopup({
+        value: () => `${progress.totalStars}`,
+        onClick: () => this.showInfoPopup({
+          accent: COLORS.warning,
+          drawIcon: (g, size) => drawStarIcon(g, 0, 0, size),
+          title: 'STARS',
+          body: 'You earn up to 3 stars on every mission — more answers right, more stars. They track how well you\'re mastering each math fact.'
+        })
+      },
+      {
+        field: 'stardustChip',
+        icon: g => drawSparkleIcon(g, 0, 0, 18),
         accent: COLORS.accentPurple,
-        drawIcon: (g, size) => drawSparkleIcon(g, 0, 0, size),
-        title: 'STARDUST',
-        body: 'Stardust is your space money. You earn it from missions and your daily login bonus, then spend it in the Shop on hats, ship parts, and other cosmetics.'
-      })
-    });
+        value: () => `${economy.getStardust()}`,
+        onClick: () => this.showInfoPopup({
+          accent: COLORS.accentPurple,
+          drawIcon: (g, size) => drawSparkleIcon(g, 0, 0, size),
+          title: 'STARDUST',
+          body: 'Stardust is your space money. You earn it from missions and your daily login bonus, then spend it in the Shop on hats, ship parts, and other cosmetics.'
+        })
+      }
+    ];
+    if (this.currentChapter === 3) {
+      chips.push({
+        field: 'gardenChip',
+        icon: g => this.drawBloomIcon(g, 0, 0, 9),
+        accent: 0xffd166,
+        value: () => `${progress.getAutomaticityStats().automatic}`,
+        onClick: () => this.showMasteryGardenOverlay()
+      });
+    }
+
+    const totalW = chipW * chips.length + gap * (chips.length - 1);
+    let x = W / 2 - totalW / 2 + chipW / 2;
+    for (const cfg of chips) {
+      this[cfg.field] = this.makeChip(x, cy, chipW, cfg);
+      x += chipW + gap;
+    }
+  }
+
+  // A tiny four-petal bloom for the Mastery Garden chip icon (plain — no
+  // radial/mandala motif, per the content rule).
+  drawBloomIcon(g, cx, cy, pr) {
+    g.fillStyle(0xffd166, 1);
+    g.fillEllipse(cx, cy - pr, pr * 0.82, pr * 1.15);
+    g.fillEllipse(cx, cy + pr, pr * 0.82, pr * 1.15);
+    g.fillEllipse(cx - pr, cy, pr * 1.15, pr * 0.82);
+    g.fillEllipse(cx + pr, cy, pr * 1.15, pr * 0.82);
+    g.fillStyle(0xfff0c2, 1);
+    g.fillCircle(cx, cy, pr * 0.7);
+  }
+
+  // The Mastery Garden as a map overlay (Chapter 3).
+  showMasteryGardenOverlay() {
+    audio.playClick?.();
+    const root = this.add.container(0, 0).setDepth(120);
+    const dim = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 0).setInteractive();
+    root.add(dim);
+    this.tweens.add({ targets: dim, fillAlpha: 0.8, duration: 220 });
+
+    const accent = this.chapterWorlds[this.currentWorldIndex]?.accentColor ?? 0xffd27a;
+    // Fade in at full scale (no scale-pop) so the Done button — positioned against
+    // the wall's full panelH below — doesn't snap as the wall grows.
+    const wall = drawMasteryWall(this, W / 2, H / 2 - 50, { cell: 46, accent });
+    wall.setAlpha(0);
+    root.add(wall);
+    this.tweens.add({ targets: wall, alpha: 1, duration: 240, ease: 'Quad.easeOut' });
+
+    const close = () => this.tweens.add({ targets: root, alpha: 0, duration: 180, onComplete: () => root.destroy() });
+    root.add(createButton(this, {
+      x: W / 2, y: H / 2 - 50 + wall.panelH / 2 + 70, label: 'Done', width: 280, height: 88,
+      color: accent, onClick: close
+    }));
+    dim.on('pointerdown', close);
   }
 
   makeChip(x, y, width, opts) {
@@ -778,15 +842,39 @@ export class WorldMapScene extends Phaser.Scene {
         accent: 0xff7a8a, core: 0xffcf6b, inward: true, label: 'INNER SPACE',
         onTap: () => this.warpToChapter(2)
       });
-    } else {
+    } else if (this.currentChapter === 2) {
       // Return wormhole → Chapter 1 (the surface), beside the first inner world.
-      const host = this.nodePositions[0];
-      if (!host) return;
+      const back = this.nodePositions[0];
+      if (back) {
+        const gate = { x: 180, y: 1300 };
+        this.drawHiddenBranch(back, gate, 0x4ecdc4);
+        this.buildGateNode(gate, {
+          accent: 0x4ecdc4, core: 0xb5e6ff, inward: false, label: 'SURFACE',
+          onTap: () => this.warpToChapter(1)
+        });
+      }
+      // Forward gate → Chapter 3 (Maker Space), beside the Singularity Cell (the
+      // top-center node), gated on the grand finale (World 28) being cleared AND the
+      // ship-dark Chapter 3 flag being enabled (owner test toggle in the dashboard).
+      // Surfacing back OUT from the smallest speck to human scale, coming home.
+      if (progress.chapter3Enabled && progress.isWorldFullyCleared(CHAPTER2_FINAL_ID)) {
+        const host = this.nodePositions[this.nodePositions.length - 1]; // World 28
+        const gate = { x: 220, y: 470 };
+        this.drawHiddenBranch(host, gate, 0xffd27a);
+        this.buildGateNode(gate, {
+          accent: 0xffd27a, core: 0xfff3b8, inward: false, label: 'MAKER SPACE',
+          onTap: () => this.warpToChapter(3)
+        });
+      }
+    } else {
+      // Chapter 3 (Maker Space): return gate → Chapter 2 (back inward to the body).
+      const back = this.nodePositions[0];
+      if (!back) return;
       const gate = { x: 180, y: 1300 };
-      this.drawHiddenBranch(host, gate, 0x4ecdc4);
+      this.drawHiddenBranch(back, gate, 0xff7a8a);
       this.buildGateNode(gate, {
-        accent: 0x4ecdc4, core: 0xb5e6ff, inward: false, label: 'SURFACE',
-        onTap: () => this.warpToChapter(1)
+        accent: 0xff7a8a, core: 0xffcf6b, inward: true, label: 'INNER SPACE',
+        onTap: () => this.warpToChapter(2)
       });
     }
   }
@@ -899,18 +987,31 @@ export class WorldMapScene extends Phaser.Scene {
         duration: 700, ease: 'Quad.easeIn'
       });
     }
-    // Park the ship where the player should land: diving IN → the first inner
-    // world (the start of Inner Space); surfacing OUT → back at the World 11
-    // gate they left from, not all the way back at Moon Base.
-    const parkId = target === 2 ? getChapterWorlds(2)[0]?.id : CHAPTER1_FINAL_ID;
+    // Park the ship where the player should land. Entering a NEW chapter parks at
+    // its first world; surfacing/returning parks at the finale gate they left
+    // from (not all the way back at the chapter's start).
+    let parkId;
+    if (target === 3) parkId = getChapterWorlds(3)[0]?.id;            // → Maker Space start
+    else if (target === 2) parkId = this.currentChapter === 3
+      ? CHAPTER2_FINAL_ID                                             // back from Maker → the finale gate
+      : getChapterWorlds(2)[0]?.id;                                   // in from Outer → Inner Space start
+    else parkId = CHAPTER1_FINAL_ID;                                  // back to the surface (World 11 gate)
     if (parkId != null) this.registry.set('shipParkedWorldId', parkId);
 
-    // Dive in (→ Inner Space) or surface out (→ surface). The cinematic restarts
-    // the scene under its opaque hold, so the rebuilt map fades in seamlessly.
-    playWormholeCinematic(this, target === 2 ? 'in' : 'out', () => {
+    // Direction by scale: Inner Space (2) is the innermost, Outer (1) the
+    // outermost, Maker (3) human-scale in between. Diving toward a more-inward
+    // chapter plays 'in'; surfacing toward a more-outward one plays 'out'. The
+    // cinematic restarts the scene under its opaque hold, so the rebuilt map
+    // fades in seamlessly.
+    const inwardRank = { 1: 0, 3: 1, 2: 2 };
+    const dir = inwardRank[target] > inwardRank[this.currentChapter] ? 'in' : 'out';
+    // Entering Maker Space (Chapter 3) is the homecoming — recolor the dive warm
+    // daylight. Leaving it (back toward the body) keeps the default cosmic↔body bridge.
+    const opts = target === 3 ? { palette: 'homecoming' } : {};
+    playWormholeCinematic(this, dir, () => {
       progress.setCurrentChapter(target);
       this.scene.restart();
-    });
+    }, opts);
   }
 
   // ============================================================

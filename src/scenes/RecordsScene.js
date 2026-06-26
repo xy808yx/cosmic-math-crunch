@@ -8,7 +8,7 @@ import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
 import { createIconButton } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
-import { progress, VISIBLE_WORLDS } from '../GameData.js';
+import { progress, getActiveWorlds } from '../GameData.js';
 import { records, formatFactKey } from '../RecordsManager.js';
 import { drawArrowLeftIcon, drawStarIcon } from '../StatIcons.js';
 import { COLORS } from '../colorPalette.js';
@@ -26,7 +26,7 @@ export class RecordsScene extends Phaser.Scene {
     music.ensurePlaying(this);
     createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
-    records.refreshWorldsCleared(progress, VISIBLE_WORLDS);
+    records.refreshWorldsCleared(progress, getActiveWorlds());
 
     this.createHeader();
     this.createStatCards();
@@ -75,7 +75,7 @@ export class RecordsScene extends Phaser.Scene {
       },
       {
         label: 'WORLDS CLEARED',
-        value: `${records.getWorldsCleared()} / ${VISIBLE_WORLDS.length}`,
+        value: `${records.getWorldsCleared()} / ${getActiveWorlds().length}`,
         accent: COLORS.accentTeal
       },
       {

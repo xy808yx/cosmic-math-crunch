@@ -38,3 +38,27 @@ Style box:
 `16-bit SNES JRPG nostalgic hometown theme, gentle piano and fingerpicked acoustic guitar, soft warm strings, tender music-box/celesta countermelody, wistful bittersweet golden-afternoon memory, cozy, instrumental, ~76 BPM`
 
 > King Coli (secret boss, W17) needs no track — it reuses `inner-space-boss` pitched up.
+
+## Chapter 3 "Maker Space" — STILL NEEDED (3 tracks)
+
+Aesthetic: the **homecoming** chapter — warm, daytime, hand-built. Same 16-bit SNES JRPG
+idiom as Ch1/Ch2, but the mood matures from *defend → heal → MAKE*: cozy workshop, sunlit,
+constructive, no menace. Until each file exists, Maker Space falls back to the Chapter 1
+home/level/boss themes (resolveTrack), so it's never silent.
+
+### 1. `maker-home.mp3` → key `makerHome`  (Ch3 map / overworld)
+Style box:
+`16-bit SNES JRPG cozy hometown/workshop theme, sunlit afternoon, gentle music-box and celesta, warm fingerpicked acoustic guitar, soft strings and mellow brass, light woodblock and hammer-tap percussion, contented homecoming warmth, instrumental, ~80 BPM`
+
+### 2. `maker-level.mp3` → key `makerLevel`  (Ch3 gameplay; game pitch-shifts per world)
+Produce at a NEUTRAL key/tempo (the engine re-pitches it per world).
+Style box:
+`16-bit SNES JRPG busy-workshop work theme, bouncy marimba and pizzicato, plucky clarinet/recorder lead, light anvil/woodblock/ticking-clock percussion as a steady make-and-ship groove, cheerful industrious daytime, instrumental, ~108 BPM`
+
+### 3. `maker-boss.mp3` → key `makerBoss`  (Ch3 "Rush Order" + W38 finale; engine may re-pitch)
+NOT a monster fight — a *big rush order before the truck leaves*: urgent but POSITIVE.
+Style box:
+`16-bit SNES JRPG upbeat time-pressure theme, driving up-tempo marimba and brass fanfare, busy hand percussion and ticking clock, rising triumphant build, exciting but warm and non-threatening (a deadline, not a battle), instrumental, ~146 BPM`
+
+> The W38 "Great Lighthouse" finale reuses `maker-boss` (pitched per world); the homecoming
+> credits cinematic reuses `creditsSong`.

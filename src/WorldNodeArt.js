@@ -729,6 +729,275 @@ NODE_RENDERERS[27] = function drawMitochondriaCore(scene, c, _s) {
   c.add(g);
 };
 
+// ── Chapter 3 "Maker Space" node renderers ─────────────────────────────────
+// Warm, hand-built workshop icons — plain shapes only (no spirals/sunbursts).
+
+// 31 — Lantern Workshop: a single glowing lantern.
+NODE_RENDERERS[31] = function drawLanternWorkshop(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 120, 22);
+  // Soft warm glow.
+  g.fillStyle(0xffd27a, 0.22);
+  g.fillCircle(0, -4, 70);
+  // Top ring + handle.
+  g.lineStyle(5, 0x6b4a22, 1);
+  g.beginPath(); g.arc(0, -52, 16, Math.PI, 0); g.strokePath();
+  // Lantern cap.
+  g.fillStyle(0x4a3416, 1);
+  g.fillTriangle(-34, -36, 34, -36, 0, -58);
+  // Body (metal frame).
+  g.fillStyle(0x3a2810, 1);
+  g.fillRoundedRect(-38, -36, 76, 90, 14);
+  // Warm glass.
+  g.fillStyle(0xffc24a, 1);
+  g.fillRoundedRect(-26, -24, 52, 66, 10);
+  g.fillStyle(0xfff0c2, 1);
+  g.fillEllipse(0, 6, 26, 38);
+  g.fillStyle(0xffffff, 0.9);
+  g.fillCircle(-6, -4, 7);
+  // Frame bars.
+  g.lineStyle(4, 0x2a1c0c, 1);
+  g.lineBetween(-26, 9, 26, 9);
+  g.lineBetween(0, -24, 0, 42);
+  // Base.
+  g.fillStyle(0x4a3416, 1);
+  g.fillRoundedRect(-32, 50, 64, 14, 5);
+  c.add(g);
+};
+
+// 32 — Seed Depot: a sprout rising from a clay pot.
+NODE_RENDERERS[32] = function drawSeedDepot(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 58, 120, 22);
+  // Leaves.
+  g.fillStyle(0x4f956b, 1);
+  g.fillEllipse(-24, -18, 52, 30);
+  g.fillEllipse(24, -22, 50, 28);
+  g.fillStyle(0x6fbf4a, 1);
+  g.fillEllipse(-20, -22, 40, 22);
+  g.fillEllipse(20, -26, 38, 20);
+  g.fillStyle(0x9be86b, 1);
+  g.fillEllipse(0, -44, 34, 22);
+  // Stem.
+  g.lineStyle(6, 0x4f956b, 1);
+  g.lineBetween(0, 6, 0, -40);
+  // Bright bud at the tip.
+  g.fillStyle(0xffd27a, 1);
+  g.fillCircle(0, -50, 8);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillCircle(-2, -52, 3);
+  // Clay pot.
+  g.fillStyle(0xa85a34, 1);
+  g.beginPath();
+  g.moveTo(-40, 6); g.lineTo(-30, 54); g.lineTo(30, 54); g.lineTo(40, 6);
+  g.closePath(); g.fillPath();
+  g.fillStyle(0xc26a3e, 1);
+  g.fillRect(-44, 0, 88, 14);
+  g.fillStyle(0x8a4626, 0.5);
+  g.fillRect(-30, 24, 60, 6);
+  c.add(g);
+};
+
+// 33 — Toy Railyard: a cheerful little steam engine.
+NODE_RENDERERS[33] = function drawToyRailyard(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 130, 22);
+  // Boiler + cab.
+  g.fillStyle(0xd24a32, 1);
+  g.fillRoundedRect(-58, -28, 110, 64, 12);
+  g.fillStyle(0xb53a26, 1);
+  g.fillRoundedRect(20, -48, 38, 56, 10); // cab
+  g.fillStyle(0xffd27a, 0.9);
+  g.fillRoundedRect(28, -40, 24, 24, 5);  // cab window
+  // Smokestack + dome.
+  g.fillStyle(0x3a1810, 1);
+  g.fillRect(-40, -56, 20, 30);
+  g.fillStyle(0x3a1810, 1);
+  g.fillRoundedRect(-12, -44, 22, 18, 6);
+  // Headlamp.
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(-54, -4, 9);
+  // Puff of smoke.
+  g.fillStyle(0xeaf0f4, 0.85);
+  g.fillCircle(-32, -70, 12);
+  g.fillCircle(-16, -82, 9);
+  // Wheels.
+  g.fillStyle(0x2a1208, 1);
+  for (const wx of [-40, -8, 30]) g.fillCircle(wx, 38, 16);
+  g.fillStyle(0xffd27a, 1);
+  for (const wx of [-40, -8, 30]) g.fillCircle(wx, 38, 6);
+  c.add(g);
+};
+
+// 34 — Kite Loft: a bright diamond kite with a bow tail.
+NODE_RENDERERS[34] = function drawKiteLoft(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(0, 60, 110, 20);
+  // Kite body — four panels.
+  const top = -56, bot = 36, mid = -6, half = 44;
+  g.fillStyle(0xff9ec7, 1);
+  g.fillTriangle(0, top, 0, mid, -half, mid);   // upper-left
+  g.fillStyle(0xffd27a, 1);
+  g.fillTriangle(0, top, 0, mid, half, mid);    // upper-right
+  g.fillStyle(0x9bd4ff, 1);
+  g.fillTriangle(0, bot, 0, mid, -half, mid);   // lower-left
+  g.fillStyle(0x9be86b, 1);
+  g.fillTriangle(0, bot, 0, mid, half, mid);    // lower-right
+  // Spars.
+  g.lineStyle(3, 0xffffff, 0.85);
+  g.lineBetween(0, top, 0, bot);
+  g.lineBetween(-half, mid, half, mid);
+  // String + bow tail.
+  g.lineStyle(2, 0xcfe0ef, 0.9);
+  g.lineBetween(0, bot, 14, 64);
+  g.fillStyle(0xff9ec7, 1);
+  for (let k = 0; k < 3; k++) {
+    const ty = bot + 10 + k * 16, tx = (k % 2 === 0 ? -1 : 1) * 6;
+    g.fillTriangle(tx - 9, ty, tx + 9, ty, tx, ty + 12);
+  }
+  c.add(g);
+};
+
+// 35 — Clockwork Shop: a brass cog with a little clock face.
+NODE_RENDERERS[35] = function drawClockworkShop(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 56, 120, 22);
+  // Cog teeth (plain rectangular teeth — mechanical, not a sunburst).
+  g.fillStyle(0xb98a3a, 1);
+  const teeth = 12, r = 58;
+  for (let i = 0; i < teeth; i++) {
+    const a = (i / teeth) * Math.PI * 2;
+    g.fillRect(Math.cos(a) * r - 8, Math.sin(a) * r - 8, 16, 16);
+  }
+  // Cog body.
+  g.fillStyle(0xd6a85a, 1);
+  g.fillCircle(0, 0, 54);
+  g.fillStyle(0xb98a3a, 1);
+  g.fillCircle(0, 0, 46);
+  // Clock face.
+  g.fillStyle(0xf3ead7, 1);
+  g.fillCircle(0, 0, 36);
+  g.lineStyle(3, 0x3a2c10, 1);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    g.lineBetween(Math.cos(a) * 30, Math.sin(a) * 30, Math.cos(a) * 34, Math.sin(a) * 34);
+  }
+  // Hands.
+  g.lineStyle(5, 0x2a1c0c, 1);
+  g.lineBetween(0, 0, 0, -22);
+  g.lineBetween(0, 0, 16, 8);
+  g.fillStyle(0xc8862e, 1);
+  g.fillCircle(0, 0, 6);
+  c.add(g);
+};
+
+// 36 — Crunch Cafe: a frosted cupcake (a cozy bakery treat).
+NODE_RENDERERS[36] = function drawCrunchCafe(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 58, 110, 22);
+  // Wrapper.
+  g.fillStyle(0xc46a4a, 1);
+  g.beginPath();
+  g.moveTo(-42, 2); g.lineTo(-32, 52); g.lineTo(32, 52); g.lineTo(42, 2);
+  g.closePath(); g.fillPath();
+  g.lineStyle(4, 0x9c4f34, 1);
+  for (const wx of [-22, 0, 22]) g.lineBetween(wx, 6, wx + (wx < 0 ? 6 : wx > 0 ? -6 : 0), 50);
+  // Frosting swirl-free dome (stacked rounded scoops).
+  g.fillStyle(0xffc89a, 1);
+  g.fillEllipse(0, -4, 92, 44);
+  g.fillStyle(0xffe0c2, 1);
+  g.fillEllipse(-14, -16, 52, 34);
+  g.fillEllipse(18, -14, 44, 30);
+  g.fillStyle(0xfff0e0, 1);
+  g.fillEllipse(0, -30, 40, 26);
+  // Cherry.
+  g.fillStyle(0xff6b6b, 1);
+  g.fillCircle(0, -44, 11);
+  g.fillStyle(0xffffff, 0.8);
+  g.fillCircle(-3, -47, 3);
+  // Sprinkles.
+  g.fillStyle(0x9be86b, 1); g.fillRect(-20, -8, 8, 3);
+  g.fillStyle(0x9bd4ff, 1); g.fillRect(12, -2, 8, 3);
+  g.fillStyle(0xffd27a, 1); g.fillRect(-4, 4, 8, 3);
+  c.add(g);
+};
+
+// 37 — Harbor Bridgeworks: a little arched bridge over water with a boat.
+NODE_RENDERERS[37] = function drawHarborBridgeworks(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(0, 60, 130, 20);
+  // Water.
+  g.fillStyle(0x3a8a8a, 0.7);
+  g.fillRoundedRect(-66, 30, 132, 26, 8);
+  g.fillStyle(0x7fe0c8, 0.5);
+  for (const wx of [-44, -8, 30]) g.fillEllipse(wx, 36, 30, 6);
+  // Bridge deck on two piers (a flat truss span, not an arch sweep).
+  g.fillStyle(0x2a5a54, 1);
+  g.fillRect(-64, 8, 128, 12);
+  g.fillRect(-44, 16, 12, 26);
+  g.fillRect(32, 16, 12, 26);
+  // Truss girders.
+  g.lineStyle(4, 0x7fe0c8, 1);
+  for (let x = -56; x < 52; x += 26) {
+    g.lineBetween(x, 8, x + 13, -18);
+    g.lineBetween(x + 13, -18, x + 26, 8);
+  }
+  g.lineBetween(-56, -18, 50, -18);
+  // Towers.
+  g.fillStyle(0x256258, 1);
+  g.fillRect(-60, -40, 14, 50);
+  g.fillRect(46, -40, 14, 50);
+  // A little boat passing under.
+  g.fillStyle(0xff9a78, 1);
+  g.fillTriangle(-14, 30, 14, 30, 0, 14);
+  g.fillStyle(0x244a44, 1);
+  g.fillTriangle(-16, 38, 16, 38, 0, 48);
+  c.add(g);
+};
+
+// 38 — The Great Lighthouse: the finale beacon, beam guiding everyone home.
+NODE_RENDERERS[38] = function drawGreatLighthouse(scene, c, _s) {
+  const g = scene.add.graphics();
+  g.fillStyle(0x000000, 0.4);
+  g.fillEllipse(0, 60, 120, 22);
+  // Rocky base.
+  g.fillStyle(0x4a4036, 1);
+  g.fillEllipse(0, 50, 96, 28);
+  // Straight guiding beams (plain cones — NOT a ray-burst/spiral).
+  g.fillStyle(0xfff3b8, 0.18);
+  g.fillTriangle(0, -44, -86, -78, -86, -10);
+  g.fillStyle(0xfff3b8, 0.14);
+  g.fillTriangle(0, -44, 86, -78, 86, -10);
+  // Tower (tapered) with candy stripes.
+  g.fillStyle(0xe8e0d0, 1);
+  g.beginPath();
+  g.moveTo(-26, 44); g.lineTo(-16, -34); g.lineTo(16, -34); g.lineTo(26, 44);
+  g.closePath(); g.fillPath();
+  g.fillStyle(0xc44b3a, 1);
+  g.fillRect(-23, 16, 46, 18);
+  g.fillRect(-19, -14, 38, 16);
+  // Gallery + lantern room.
+  g.fillStyle(0x4a4036, 1);
+  g.fillRect(-24, -44, 48, 12);
+  g.fillStyle(0x3a2c10, 1);
+  g.fillRoundedRect(-18, -70, 36, 30, 5);
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(0, -54, 12);
+  g.fillStyle(0xffffff, 1);
+  g.fillCircle(-3, -57, 4);
+  // Cap.
+  g.fillStyle(0xc44b3a, 1);
+  g.fillTriangle(-20, -70, 20, -70, 0, -88);
+  c.add(g);
+};
+
 NODE_RENDERERS[28] = function drawTheSingularityCell(scene, c, _s) {
   const g = scene.add.graphics();
   g.fillStyle(0x000000, 0.35);

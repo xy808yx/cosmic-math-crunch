@@ -15,6 +15,7 @@ import { ReviewScene } from './scenes/ReviewScene.js';
 import { BossRushScene } from './scenes/BossRushScene.js';
 import { DevMenuScene } from './scenes/DevMenuScene.js';
 import { SettingsScene } from './scenes/SettingsScene.js';
+import { ConveyorScene } from './scenes/ConveyorScene.js';
 
 const config = {
   type: Phaser.AUTO,
@@ -42,7 +43,8 @@ const config = {
     BootScene, StarterPickerScene, WorldMapScene, LevelSelectScene, GameScene,
     ShopScene, RecordsScene, ParentDashboardScene,
     CreditsScene, HiddenWorldScene,
-    ArcadeMenuScene, EndlessScene, ReviewScene, BossRushScene, DevMenuScene, SettingsScene
+    ArcadeMenuScene, EndlessScene, ReviewScene, BossRushScene, DevMenuScene, SettingsScene,
+    ConveyorScene
   ]
 };
 

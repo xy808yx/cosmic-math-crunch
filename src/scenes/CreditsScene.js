@@ -48,6 +48,15 @@ const FINALE_CARDS = [
   'You did it, pilot. Outer space AND inner space are yours.'
 ];
 
+// Chapter 3 (World 38, The Great Lighthouse): the homecoming. The scale arc lands
+// at human scale — you stop fighting and come home to MAKE. Warm, daytime, no void.
+const HOMECOMING_CARDS = [
+  'You journeyed to the edge of the cosmos. Then into the smallest cell.',
+  'And now the long way around brings you somewhere new: home.',
+  'The workshops are humming. Lanterns lit, kites flying, orders shipped.',
+  'One last big order — light the Great Lighthouse, and guide everyone home.'
+];
+
 export class CreditsScene extends Phaser.Scene {
   constructor() {
     super({ key: 'CreditsScene' });
@@ -62,7 +71,9 @@ export class CreditsScene extends Phaser.Scene {
     // finale seen, so a flagless/accidental entry must never land there. Every
     // real finale launch sets creditsMode='finale' explicitly.
     this.mode = this.registry.get('creditsMode') || 'cliffhanger';
-    this.cards = this.mode === 'cliffhanger' ? CLIFFHANGER_CARDS : FINALE_CARDS;
+    this.cards = this.mode === 'cliffhanger' ? CLIFFHANGER_CARDS
+      : this.mode === 'homecoming' ? HOMECOMING_CARDS
+      : FINALE_CARDS;
 
     // Credits soundtrack — plays once (not looped) under the cinematic cards
     // + pet evolution + roll + hero. Falls back silently if file is missing.
@@ -167,6 +178,12 @@ export class CreditsScene extends Phaser.Scene {
   // the Chapter 1 (cliffhanger) payoff; in the finale the pet is already Cosmic
   // (unless a player skipped World 11 entirely — then show it once here too).
   afterCards() {
+    if (this.mode === 'homecoming') {
+      // Maker Space: the pet is already Cosmic by Chapter 3, so skip the evolution
+      // beat and go straight to the warm daylight homecoming reveal.
+      this.showHomecomingOutro();
+      return;
+    }
     if (this.mode === 'cliffhanger') {
       this._afterPetMoment = () => this.showCliffhangerOutro();
       this.playPetEvolutionMoment();
@@ -339,6 +356,84 @@ export class CreditsScene extends Phaser.Scene {
       const btn = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100, color: 0xff7a8a,
+        onClick: () => this.exitFinale()
+      });
+      btn.setDepth(75); btn.alpha = 0;
+      this.tweens.add({ targets: btn, alpha: 1, duration: 800 });
+    });
+  }
+
+  // ============================================================
+  // HOMECOMING OUTRO (Chapter 3 / World 38) — the warm daylight payoff.
+  // After the cards, a teal→gold→green DAWN gradient floods in (a plain
+  // daylight reveal — NO spiral/wormhole, per the content rule), the Great
+  // Lighthouse lights, and the journey closes on the personal message.
+  // ============================================================
+  showHomecomingOutro() {
+    // Daylight wash: a gold-sky→green-land base with a teal band fading down the
+    // top half — teal→gold→green, the homecoming dawn. Floods in over the cards.
+    const day = this.add.graphics().setDepth(60);
+    day.fillGradientStyle(0xffe0a0, 0xffe0a0, 0x6fbf4a, 0x6fbf4a, 1);
+    day.fillRect(0, 0, W, H);
+    day.fillGradientStyle(0x4ecdc4, 0x4ecdc4, 0x4ecdc4, 0x4ecdc4, 0.55, 0.55, 0, 0);
+    day.fillRect(0, 0, W, H * 0.55);
+    day.alpha = 0;
+    this.tweens.add({ targets: day, alpha: 1, duration: 1800, ease: 'Quad.easeIn' });
+
+    // Soft sun glow (a plain ellipse — no rays).
+    const sun = this.add.graphics().setDepth(61);
+    sun.fillStyle(0xfff3b8, 0.5); sun.fillEllipse(W * 0.74, H * 0.18, 520, 360);
+    sun.fillStyle(0xffffff, 0.6); sun.fillEllipse(W * 0.74, H * 0.18, 240, 180);
+    sun.alpha = 0;
+    this.tweens.add({ targets: sun, alpha: 1, duration: 2200, delay: 500 });
+
+    // The Great Lighthouse, lit — reuse the World-38 node art (tower + straight
+    // beams), so the icon the kid tapped on the map is the one that lights up.
+    this.time.delayedCall(1300, () => {
+      const lh = drawWorldNode(this, W / 2, H * 0.44, 38, { scale: 2.4 });
+      lh.setDepth(62); lh.setScale(0); lh.alpha = 0;
+      this.tweens.add({ targets: lh, scale: 2.4, alpha: 1, duration: 900, ease: 'Back.easeOut' });
+    });
+
+    const lines = [
+      { t: 'CHAPTER 3 COMPLETE', size: 58, fill: '#2f5a22', y: 0.14, delay: 800 },
+      { t: 'From the far stars, and the deep cell —', size: 36, fill: '#5a4410', y: 0.62, delay: 2600 },
+      { t: 'you came home, and made it bright.', size: 42, fill: '#2f5a22', y: 0.69, delay: 4400 },
+      { t: 'The Great Lighthouse is lit.\nIts beam reaches everyone.', size: 32, fill: '#1f5a6a', y: 0.78, delay: 6600 },
+    ];
+    lines.forEach(l => {
+      const txt = this.add.text(W / 2, H * l.y, l.t, style('display', {
+        fontSize: `${l.size}px`, fill: l.fill, align: 'center',
+        stroke: '#fff6e0', strokeThickness: 4, wordWrap: { width: W - 120 }
+      })).setOrigin(0.5).setDepth(70);
+      txt.alpha = 0; txt.setScale(0.92);
+      this.time.delayedCall(l.delay, () => {
+        audio.playMatch?.();
+        this.tweens.add({ targets: txt, alpha: 1, scale: 1, duration: 800, ease: 'Back.easeOut' });
+      });
+    });
+
+    // The personal message — the capstone of the whole game, soft and warm.
+    this.time.delayedCall(8800, () => {
+      const msg = this.add.text(W / 2, H * 0.88, HERO_MESSAGE, style('display', {
+        fontSize: '64px', fill: '#c44b3a', stroke: '#fff6e0', strokeThickness: 5
+      })).setOrigin(0.5).setDepth(71);
+      msg.alpha = 0; msg.setScale(0.9);
+      audio.playStar?.();
+      this.tweens.add({
+        targets: msg, alpha: 1, scale: 1, duration: 1400, ease: 'Back.easeOut',
+        onComplete: () => this.tweens.add({
+          targets: msg, scaleX: 1.06, scaleY: 1.06,
+          duration: 800, yoyo: true, repeat: 1, ease: 'Sine.easeInOut'
+        })
+      });
+    });
+
+    // "Home" button → back to the (now-complete) Maker Space map.
+    this.time.delayedCall(10800, () => {
+      const btn = createButton(this, {
+        x: W / 2, y: H - 140, label: 'Home',
+        width: 340, height: 96, color: 0x4f8a3a,
         onClick: () => this.exitFinale()
       });
       btn.setDepth(75); btn.alpha = 0;
@@ -689,6 +784,8 @@ export class CreditsScene extends Phaser.Scene {
     // set them early, this is the belt-and-suspenders on the "Onward" path).
     if (this.mode === 'cliffhanger') {
       progress.markEndingSeen();
+    } else if (this.mode === 'homecoming') {
+      progress.markFinale3Seen();
     } else {
       progress.markFinaleSeen();
     }
@@ -717,8 +814,15 @@ export class CreditsScene extends Phaser.Scene {
     // a replay launched from the "wrong" chapter (e.g. dev-menu finale replay
     // while viewing Chapter 1) would rebuild the wrong map and park on a node id
     // that doesn't exist there. setCurrentChapter is idempotent.
-    progress.setCurrentChapter(this.mode === 'cliffhanger' ? 1 : 2);
-    this.registry.set('shipParkedWorldId', this.mode === 'cliffhanger' ? 11 : 28);
+    // Each credits mode parks on its chapter's final world; default is the
+    // grand finale (Chapter 2, World 28).
+    const MODE_TARGET = {
+      cliffhanger: { chapter: 1, world: 11 },
+      homecoming: { chapter: 3, world: 38 }
+    };
+    const target = MODE_TARGET[this.mode] || { chapter: 2, world: 28 };
+    progress.setCurrentChapter(target.chapter);
+    this.registry.set('shipParkedWorldId', target.world);
     this.registry.set('freePlay', false);
     this.registry.set('creditsMode', null); // consume so a stray relaunch defaults cleanly
 

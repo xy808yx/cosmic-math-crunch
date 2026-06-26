@@ -62,6 +62,15 @@ export class DevMenuScene extends Phaser.Scene {
         }
       },
       {
+        label: 'Replay Ch.3 homecoming',
+        color: 0xffd27a,
+        onClick: () => {
+          progress.resetFinale3Seen();
+          this.registry.set('creditsMode', 'homecoming');
+          new TransitionManager(this).fadeToScene('CreditsScene');
+        }
+      },
+      {
         label: 'Open Arcade menu',
         color: 0x4ecdc4,
         onClick: () => new TransitionManager(this).fadeToScene('ArcadeMenuScene')

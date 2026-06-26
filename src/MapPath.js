@@ -34,7 +34,20 @@ const POSITIONS_CH2 = [
   { x: 540,  y: 380  }   // 28 — top-center (The Singularity Cell)
 ];
 
+const POSITIONS_CH3 = [
+  // 8 hand-tuned points — a relaxed S across the maker workshop coast.
+  { x: 240,  y: 1480 },  // 31 — bottom-left (Lantern Workshop)
+  { x: 560,  y: 1360 },  // 32 (Seed Depot)
+  { x: 840,  y: 1220 },  // 33 (Toy Railyard)
+  { x: 660,  y: 1040 },  // 34 (Kite Loft)
+  { x: 320,  y: 900  },  // 35 (Clockwork Shop)
+  { x: 560,  y: 720  },  // 36 (Crunch Cafe)
+  { x: 860,  y: 560  },  // 37 (Harbor Bridgeworks)
+  { x: 540,  y: 380  }   // 38 — top-center (The Great Lighthouse)
+];
+
 function positionsFor(chapter) {
+  if (chapter === 3) return POSITIONS_CH3;
   return chapter === 2 ? POSITIONS_CH2 : POSITIONS_CH1;
 }
 

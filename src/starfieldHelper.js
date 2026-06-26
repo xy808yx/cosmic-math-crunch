@@ -155,5 +155,46 @@ export function createInnerSpaceBase(scene, opts = {}) {
   return { base, glow, membrane };
 }
 
+// Chapter 3 "Maker Space" map base — the warm daytime homecoming replacement for
+// the cosmic starfield and the living-body interior. Deliberately NO white stars
+// and NO shooting stars: a warm dusk-to-workshop gradient, a hearth glow welling
+// up from the floor, and one slow drifting pool of daylight ("sun through the
+// workshop window"). Plain soft shapes only — no rays/sunburst (content rule).
+// Drawn behind everything (depth -10 / -9); warm motes are layered on top by
+// WorldAmbience.createMapAmbience.
+export function createMakerSpaceBase(scene, opts = {}) {
+  const { width = W_DEFAULT, height = H_DEFAULT } = opts;
+
+  // B1 — warm dusk-to-workshop vertical gradient, darker than any per-node
+  // background so the world nodes always read on top.
+  const base = scene.add.graphics().setDepth(-10);
+  base.fillGradientStyle(0x161024, 0x161024, 0x3a2a14, 0x3a2a14, 1);
+  base.fillRect(0, 0, width, height);
+
+  // B2 — hearth glow welling up from the workshop floor + a soft daylight cast
+  // from the upper corner. Keeps the centre dim for label contrast.
+  const glow = scene.add.graphics().setDepth(-9);
+  glow.fillStyle(0xc8862e, 0.18);
+  glow.fillEllipse(width / 2, height + height * 0.26, width * 1.5, height * 0.9);
+  glow.fillStyle(0xffd27a, 0.06);
+  glow.fillEllipse(width * 0.3, -height * 0.08, width * 1.2, height * 0.5);
+
+  // B3 — a slow drifting pool of warm daylight that gently breathes, the signature
+  // "we've come home, it's daytime" cue (no rays — a plain soft ellipse).
+  const daylight = scene.add.graphics().setDepth(-9);
+  daylight.fillStyle(0xffe6b0, 1);
+  daylight.fillEllipse(0, 0, width * 0.9, height * 0.5);
+  daylight.x = width * 0.62;
+  daylight.y = height * 0.34;
+  daylight.setAlpha(0.05);
+  scene.tweens.add({
+    targets: daylight,
+    x: width * 0.4, alpha: 0.09, scaleX: 1.06, scaleY: 1.04,
+    duration: 9000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+  });
+
+  return { base, glow, daylight };
+}
+
 const W_DEFAULT = 1080;
 const H_DEFAULT = 1920;

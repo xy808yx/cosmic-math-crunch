@@ -14,6 +14,7 @@ import {
   getAdaptiveProblemSeconds,
   getComfortableProblemSeconds,
   isRoundMastered,
+  calculateStars,
   getAsteroidCountForWorld,
   getBossHpForWorld,
   getBossDurationForWorld,
@@ -2491,11 +2492,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   calculateStars(score, accuracy) {
-    if (score === 0) return 0;
-    const meetsAccuracy = accuracy >= 85;
-    if (score >= this.scoreThreshold && meetsAccuracy) return 3;
-    if (score >= Math.ceil(this.scoreThreshold * 0.7) || meetsAccuracy) return 2;
-    return 1;
+    return calculateStars(score, accuracy, this.scoreThreshold);
   }
 
   calculateBossStars() {

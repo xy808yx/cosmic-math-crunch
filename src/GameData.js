@@ -227,6 +227,111 @@ export const WORLDS = [
     levelsRequired: 4,
     bigBoss: true
   },
+  // ── Chapter 3 — "Maker Space" (homecoming) ─────────────────────────────────
+  // The scale arc lands at human scale: Outer Space (cosmos) → Inner Space
+  // (body) → Maker Space (your own hands). You've stopped fighting threats and
+  // come home to MAKE things — so the mode of play changes too: no falling
+  // asteroids, a calm "Stamp & Ship" conveyor (kind: 'sort', runs ConveyorScene).
+  // Reached via the warp gate that opens beside the Singularity Cell once the
+  // grand finale (World 28) is cleared. Bosses here are "rush orders", not
+  // monsters. The grand finale is lighting the great Lighthouse (World 38).
+  {
+    id: 31,
+    chapter: 3,
+    name: 'Lantern Workshop',
+    color: 0xc8862e,
+    accentColor: 0xffd27a,
+    description: 'Home at last — a warm workshop, lanterns to light and ship.',
+    villain: 'The Tangle',
+    flavorText: 'Every lantern lit. The workshop glows warm against the dusk.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 32,
+    chapter: 3,
+    name: 'Seed Depot',
+    color: 0x4f8a3a,
+    accentColor: 0xa8e878,
+    description: 'Sort the seeds, share them out, and watch the garden grow.',
+    villain: 'Overgrowth',
+    flavorText: 'Seeds sorted, beds planted. Green rolls out across the depot.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 33,
+    chapter: 3,
+    name: 'Toy Railyard',
+    color: 0xb5523a,
+    accentColor: 0xff9a78,
+    description: 'A cheerful railyard — route every toy car to its track.',
+    villain: 'Switchsnarl',
+    flavorText: 'Every car on the right track. The little trains chuff home.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 34,
+    chapter: 3,
+    name: 'Kite Loft',
+    color: 0x3a7fb5,
+    accentColor: 0x9bd4ff,
+    description: 'High and bright — send each kite to the right open sky.',
+    villain: 'Gustfront',
+    flavorText: 'The sky fills with kites. The wind settles into a friendly breeze.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 35,
+    chapter: 3,
+    name: 'Clockwork Shop',
+    color: 0xb5893a,
+    accentColor: 0xffd86b,
+    description: 'Brass and gears — fit every cog into its proper place.',
+    villain: 'Gearjam',
+    flavorText: 'The clockwork ticks true again. The whole shop keeps perfect time.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 36,
+    chapter: 3,
+    name: 'Crunch Cafe',
+    color: 0xc46a4a,
+    accentColor: 0xffc89a,
+    description: 'A cozy bakery — share each batch into the right number of boxes.',
+    villain: 'The Big Batch',
+    flavorText: 'Every order boxed and out the door. The cafe smells like home.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 37,
+    chapter: 3,
+    name: 'Harbor Bridgeworks',
+    color: 0x3a8a7a,
+    accentColor: 0x7fe0c8,
+    description: 'Ship the parts that build the bridges across the bright harbor.',
+    villain: 'Stormtide',
+    flavorText: 'The bridges stand. Boats glide home under a clearing sky.',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 38,
+    chapter: 3,
+    name: 'The Great Lighthouse',
+    color: 0xc88a3a,
+    accentColor: 0xfff3b8,
+    description: 'One last big order — light the great lighthouse and guide everyone home.',
+    villain: 'Nightfall',
+    flavorText: 'The lighthouse blazes. Its beam reaches the cosmos, the body, and home.',
+    levelsRequired: 4,
+    bigBoss: true,
+    kind: 'sort'
+  },
   // Hidden worlds — discovered via warp asteroids in specific levels.
   // Not part of the main world map S-curve. Don't gate the ending.
   {
@@ -305,6 +410,8 @@ export const HIDDEN_WORLDS = WORLDS.filter(w => w.hidden);
 // beating World 28 is the true grand finale at the end of Chapter 2.
 export const CHAPTER1_FINAL_ID = 11;
 export const CHAPTER2_FINAL_ID = 28;
+// Chapter 3 ("Maker Space") finale — lighting the Great Lighthouse (World 38).
+export const CHAPTER3_FINAL_ID = 38;
 
 // True if this world is the Chapter 1 final boss (Void Devourer). Drives the
 // Cosmic-form unlock + the cliffhanger cinematic. Named for back-compat.
@@ -317,10 +424,26 @@ export function isFinaleWorld(worldId) {
   return worldId === CHAPTER2_FINAL_ID;
 }
 
+// True if this world is the Chapter 3 finale (the Great Lighthouse).
+export function isChapter3FinaleWorld(worldId) {
+  return worldId === CHAPTER3_FINAL_ID;
+}
+
 // Visible worlds belonging to a chapter, in map order. Existing (untagged)
 // worlds default to chapter 1.
 export function getChapterWorlds(chapter) {
   return VISIBLE_WORLDS.filter(w => (w.chapter || 1) === chapter);
+}
+
+// The worlds that "exist" for the player right now. Chapter 3 ("Maker Space") is
+// ship-dark until the owner enables it (see PlayerProgress.chapter3Enabled), so
+// until then it's excluded from world-count totals — the same way the game already
+// caps counts to avoid spoiling hidden worlds. Reads the progress singleton at
+// call-time (never at module load), so the later `export const progress` is fine.
+export function getActiveWorlds() {
+  return progress.chapter3Enabled
+    ? VISIBLE_WORLDS
+    : VISIBLE_WORLDS.filter(w => (w.chapter || 1) !== 3);
 }
 
 // Returns the next visible world id (for ship auto-advance), or null at the end
@@ -384,6 +507,21 @@ export function isRoundMastered({ isBoss, bossWin, score, accuracy, scoreThresho
          score >= Math.ceil(scoreThreshold * MASTERY_SCORE_RATIO);
 }
 
+// Cosmetic star rating for a finished practice round. Distinct from the mastery
+// GATE above (which advances the campaign): stars are only the best-result
+// record + reward tier shown on the summary. 3 stars wants both the full
+// 3-star volume AND high accuracy; 2 stars is "most of the volume OR accurate".
+// Shared by GameScene (falling asteroids) and ConveyorScene (Stamp & Ship) so
+// both modes score a round identically. NOTE the 85% accuracy here is the
+// 3-STAR bar, separate from MASTERY_ACCURACY (80%).
+export function calculateStars(score, accuracy, scoreThreshold) {
+  if (score === 0) return 0;
+  const meetsAccuracy = accuracy >= 85;
+  if (score >= scoreThreshold && meetsAccuracy) return 3;
+  if (score >= Math.ceil(scoreThreshold * 0.7) || meetsAccuracy) return 2;
+  return 1;
+}
+
 // Per-problem timer (seconds) keyed by world id. Drives asteroid descent speed
 // and spawn cadence.
 const WORLD_PROBLEM_SECONDS = {
@@ -394,6 +532,10 @@ const WORLD_PROBLEM_SECONDS = {
   // from getAdaptiveProblemSeconds (scoped to chapter 2 + arcade), which these
   // values only serve as the cold-start fallback for.
   21: 4.5,  22: 4.3,  23: 4.1,  24: 4.0,  25: 3.9,  26: 3.8,  27: 3.6,  28: 3.5,
+  // Chapter 3 ("Maker Space") — the cold-start baseline for the Conveyor belt's
+  // active-crate window. The real per-kid pressure comes from
+  // getAdaptiveProblemSeconds (Conveyor opts in, like Chapter 2). Flat-ish, calm.
+  31: 4.5,  32: 4.3,  33: 4.1,  34: 4.0,  35: 3.9,  36: 3.8,  37: 3.6,  38: 3.5,
   // Hidden worlds use their own pacing (read lazily). Glitch boss (15) gets a
   // touch more time: its problems are visually corrupted and it's a 22-hit
   // gauntlet, so 4.5s base (+1.0s boss = 5.5s) keeps a 3-star run attainable.
@@ -505,11 +647,18 @@ export const BOSS_CONFIG = {
 const CHAPTER2_BOSS_HP = {
   21: 10, 22: 11, 23: 12, 24: 13, 25: 14, 26: 15, 27: 16, 28: 46
 };
+// Chapter 3 "rush order" bosses. The `8 + worldId*2` formula would give the
+// 30s brutal HP; the maker bosses sit ~10–18, and the Great Lighthouse (38) is
+// the grand finale tuned just under World 11's Void Devourer / Patient Zero.
+const CHAPTER3_BOSS_HP = {
+  31: 10, 32: 11, 33: 12, 34: 13, 35: 14, 36: 15, 37: 16, 38: 44
+};
 export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
   if (worldId === 15) return 22;       // Glitch World boss (Datamosh) — mid-game spike.
   if (worldId === 17) return 40;       // King Coli — hidden superboss, just under Patient Zero.
   if (CHAPTER2_BOSS_HP[worldId]) return CHAPTER2_BOSS_HP[worldId];
+  if (CHAPTER3_BOSS_HP[worldId]) return CHAPTER3_BOSS_HP[worldId];
   return 8 + worldId * 2;
 }
 
@@ -918,6 +1067,16 @@ class PlayerProgress {
         // Cosmic/Arcade unlock and must NOT be reset).
         this.currentChapter = data.currentChapter || 1;
         this.finaleSeen = !!data.finaleSeen;
+        // Chapter 3 ("Maker Space") grand finale — World 38 (The Great Lighthouse).
+        // Separate from finaleSeen (W28) so the W28 grand finale still plays once
+        // for players who reached it before Ch3 existed.
+        this.finale3Seen = !!data.finale3Seen;
+        // Ship-dark flag: Chapter 3 ("Maker Space") stays completely invisible —
+        // no warp gate, world 31 locked, counts capped at /28 — until the owner
+        // flips this ON from the PIN-protected parent dashboard to test. Per-browser
+        // (localStorage), default OFF, so the live site shows nothing to the kids.
+        this.chapter3Enabled = !!data.chapter3Enabled;
+        if (this.currentChapter === 3 && !this.chapter3Enabled) this.currentChapter = 2;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
         this.checkWorldUnlock(null);
       } else {
@@ -949,6 +1108,8 @@ class PlayerProgress {
     this.cosmicHintSeen = false;
     this.currentChapter = 1;
     this.finaleSeen = false;
+    this.finale3Seen = false;
+    this.chapter3Enabled = false;
     this.save();
   }
 
@@ -981,7 +1142,7 @@ class PlayerProgress {
 
   getWorldsClearedCount() {
     let count = 0;
-    for (const w of VISIBLE_WORLDS) {
+    for (const w of getActiveWorlds()) {
       if (this.isWorldFullyCleared(w.id)) count++;
     }
     return count;
@@ -1185,7 +1346,9 @@ class PlayerProgress {
         tutorialSeen: this.tutorialSeen,
         cosmicHintSeen: this.cosmicHintSeen,
         currentChapter: this.currentChapter,
-        finaleSeen: this.finaleSeen
+        finaleSeen: this.finaleSeen,
+        finale3Seen: this.finale3Seen,
+        chapter3Enabled: this.chapter3Enabled
       }));
     } catch (e) {
       console.warn('Could not save progress');
@@ -1230,6 +1393,36 @@ class PlayerProgress {
   resetFinaleSeen() {
     if (!this.finaleSeen) return;
     this.finaleSeen = false;
+    this.save();
+  }
+
+  // Mark the Chapter 3 grand finale (World 38, The Great Lighthouse) as seen and
+  // persist — atomically, EARLY (before the homecoming credits roll) so closing
+  // the tab mid-cinematic can't strand the flag. Returns true on the first call.
+  // Idempotent. No trophy to grant (Maker Space ships no new reward system), so
+  // unlike markFinaleSeen this only sets the flag.
+  markFinale3Seen() {
+    const firstTime = !this.finale3Seen;
+    this.finale3Seen = true;
+    this.save();
+    return firstTime;
+  }
+
+  // Force-replay the Chapter 3 finale on next World-38 win (dev menu only).
+  resetFinale3Seen() {
+    if (!this.finale3Seen) return;
+    this.finale3Seen = false;
+    this.save();
+  }
+
+  // Owner-only toggle (parent dashboard) for the Chapter 3 ship-dark flag. Turning
+  // it ON reveals the Maker Space warp gate and unlocks world 31 immediately if the
+  // W28 finale is already cleared. Turning it OFF drops a stale Maker-Space view back
+  // to Chapter 2 so the next map load can't re-render Ch3.
+  setChapter3Enabled(on) {
+    this.chapter3Enabled = !!on;
+    if (!this.chapter3Enabled && this.currentChapter === 3) this.currentChapter = 2;
+    this.checkWorldUnlock(null);
     this.save();
   }
 
@@ -1563,7 +1756,7 @@ class PlayerProgress {
     //     appear together right after the Void cracks open.
     // Hidden worlds (15/16) are NOT in this chain — they unlock via warp-asteroid
     // discovery (see discoverHiddenWorld).
-    for (const chapter of [1, 2]) {
+    for (const chapter of [1, 2, 3]) {
       const worlds = getChapterWorlds(chapter);
       for (let i = 0; i < worlds.length; i++) {
         const world = worlds[i];
@@ -1576,7 +1769,16 @@ class PlayerProgress {
           // "Universe's End" (World 11) — is beaten and the Void cracks open,
           // pulling the player inward. This matches the warp-gate reveal on the
           // map so the wormhole and the unlocked first world appear together.
-          if (chapter === 1 || this.isWorldFullyCleared(CHAPTER1_FINAL_ID)) wp.unlocked = true;
+          // Each chapter's first world gates on the PREVIOUS chapter's finale:
+          // Ch2 (Inner Space) opens after World 11; Ch3 (Maker Space) opens after
+          // the grand finale, World 28 — the same condition that reveals the
+          // Maker Space warp gate on the Chapter 2 map.
+          const entryOpen =
+            chapter === 1 ? true :
+            chapter === 2 ? this.isWorldFullyCleared(CHAPTER1_FINAL_ID) :
+            chapter === 3 ? (this.chapter3Enabled && this.isWorldFullyCleared(CHAPTER2_FINAL_ID)) :
+            false;
+          if (entryOpen) wp.unlocked = true;
           continue;
         }
         const prev = worlds[i - 1];
@@ -1849,6 +2051,16 @@ const WORLD_MUSIC_RATE = {
   26: 0.9719,  // immune front: -0.5 (tense)
   27: 0.9439,  // mitochondria core: -1 (furnace rumble)
   28: 0.9439,  // singularity cell: -1 (finale gravitas, kept clean)
+  // Chapter 3 — "Maker Space" reads warm + bright + daytime. Subtle per-world
+  // pitch (≤ ±1 semitone) over the bespoke maker level theme.
+  31: 1.0,     // lantern workshop: neutral, cozy
+  32: 1.0293,  // seed depot: +0.5 (a green lift)
+  33: 1.0595,  // toy railyard: +1 (bright, playful)
+  34: 1.0293,  // kite loft: +0.5 (airy)
+  35: 0.9719,  // clockwork shop: -0.5 (ticking, mechanical)
+  36: 1.0,     // crunch cafe: neutral, warm
+  37: 0.9439,  // harbor bridgeworks: -1 (broad, salt-air)
+  38: 1.0293,  // great lighthouse: +0.5 (finale shine, kept bright)
 };
 export function getWorldMusicRate(worldId) {
   return WORLD_MUSIC_RATE[worldId] ?? 1.0;

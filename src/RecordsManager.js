@@ -21,6 +21,45 @@ function todayString() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+// Conveyor (Chapter 3 "Stamp & Ship") instrumentation. Keyed by input mode so the
+// owner can resolve the production-vs-recognition A/B from real timing data
+// (Phase 6). Per mode we keep the correct-answer recall-time distribution
+// (buckets) so "fast but not retrieving" clustering is visible; recognition also
+// tracks how often the CORRECT answer's dock lands in the same screen slot as the
+// previous crate (posRepeat / posTotal) — at full randomization this sits near
+// chance (1/DOCK_COUNT ≈ 25%); a high rate means a kid could be tapping by
+// position, not recalling. CONVEYOR_BUCKET_MS are the upper bounds (ms) of each
+// recall-time bucket; the last bucket is the "5s+" overflow.
+const CONVEYOR_BUCKET_MS = [1000, 2000, 3000, 5000];
+function emptyConveyorMode(recognition) {
+  const base = { count: 0, sumMs: 0, fast: 0, buckets: [0, 0, 0, 0, 0] };
+  if (recognition) { base.posRepeat = 0; base.posTotal = 0; }
+  return base;
+}
+function normalizeConveyorStats(raw) {
+  const out = {
+    production: emptyConveyorMode(false),
+    recognition: emptyConveyorMode(true)
+  };
+  if (!raw) return out;
+  for (const mode of ['production', 'recognition']) {
+    const src = raw[mode];
+    if (!src) continue;
+    const dst = out[mode];
+    dst.count = src.count || 0;
+    dst.sumMs = src.sumMs || 0;
+    dst.fast = src.fast || 0;
+    if (Array.isArray(src.buckets)) {
+      for (let i = 0; i < dst.buckets.length; i++) dst.buckets[i] = src.buckets[i] || 0;
+    }
+    if (mode === 'recognition') {
+      dst.posRepeat = src.posRepeat || 0;
+      dst.posTotal = src.posTotal || 0;
+    }
+  }
+  return out;
+}
+
 class RecordsManager {
   constructor() {
     this.load();
@@ -44,6 +83,7 @@ class RecordsManager {
         // daily. Cold-start from fastestPerFact so existing saves aren't jarring.
         this.paceMs = data.paceMs || 0;
         if (!this.paceMs) this._seedPaceFromFastest();
+        this.conveyorStats = normalizeConveyorStats(data.conveyorStats);
       } else {
         this.reset();
       }
@@ -73,6 +113,7 @@ class RecordsManager {
     this.totalCorrect = 0;
     this.totalAttempts = 0;
     this.paceMs = 0;
+    this.conveyorStats = normalizeConveyorStats(null);
     this.save();
   }
 
@@ -87,7 +128,8 @@ class RecordsManager {
         worldsCleared: this.worldsCleared,
         totalCorrect: this.totalCorrect,
         totalAttempts: this.totalAttempts,
-        paceMs: this.paceMs
+        paceMs: this.paceMs,
+        conveyorStats: this.conveyorStats
       }));
     } catch (e) { /* quota exhausted; harmless */ }
   }
@@ -185,6 +227,57 @@ class RecordsManager {
   // Persistent per-kid recall pace (ms) — drives the adaptive fall speed.
   getPaceMs() {
     return Math.round(this.paceMs || 0);
+  }
+
+  // ── Conveyor (Stamp & Ship) instrumentation ───────────────────────────────
+  // Record one CORRECT crate's recall time, bucketed for the dashboard. Only
+  // correct answers carry recall-speed signal (mirrors recordAnswer/factMastery).
+  recordConveyorTiming(mode, elapsedMs) {
+    const s = this.conveyorStats?.[mode];
+    if (!s || !(elapsedMs > 0)) return;
+    s.count++;
+    s.sumMs += elapsedMs;
+    if (elapsedMs <= 2500) s.fast++;
+    let bi = CONVEYOR_BUCKET_MS.findIndex(b => elapsedMs < b);
+    if (bi < 0) bi = s.buckets.length - 1;
+    s.buckets[bi]++;
+    this.save();
+  }
+
+  // Recognition only: log whether the CORRECT answer's dock sat in the same slot
+  // as the previous crate. `repeated` is a bool; first crate of a round passes
+  // null and is not counted (no previous slot to compare against).
+  recordConveyorDockPosition(repeated) {
+    if (repeated === null || repeated === undefined) return;
+    const s = this.conveyorStats?.recognition;
+    if (!s) return;
+    s.posTotal++;
+    if (repeated) s.posRepeat++;
+    this.save();
+  }
+
+  // Summarized view for the dashboard: per mode { count, avgMs, fastPct, buckets }
+  // (recognition also gets posTotal / posRepeatPct). bucketLabels describe the bins.
+  getConveyorStats() {
+    const summarize = (s, recognition) => {
+      const count = s.count || 0;
+      const out = {
+        count,
+        avgMs: count > 0 ? Math.round(s.sumMs / count) : 0,
+        fastPct: count > 0 ? Math.round((s.fast / count) * 100) : 0,
+        buckets: s.buckets.slice()
+      };
+      if (recognition) {
+        out.posTotal = s.posTotal || 0;
+        out.posRepeatPct = s.posTotal > 0 ? Math.round((s.posRepeat / s.posTotal) * 100) : 0;
+      }
+      return out;
+    };
+    return {
+      production: summarize(this.conveyorStats.production, false),
+      recognition: summarize(this.conveyorStats.recognition, true),
+      bucketLabels: ['<1s', '1–2s', '2–3s', '3–5s', '5s+']
+    };
   }
 
   getLongestStreak() {

@@ -30,6 +30,12 @@ export function createMapAmbience(scene, opts) {
     for (let i = 0; i < 18; i++) buildDriftCell(scene, state, width, height);
     scheduleConvectionMote(scene, state, width, height);
     buildVignette(scene, width, height);
+  } else if (chapter === 3) {
+    // Maker Space: warm daytime workshop air — drifting sawdust/pollen motes and
+    // slow warm motes rising in the daylight. No white stars, no shooting stars.
+    for (let i = 0; i < 16; i++) buildDriftMote(scene, state, width, height);
+    scheduleWarmMote(scene, state, width, height);
+    buildVignette(scene, width, height);
   } else {
     // Outer Space: the cosmic starfield ambience.
     buildTwinkleStars(scene, state, width, height);
@@ -149,6 +155,65 @@ function scheduleConvectionMote(scene, state, W, H) {
     scene.tweens.add({
       targets: mote, x: '+=' + ((Math.random() - 0.5) * 70),
       duration: 3200, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+    });
+    scene.time.delayedCall(1400 + Math.random() * 1200, fire);
+  };
+  scene.time.delayedCall(2000 + Math.random() * 4000, fire);
+}
+
+// ── Chapter 3 "Maker Space" ambience builders ──────────────────────────────
+
+// One drifting warm dust mote — the workshop-air replacement for stars/cells.
+// Bobs and drifts laterally (never falls); biased out of the centre label spine.
+function buildDriftMote(scene, state, W, H) {
+  const f = Math.random();
+  const colors = [0xffd27a, 0xffe6b0, 0xc8a060, 0xa8e878];
+  const r = 2 + f * 3;
+  const g = scene.add.circle(0, 0, r, colors[Math.floor(Math.random() * colors.length)], 0.5);
+  const left = Math.random() < 0.5;
+  g.x = left ? 40 + Math.random() * (W * 0.30) : W * 0.66 + Math.random() * (W * 0.30);
+  g.y = 160 + Math.random() * (H - 360);
+  state.layers.add(g);
+  const dir = Math.random() < 0.5 ? -1 : 1;
+  scene.tweens.add({
+    targets: g, x: '+=' + (dir * (50 + 100 * f)),
+    duration: 12000 + Math.random() * 10000, yoyo: true, repeat: -1,
+    ease: 'Sine.easeInOut', delay: Math.random() * 4000,
+  });
+  scene.tweens.add({
+    targets: g, y: '+=' + (8 + 14 * f),
+    duration: 2600 + Math.random() * 1600, yoyo: true, repeat: -1,
+    ease: 'Sine.easeInOut', delay: Math.random() * 1000,
+  });
+  scene.tweens.add({
+    targets: g, alpha: 0.15,
+    duration: 2200 + Math.random() * 1400, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
+  });
+}
+
+// Slow warm motes rising in the daylight — the Maker replacement for shooting
+// stars. Self-rescheduling, capped against SCENE_CAP.
+function scheduleWarmMote(scene, state, W, H) {
+  const colors = [0xffe6b0, 0xffd27a, 0xc8a060];
+  const fire = () => {
+    if (state.activeParticles >= SCENE_CAP) {
+      scene.time.delayedCall(2000, fire);
+      return;
+    }
+    const mote = scene.add.circle(
+      Math.random() * W, H - 120 + Math.random() * 80,
+      1.5 + Math.random() * 2, colors[Math.floor(Math.random() * colors.length)], 0.6
+    );
+    state.layers.add(mote);
+    state.activeParticles++;
+    scene.tweens.add({
+      targets: mote, y: '-=' + (360 + Math.random() * 240), alpha: 0,
+      duration: 3400 + Math.random() * 1600, ease: 'Sine.easeOut',
+      onComplete: () => { mote.destroy(); state.activeParticles--; },
+    });
+    scene.tweens.add({
+      targets: mote, x: '+=' + ((Math.random() - 0.5) * 60),
+      duration: 3400, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
     });
     scene.time.delayedCall(1400 + Math.random() * 1200, fire);
   };
@@ -545,4 +610,81 @@ const THEME_EMITTERS = {
   });
   return p;
 },
+  // ── Chapter 3 "Maker Space" — warm rising / drifting motes per workshop ──
+  // 31 — Lantern Workshop: warm lantern-glow embers rising.
+  31: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0xffd27a, 0xffe6b0, 0xffc24a]),
+  // 32 — Seed Depot: green pollen drifting up.
+  32: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0x9be86b, 0xa8e878, 0x6fbf4a]),
+  // 33 — Toy Railyard: little steam puffs rising.
+  33: (scene, state, cx, cy) => {
+    const p = scene.add.circle(cx + (Math.random() - 0.5) * 50, cy + 18, 4 + Math.random() * 3, 0xeaf0f4, 0.7);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, y: '-=64', alpha: 0, scale: 1.7,
+      duration: 2000, ease: 'Sine.easeOut', onComplete: () => p.destroy()
+    });
+    return p;
+  },
+  // 34 — Kite Loft: bright sky sparkles drifting sideways on the breeze.
+  34: (scene, state, cx, cy) => {
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const p = scene.add.circle(cx - dir * 50, cy + (Math.random() - 0.5) * 50, 3, 0x9bd4ff, 0.9);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, x: cx + dir * 60, alpha: 0,
+      duration: 1600, ease: 'Sine.easeOut', onComplete: () => p.destroy()
+    });
+    return p;
+  },
+  // 35 — Clockwork Shop: brass glints twinkling near the gears.
+  35: (scene, state, cx, cy) => {
+    const a = Math.random() * Math.PI * 2;
+    const r = 56 + Math.random() * 20;
+    const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 2.5, 0xffd86b, 1);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, alpha: 0, scale: 1.7,
+      duration: 1100, ease: 'Sine.easeOut', onComplete: () => p.destroy()
+    });
+    return p;
+  },
+  // 36 — Crunch Cafe: warm crumbs / sweet steam rising.
+  36: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0xffc89a, 0xffe0c2, 0xff9a78]),
+  // 37 — Harbor Bridgeworks: teal water sparkles bursting outward.
+  37: (scene, state, cx, cy) => {
+    const a = Math.random() * Math.PI * 2;
+    const p = scene.add.circle(cx, cy + 20, 3, 0x7fe0c8, 0.9);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, x: cx + Math.cos(a) * 70, y: cy + 20 + Math.sin(a) * 36, alpha: 0,
+      duration: 1300, ease: 'Quad.easeOut', onComplete: () => p.destroy()
+    });
+    return p;
+  },
+  // 38 — The Great Lighthouse: golden beacon sparkles twinkling around the lamp.
+  38: (scene, state, cx, cy) => {
+    const a = Math.random() * Math.PI * 2;
+    const r = 64 + Math.random() * 22;
+    const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0xfff3b8, 1);
+    state.layers.add(p);
+    scene.tweens.add({
+      targets: p, alpha: 0, scale: 1.9,
+      duration: 1400, ease: 'Sine.easeOut', onComplete: () => p.destroy()
+    });
+    return p;
+  },
 };
+
+// Shared rising-mote emitter for the warm Maker worlds (pollen / embers / steam).
+function riseMote(scene, state, cx, cy, colors) {
+  const p = scene.add.circle(
+    cx + (Math.random() - 0.5) * 70, cy + 26,
+    3, colors[Math.floor(Math.random() * colors.length)], 0.85
+  );
+  state.layers.add(p);
+  scene.tweens.add({
+    targets: p, y: '-=64', alpha: 0,
+    duration: 2200, ease: 'Sine.easeOut', onComplete: () => p.destroy()
+  });
+  return p;
+}

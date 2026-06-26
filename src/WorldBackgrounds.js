@@ -295,8 +295,313 @@ const WORLD_BACKGROUNDS = {
   27: { bgTop: 0x1a0c04, bgBottom: 0x5a2810, drawHorizon: ch2MitochondriaCoreHorizon },
   28: { bgTop: 0x0a0a18, bgBottom: 0x303068, drawHorizon: ch2TheSingularityCellHorizon },
   17: { bgTop: 0x10241a, bgBottom: 0x2f5a3a, drawHorizon: ch2RoyalFlushHorizon },
-  15: { bgTop: 0x0a0010, bgBottom: 0x200030, drawHorizon: glitchWorldHorizon }
+  15: { bgTop: 0x0a0010, bgBottom: 0x200030, drawHorizon: glitchWorldHorizon },
+  // ── Chapter 3 "Maker Space" — warm daytime workshops (NOT space/void). Each
+  // is a back-wall workshop scene anchored at the shelf line (opts.y), drawing
+  // upward with only a shallow floor below so it reads as a back wall behind the
+  // Conveyor belt as well as a grounded horizon in GameScene. Plain hand-built
+  // shapes only — no spirals/sunbursts/mystical motifs (content rule).
+  31: { bgTop: 0x2a1c0c, bgBottom: 0x7a5320, drawHorizon: ch3LanternWorkshopHorizon },
+  32: { bgTop: 0x12260e, bgBottom: 0x3c6e2a, drawHorizon: ch3SeedDepotHorizon },
+  33: { bgTop: 0x2a120c, bgBottom: 0x7a3526, drawHorizon: ch3ToyRailyardHorizon },
+  34: { bgTop: 0x0e2236, bgBottom: 0x2f6a9c, drawHorizon: ch3KiteLoftHorizon },
+  35: { bgTop: 0x281c08, bgBottom: 0x6e5320, drawHorizon: ch3ClockworkShopHorizon },
+  36: { bgTop: 0x2a160e, bgBottom: 0x8a4a30, drawHorizon: ch3CrunchCafeHorizon },
+  37: { bgTop: 0x0a221e, bgBottom: 0x256258, drawHorizon: ch3HarborBridgeworksHorizon },
+  38: { bgTop: 0x241a0a, bgBottom: 0x6e5020, drawHorizon: ch3GreatLighthouseHorizon }
 };
+
+// ── Chapter 3 "Maker Space" horizons ───────────────────────────────────────
+// Shared helpers — a warm back-wall wash + a wooden shelf ledge at the line.
+function ch3Wall(g, baseY, color, alpha = 0.5) {
+  g.fillStyle(color, alpha);
+  g.fillRect(0, baseY - 250, W, 310);
+}
+function ch3Shelf(g, baseY, ledge, shadow = 0x2a1c0c) {
+  g.fillStyle(shadow, 0.30);
+  g.fillRect(40, baseY + 18, W - 80, 10);
+  g.fillStyle(ledge, 1);
+  g.fillRoundedRect(40, baseY - 14, W - 80, 32, 9);
+  g.fillStyle(0xffffff, 0.12);
+  g.fillRoundedRect(40, baseY - 14, W - 80, 9, 9);
+}
+// A warm-lit window of daylight (no rays — a plain glowing pane with muntins).
+function ch3Window(g, baseY, cx, w, h, frame, light, lightAlpha = 0.5) {
+  const x = cx - w / 2;
+  const y = baseY - h - 24;
+  g.fillStyle(frame, 1);
+  g.fillRoundedRect(x - 10, y - 10, w + 20, h + 20, 14);
+  g.fillStyle(light, lightAlpha);
+  g.fillRoundedRect(x, y, w, h, 8);
+  g.lineStyle(6, frame, 1);
+  g.lineBetween(cx, y, cx, y + h);
+  g.lineBetween(x, y + h / 2, x + w, y + h / 2);
+}
+
+// 31 — Lantern Workshop: warm wood bench, a dusk window, a beam of hanging lanterns.
+function ch3LanternWorkshopHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x5a3c1a, 0.5);
+  ch3Window(g, baseY, W * 0.26, 230, 178, 0x3a2810, 0xffd9a0, 0.55);
+  // Hanging beam + three glowing lanterns on the right.
+  g.fillStyle(0x3a2810, 1);
+  g.fillRect(W * 0.5, baseY - 246, W * 0.5 - 40, 14);
+  for (const x of [W * 0.62, W * 0.745, W * 0.87]) {
+    g.lineStyle(3, 0x2a1c0c, 1);
+    g.lineBetween(x, baseY - 232, x, baseY - 198);
+    g.fillStyle(0x2a1c0c, 1);
+    g.fillTriangle(x - 22, baseY - 198, x + 22, baseY - 198, x, baseY - 216);
+    g.fillRoundedRect(x - 26, baseY - 198, 52, 72, 10);
+    g.fillStyle(0xffd27a, 0.92);
+    g.fillRoundedRect(x - 17, baseY - 189, 34, 56, 7);
+    g.fillStyle(0xfff6d8, 1);
+    g.fillCircle(x, baseY - 160, 9);
+  }
+  ch3Shelf(g, baseY, 0x7a5320);
+  return g;
+}
+
+// 32 — Seed Depot: green potting shed — seed sacks, potted sprouts, a watering can.
+function ch3SeedDepotHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x2f5a22, 0.5);
+  ch3Window(g, baseY, W * 0.78, 230, 178, 0x254a18, 0xc6f29a, 0.5);
+  // Burlap seed sacks slumped along the bench, left side.
+  for (const [x, w] of [[W * 0.12, 92], [W * 0.24, 80], [W * 0.35, 70]]) {
+    g.fillStyle(0x9c7a44, 1);
+    g.beginPath();
+    g.moveTo(x - w / 2, baseY - 12);
+    g.lineTo(x - w / 2 + 12, baseY - 92);
+    g.lineTo(x + w / 2 - 12, baseY - 92);
+    g.lineTo(x + w / 2, baseY - 12);
+    g.closePath();
+    g.fillPath();
+    g.fillStyle(0xc2a064, 1);
+    g.fillEllipse(x, baseY - 92, w - 22, 22);
+  }
+  // Potted sprouts on the shelf, center-right.
+  for (const x of [W * 0.5, W * 0.6]) {
+    g.fillStyle(0x8a4a2a, 1);
+    g.fillRoundedRect(x - 26, baseY - 56, 52, 48, 6);
+    g.fillStyle(0xa85a34, 1);
+    g.fillRect(x - 28, baseY - 60, 56, 12);
+    g.fillStyle(0x6fbf4a, 1);
+    g.fillEllipse(x - 12, baseY - 78, 30, 18);
+    g.fillEllipse(x + 12, baseY - 76, 28, 16);
+    g.fillStyle(0x9be86b, 1);
+    g.fillEllipse(x, baseY - 92, 24, 16);
+  }
+  ch3Shelf(g, baseY, 0x5a3e1f);
+  return g;
+}
+
+// 33 — Toy Railyard: a cheerful depot wall with a toy track and little engine.
+function ch3ToyRailyardHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x6e2c1c, 0.5);
+  // Pennant bunting across the top.
+  const bunt = [0xff9a78, 0xffd27a, 0x9bd4ff, 0xa8e878];
+  for (let i = 0; i < 9; i++) {
+    const x = 80 + i * ((W - 160) / 8);
+    g.fillStyle(bunt[i % bunt.length], 0.9);
+    g.fillTriangle(x - 22, baseY - 244, x + 22, baseY - 244, x, baseY - 214);
+  }
+  // Track ties + rails on the shelf line.
+  g.fillStyle(0x4a2014, 1);
+  for (let x = 60; x < W - 60; x += 46) g.fillRect(x, baseY - 20, 16, 26);
+  g.fillStyle(0xc99a6a, 1);
+  g.fillRect(50, baseY - 16, W - 100, 6);
+  g.fillRect(50, baseY - 2, W - 100, 6);
+  // A little engine + one car.
+  const ex = W * 0.42;
+  g.fillStyle(0xd24a32, 1);
+  g.fillRoundedRect(ex - 70, baseY - 84, 92, 64, 10);
+  g.fillStyle(0x3a1810, 1);
+  g.fillRoundedRect(ex - 64, baseY - 60, 38, 34, 6); // cab window
+  g.fillStyle(0xffd27a, 0.85);
+  g.fillRoundedRect(ex - 60, baseY - 56, 30, 26, 4);
+  g.fillStyle(0x2a1208, 1);
+  g.fillRect(ex + 6, baseY - 104, 18, 24); // funnel
+  g.fillCircle(ex - 48, baseY - 18, 16);   // wheels
+  g.fillCircle(ex - 6, baseY - 18, 16);
+  g.fillStyle(0x5a8ac0, 1);
+  g.fillRoundedRect(ex + 34, baseY - 70, 80, 50, 8); // boxcar
+  g.fillStyle(0x2a1208, 1);
+  g.fillCircle(ex + 52, baseY - 18, 14);
+  g.fillCircle(ex + 96, baseY - 18, 14);
+  ch3Shelf(g, baseY, 0x7a3526);
+  return g;
+}
+
+// 34 — Kite Loft: bright open loft, big sky window, kites hung from the rafters.
+function ch3KiteLoftHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x244a6e, 0.45);
+  // Big bright sky window filling the back wall.
+  ch3Window(g, baseY, W * 0.5, 520, 196, 0x183a56, 0xbfe6ff, 0.55);
+  // Rafter beam + three kites on strings.
+  g.fillStyle(0x2a3a4a, 1);
+  g.fillRect(60, baseY - 250, W - 120, 12);
+  const kites = [[W * 0.26, 0xff9ec7], [W * 0.5, 0xffd27a], [W * 0.74, 0x9be86b]];
+  for (const [x, col] of kites) {
+    g.lineStyle(2, 0xcfe0ef, 0.8);
+    g.lineBetween(x, baseY - 238, x, baseY - 178);
+    g.fillStyle(col, 1);
+    g.fillTriangle(x, baseY - 178, x - 30, baseY - 150, x, baseY - 122); // left half
+    g.fillTriangle(x, baseY - 178, x + 30, baseY - 150, x, baseY - 122); // right half
+    g.fillStyle(0xffffff, 0.5);
+    g.fillTriangle(x, baseY - 178, x - 30, baseY - 150, x, baseY - 150);
+    // bow tails
+    g.fillStyle(col, 0.85);
+    for (let k = 1; k <= 3; k++) g.fillCircle(x, baseY - 122 + k * 16, 5);
+  }
+  ch3Shelf(g, baseY, 0x2f5274);
+  return g;
+}
+
+// 35 — Clockwork Shop: brass wall clock flanked by gears, a swinging pendulum.
+function ch3ClockworkShopHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x5a431a, 0.55);
+  // Gears (plain mechanical cogs — a hub + rectangular teeth; not a sunburst).
+  const gear = (cx, cy, r, teeth, col) => {
+    g.fillStyle(col, 1);
+    for (let i = 0; i < teeth; i++) {
+      const a = (i / teeth) * Math.PI * 2;
+      g.fillRect(cx + Math.cos(a) * r - 6, cy + Math.sin(a) * r - 6, 12, 12);
+    }
+    g.fillCircle(cx, cy, r);
+    g.fillStyle(0x3a2c10, 1);
+    g.fillCircle(cx, cy, r * 0.34);
+  };
+  gear(W * 0.2, baseY - 150, 56, 12, 0xb98a3a);
+  gear(W * 0.83, baseY - 120, 44, 10, 0xd6a85a);
+  // Wall clock, center.
+  const cx = W * 0.5, cy = baseY - 150;
+  g.fillStyle(0x3a2c10, 1); g.fillCircle(cx, cy, 92);
+  g.fillStyle(0xf3ead7, 1); g.fillCircle(cx, cy, 80);
+  g.lineStyle(4, 0x3a2c10, 1);
+  for (let i = 0; i < 12; i++) {
+    const a = (i / 12) * Math.PI * 2;
+    g.lineBetween(cx + Math.cos(a) * 70, cy + Math.sin(a) * 70, cx + Math.cos(a) * 78, cy + Math.sin(a) * 78);
+  }
+  g.lineStyle(8, 0x2a1c0c, 1); g.lineBetween(cx, cy, cx, cy - 50);   // minute hand (up)
+  g.lineStyle(8, 0x2a1c0c, 1); g.lineBetween(cx, cy, cx + 34, cy + 18); // hour hand
+  g.fillStyle(0xc8862e, 1); g.fillCircle(cx, cy, 8);
+  // Pendulum hanging below the clock.
+  g.lineStyle(4, 0x8a6a2a, 1); g.lineBetween(cx, cy + 80, cx + 18, baseY - 30);
+  g.fillStyle(0xffd86b, 1); g.fillCircle(cx + 18, baseY - 26, 16);
+  ch3Shelf(g, baseY, 0x6e5320);
+  return g;
+}
+
+// 36 — Crunch Cafe: cozy bakery shelves of loaves and jars, a warm window.
+function ch3CrunchCafeHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x6a3320, 0.5);
+  ch3Window(g, baseY, W * 0.5, 280, 150, 0x3a1c12, 0xffd9b0, 0.5);
+  // Upper plank shelf with loaves + jars.
+  const shelfY = baseY - 120;
+  g.fillStyle(0x5a2e1c, 1);
+  g.fillRect(60, shelfY, W - 120, 14);
+  for (let i = 0; i < 5; i++) {
+    const x = 130 + i * ((W - 260) / 4);
+    if (i % 2 === 0) {
+      g.fillStyle(0xd99a5a, 1); // loaf
+      g.fillEllipse(x, shelfY - 18, 78, 40);
+      g.fillStyle(0xb5703a, 1);
+      for (let k = -1; k <= 1; k++) g.fillRect(x + k * 16 - 2, shelfY - 36, 4, 18);
+    } else {
+      g.fillStyle(0xbfe0e8, 0.85); // jar
+      g.fillRoundedRect(x - 22, shelfY - 48, 44, 48, 8);
+      g.fillStyle(0xff9a78, 0.9);
+      g.fillRoundedRect(x - 18, shelfY - 30, 36, 28, 6);
+      g.fillStyle(0x5a2e1c, 1);
+      g.fillRect(x - 22, shelfY - 56, 44, 10);
+    }
+  }
+  ch3Shelf(g, baseY, 0x8a4a30);
+  return g;
+}
+
+// 37 — Harbor Bridgeworks: a harbor window with a truss bridge + boats, steel girders.
+function ch3HarborBridgeworksHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  ch3Wall(g, baseY, 0x1c4a44, 0.5);
+  // Wide harbor window — sky over water, a truss bridge spanning it.
+  const wx = 90, ww = W - 180, wy = baseY - 214, wh = 188;
+  g.fillStyle(0x123a36, 1);
+  g.fillRoundedRect(wx - 10, wy - 10, ww + 20, wh + 20, 14);
+  g.fillStyle(0xbfe6e0, 0.45);
+  g.fillRect(wx, wy, ww, wh * 0.6);            // sky
+  g.fillStyle(0x3a8a8a, 0.55);
+  g.fillRect(wx, wy + wh * 0.6, ww, wh * 0.4); // water
+  // Truss bridge: a straight deck on two piers with cross-braced girders.
+  const deckY = wy + wh * 0.52;
+  g.fillStyle(0x2a5a54, 1);
+  g.fillRect(wx + 30, deckY, ww - 60, 12);
+  g.fillRect(wx + ww * 0.32, deckY, 14, wh * 0.4); // pier
+  g.fillRect(wx + ww * 0.64, deckY, 14, wh * 0.4); // pier
+  g.lineStyle(4, 0x7fe0c8, 0.9);
+  for (let x = wx + 36; x < wx + ww - 40; x += 40) {
+    g.lineBetween(x, deckY, x + 20, deckY - 30);
+    g.lineBetween(x + 20, deckY - 30, x + 40, deckY);
+  }
+  g.lineBetween(wx + 30, deckY - 30, wx + ww - 30, deckY - 30); // top chord
+  // Two little boats on the water.
+  for (const [bx, col] of [[wx + ww * 0.2, 0xff9a78], [wx + ww * 0.8, 0xffd27a]]) {
+    g.fillStyle(0x244a44, 1);
+    g.fillTriangle(bx - 22, deckY + 40, bx + 22, deckY + 40, bx, deckY + 58);
+    g.fillStyle(col, 1);
+    g.fillTriangle(bx, deckY + 14, bx, deckY + 38, bx + 18, deckY + 38);
+  }
+  ch3Shelf(g, baseY, 0x256258);
+  return g;
+}
+
+// 38 — The Great Lighthouse: the finale — a tall tower with a straight guiding
+// beam over a dusk-gold sea. The beam is a plain straight cone (NOT a spiral/ray-burst).
+function ch3GreatLighthouseHorizon(scene, opts) {
+  const g = scene.add.graphics().setDepth(2);
+  const baseY = opts.y;
+  // Dusk-gold sky wash + a low sea band.
+  g.fillStyle(0x6e5020, 0.5);
+  g.fillRect(0, baseY - 250, W, 250);
+  g.fillStyle(0x2a3a4a, 0.6);
+  g.fillRect(0, baseY - 70, W, 80);
+  g.fillStyle(0x3a5a6a, 0.5);
+  for (let x = 0; x <= W; x += 60) g.fillEllipse(x, baseY - 64, 70, 14);
+  // Lighthouse tower, right-of-center.
+  const cx = W * 0.68;
+  g.fillStyle(0xe8e0d0, 1);
+  g.beginPath();
+  g.moveTo(cx - 30, baseY - 18);
+  g.lineTo(cx - 18, baseY - 196);
+  g.lineTo(cx + 18, baseY - 196);
+  g.lineTo(cx + 30, baseY - 18);
+  g.closePath();
+  g.fillPath();
+  g.fillStyle(0xc44b3a, 1); // candy stripes
+  for (const yy of [baseY - 70, baseY - 130]) g.fillRect(cx - 28, yy, 56, 24);
+  // Lantern room + glow.
+  g.fillStyle(0x3a2c10, 1);
+  g.fillRoundedRect(cx - 24, baseY - 232, 48, 40, 6);
+  g.fillStyle(0xfff3b8, 1);
+  g.fillCircle(cx, baseY - 212, 14);
+  // Straight guiding beam sweeping left over the sea.
+  g.fillStyle(0xfff3b8, 0.16);
+  g.fillTriangle(cx, baseY - 212, 60, baseY - 250, 60, baseY - 150);
+  g.fillStyle(0xfff3b8, 0.10);
+  g.fillTriangle(cx, baseY - 212, 120, baseY - 120, 320, baseY - 90);
+  return g;
+}
 
 function glitchWorldHorizon(scene, { width, y }) {
   const g = scene.add.graphics().setDepth(0);

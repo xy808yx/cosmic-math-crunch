@@ -2,7 +2,7 @@
 // dark base + cyan/coral/mint accents. Includes a Reset Progress button.
 
 import Phaser from 'phaser';
-import { progress, VISIBLE_WORLDS, findWorld, CHAPTER1_FINAL_ID, getChapterWorlds } from '../GameData.js';
+import { progress, findWorld, CHAPTER1_FINAL_ID, getChapterWorlds, getActiveWorlds } from '../GameData.js';
 import { records } from '../RecordsManager.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
@@ -207,10 +207,20 @@ export class ParentDashboardScene extends Phaser.Scene {
       { id: 'analytics', label: 'Analytics' },
       { id: 'settings', label: 'Settings' }
     ];
+    // Stamp & Ship (Conveyor) timing tab — only shown once Chapter 3 has been
+    // played, so the dashboard stays uncluttered for players who haven't reached
+    // it. Inserted before Settings.
+    const cs = records.getConveyorStats();
+    if (cs.production.count + cs.recognition.count > 0) {
+      tabs.splice(3, 0, { id: 'conveyor', label: 'Stamp & Ship' });
+    }
 
-    const tabWidth = 240;
-    const tabHeight = 64;
     const gap = 16;
+    // Fit the tab row to the canvas: 240 wide when there's room, narrower (with
+    // smaller text) once the optional Conveyor tab pushes the count to 5.
+    const tabWidth = Math.min(240, Math.floor((W - 80 - (tabs.length - 1) * gap) / tabs.length));
+    const tabFontSize = tabWidth < 215 ? '20px' : '24px';
+    const tabHeight = 64;
     const totalW = tabs.length * tabWidth + (tabs.length - 1) * gap;
     const startX = W / 2 - totalW / 2 + tabWidth / 2;
     const tabY = 220;
@@ -223,7 +233,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       const bg = this.add.graphics();
       c.add(bg);
       const text = this.add.text(0, 0, tab.label, style('subhead', {
-        fontSize: '24px'
+        fontSize: tabFontSize
       })).setOrigin(0.5);
       c.add(text);
       const hit = this.add.rectangle(0, 0, tabWidth, tabHeight, 0x000000, 0)
@@ -263,6 +273,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     if (tabId === 'summary') this.showSummaryTab();
     else if (tabId === 'companion') this.showCompanionTab();
     else if (tabId === 'analytics') this.showAnalyticsTab();
+    else if (tabId === 'conveyor') this.showConveyorTab();
     else this.showSettingsTab();
   }
 
@@ -339,7 +350,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     // — counting all 19 would read as un-completable and spoil the hidden worlds.
     const ch2Unlocked = progress.isWorldFullyCleared(CHAPTER1_FINAL_ID);
     const reachableWorlds = ch2Unlocked
-      ? VISIBLE_WORLDS.length
+      ? getActiveWorlds().length
       : getChapterWorlds(1).length;
     card.add(this.add.text(-w / 2 + 320, 70, `Worlds cleared: ${stats.worldsCleared} / ${reachableWorlds}`, style('body', {
       fontSize: '22px',
@@ -473,11 +484,129 @@ export class ParentDashboardScene extends Phaser.Scene {
     }
   }
 
+  // ----- STAMP & SHIP (Conveyor timing) -----
+  // Surfaces the Chapter-3 instrumentation so the owner can resolve the
+  // production-vs-recognition A/B and check that fast times reflect real recall
+  // (not a position-guessing shortcut). One panel per input mode: the
+  // correct-answer recall-time distribution (bucketed) + recognition's
+  // dock-position-repeat rate (should sit near chance if randomization holds).
+  showConveyorTab() {
+    const cs = records.getConveyorStats();
+    let y = 296;
+    this.contentContainer.add(this.add.text(W / 2, y, 'Stamp & Ship — Recall Timing', style('subhead', {
+      fontSize: '32px', fill: '#ffd86b'
+    })).setOrigin(0.5));
+    y += 46;
+    this.contentContainer.add(this.add.text(W / 2, y,
+      'Production = recall first (no options). Recognition = pick from 4.\nFast times in production reflect real recall; in recognition, many\nvery-fast taps + a high dock-repeat can mean guessing by position.',
+      style('body', { fontSize: '22px', fill: '#cfcfe0', align: 'center', lineSpacing: 6 })).setOrigin(0.5, 0));
+    y += 132;
+
+    y = this.drawTimingPanel(y, 'Production (recall)', cs.production, cs.bucketLabels, false);
+    y += 26;
+    this.drawTimingPanel(y, 'Recognition (pick)', cs.recognition, cs.bucketLabels, true);
+  }
+
+  // Draws one mode's timing card at yTop; returns the y just below it.
+  drawTimingPanel(yTop, title, m, bucketLabels, isRecognition) {
+    const w = 880;
+    const panelH = isRecognition ? 300 : 248;
+    const hasData = m.count > 0;
+    const accent = isRecognition ? ACCENT : GOLD;
+    const bucketColors = [GOLD, SUCCESS, SLOW_GREEN, 0xffb142, WARN];
+
+    const card = this.add.container(W / 2, yTop + panelH / 2);
+    const bg = this.add.graphics();
+    bg.fillStyle(COLORS.bgPanel, 0.95);
+    bg.fillRoundedRect(-w / 2, -panelH / 2, w, panelH, 18);
+    bg.lineStyle(3, accent, 0.85);
+    bg.strokeRoundedRect(-w / 2, -panelH / 2, w, panelH, 18);
+    card.add(bg);
+
+    card.add(this.add.text(-w / 2 + 28, -panelH / 2 + 34, title, style('subhead', {
+      fontSize: '28px', fill: '#ffffff'
+    })).setOrigin(0, 0.5));
+    card.add(this.add.text(w / 2 - 28, -panelH / 2 + 34,
+      hasData ? `${m.count} shipped · avg ${(m.avgMs / 1000).toFixed(1)}s · ${m.fastPct}% under 2.5s` : 'no rounds yet',
+      style('caption', { fontSize: '22px', fill: '#cfcfe0' })).setOrigin(1, 0.5));
+
+    if (!hasData) {
+      card.add(this.add.text(0, 6, isRecognition ? 'Recognition mode not used yet.' : 'No production rounds recorded yet.', style('caption', {
+        fontSize: '22px', fill: '#7a7a90'
+      })).setOrigin(0.5));
+      this.contentContainer.add(card);
+      return yTop + panelH;
+    }
+
+    // Stacked recall-time distribution bar.
+    const barW = w - 56;
+    const barH = 56;
+    const barX = -barW / 2;
+    const barY = -panelH / 2 + 92;
+    let cx = barX;
+    const segG = this.add.graphics();
+    card.add(segG);
+    m.buckets.forEach((cnt, i) => {
+      const segW = (cnt / m.count) * barW;
+      if (segW > 0.5) {
+        segG.fillStyle(bucketColors[i], 1);
+        segG.fillRect(cx, barY, segW, barH);
+        if (segW > 40) {
+          card.add(this.add.text(cx + segW / 2, barY + barH / 2, String(cnt), style('caption', {
+            fontSize: '20px', fill: '#0a0a18', fontStyle: '900'
+          })).setOrigin(0.5));
+        }
+      }
+      cx += segW;
+    });
+    const outline = this.add.graphics();
+    outline.lineStyle(2, 0x3a3a55, 1);
+    outline.strokeRect(barX, barY, barW, barH);
+    card.add(outline);
+
+    // Bucket legend (swatch + label per bin, spread across the bar).
+    const legendY = barY + barH + 30;
+    const cellW = barW / bucketLabels.length;
+    bucketLabels.forEach((lab, i) => {
+      const lx = barX + cellW * i + 14;
+      const sw = this.add.graphics();
+      sw.fillStyle(bucketColors[i], 1);
+      sw.fillRoundedRect(lx, legendY - 9, 16, 16, 3);
+      card.add(sw);
+      card.add(this.add.text(lx + 24, legendY, lab, style('caption', {
+        fontSize: '18px', fill: '#cfcfe0'
+      })).setOrigin(0, 0.5));
+    });
+
+    // Recognition: dock-position-repeat vs chance (4 docks ⇒ ~25%).
+    if (isRecognition) {
+      const chance = 25;
+      const repeatY = legendY + 48;
+      const col = m.posTotal === 0 ? '#7a7a90'
+        : Math.abs(m.posRepeatPct - chance) <= 12 ? '#7ee08a'
+        : m.posRepeatPct > chance ? '#ff6b6b' : '#f7dc6f';
+      const txt = m.posTotal === 0
+        ? 'Dock-position repeat: — (need more crates)'
+        : `Dock-position repeat: ${m.posRepeatPct}%  (random ≈ ${chance}%)`;
+      card.add(this.add.text(0, repeatY, txt, style('body', { fontSize: '22px', fill: col })).setOrigin(0.5));
+    }
+
+    this.contentContainer.add(card);
+    return yTop + panelH;
+  }
+
   // ----- SETTINGS -----
   showSettingsTab() {
     let y = 360;
     this.addSettingButton(y, 'Change PIN', () => this.showChangePinDialog(), ACCENT); y += 130;
     this.addSettingButton(y, 'Reset All Progress', () => this.showResetConfirmation(), WARN); y += 130;
+    // Owner-only test toggle: ship-dark Chapter 3 ("Maker Space"). OFF by default so
+    // the live site shows nothing to the kids; flip ON to test it on this browser.
+    this.addSettingButton(y, `Chapter 3 Test: ${progress.chapter3Enabled ? 'ON' : 'OFF'}`, () => {
+      progress.setChapter3Enabled(!progress.chapter3Enabled);
+      this.contentContainer.removeAll(true);
+      this.showSettingsTab();
+    }, 0xff9800); y += 130;
     this.addSettingButton(y, 'Lock Dashboard', () => {
       this.registry.set('parentPinVerified', false);
       this.scene.restart();
@@ -658,7 +787,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     let totalStars = progress.totalStars || 0;
     let levelsCompleted = 0;
     let currentWorldId = 1;
-    for (const world of VISIBLE_WORLDS) {
+    for (const world of getActiveWorlds()) {
       const wp = progress.getWorldProgress(world.id);
       levelsCompleted += wp?.levelsCompleted || 0;
       if (progress.isWorldUnlocked(world.id)) currentWorldId = world.id;

@@ -48,27 +48,41 @@ const SHOCK_MAX_R = 1500;  // shockwave rings expand to here at the climax
 
 // Canonical cold → warm bridge gradient. Teal (0x4ecdc4) is the deliberate
 // centre pivot: the one hue living in BOTH the cosmic and the body palettes, so
-// the eye never sees a hard seam. (Defined here; the gate/map palettes happen to
-// use the same stops as inline literals — there is no shared export yet.)
-const GRAD = [0x4a4a8c, 0x6e7bd6, 0x4ecdc4, 0xfff3b8, 0xc77eff, 0xff7a8a];
+// the eye never sees a hard seam.
+const GRAD_COSMIC = [0x4a4a8c, 0x6e7bd6, 0x4ecdc4, 0xfff3b8, 0xc77eff, 0xff7a8a];
+// Chapter 3 "homecoming" (Ch2 → Ch3): a warm DAYLIGHT bridge — teal sky → gold →
+// green land. Same teal pivot, so surfacing from the body into Maker Space reads
+// as "coming up into the light" (still the vetted ring tunnel — no spiral).
+const GRAD_HOMECOMING = [0x4ecdc4, 0x7fd8e0, 0xffe0a0, 0xfff3b8, 0x9be86b, 0x6fbf4a];
 
-// Gradient sample over GRAD (allocation-free; called every frame).
-function sampleGrad(p) {
+// Gradient sample over `grad` (allocation-free; called every frame).
+function sampleGrad(grad, p) {
   const c = p < 0 ? 0 : p > 1 ? 1 : p;
-  const n = GRAD.length - 1;
+  const n = grad.length - 1;
   const x = c * n;
   const i = Math.min(n - 1, Math.floor(x));
-  return lerpHex(GRAD[i], GRAD[i + 1], x - i);
+  return lerpHex(grad[i], grad[i + 1], x - i);
 }
 
-export function playWormholeCinematic(scene, direction, onDone) {
+export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
   const dirIn = direction !== 'out';
   const CLOCK_MS = 3400;
+
+  // Palette: 'homecoming' (entering Maker Space) recolors the whole dive warm
+  // daylight; otherwise the default cosmic↔body bridge. Structure is identical —
+  // only the colours change.
+  const homecoming = opts.palette === 'homecoming';
+  const GRAD = homecoming ? GRAD_HOMECOMING : GRAD_COSMIC;
 
   const root = scene.add.container(0, 0).setDepth(2000).setScrollFactor(0);
 
   // --- BACKDROP (normal blend, opaque from frame 0 so the live map is hidden) ---
-  const COLD_BG = 0x0a0a1a, WARM_BG = 0x2a0a14;
+  // COLD_BG/WARM_BG are the two ends of the bg morph (homecoming surfaces from the
+  // body's warm maroon up into a green daylight). COVER_BG is the handoff colour —
+  // ALWAYS 0x0a0a1a so the rebuilt map's fadeIn (which starts there) is seamless.
+  const COLD_BG = homecoming ? 0x1a3a16 : 0x0a0a1a;
+  const WARM_BG = 0x2a0a14;
+  const COVER_BG = 0x0a0a1a;
   const backdrop = scene.add.graphics();
   root.add(backdrop);
 
@@ -133,7 +147,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
   root.add(flash);
 
   // --- DARK COVER (normal) — seamless handoff to the rebuilt map's black fade ---
-  const cover = scene.add.rectangle(CX, 960, W, H, COLD_BG, 1).setAlpha(0);
+  const cover = scene.add.rectangle(CX, 960, W, H, COVER_BG, 1).setAlpha(0);
   root.add(cover);
 
   let winkFired = false;
@@ -174,7 +188,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
       const offX = Math.sin(ringWob[i] * 0.7 + p * 3) * 16 * sc;
       const offY = Math.cos(ringWob[i] * 0.5) * 9 * sc;
       const a = Math.min(0.66, 0.12 + 0.66 * (1 - Math.min(1, Math.abs(t - 0.5) * 1.4)));
-      const col = sampleGrad(Math.max(0, Math.min(1, mix + (t - 0.5) * 0.22)));
+      const col = sampleGrad(GRAD, Math.max(0, Math.min(1, mix + (t - 0.5) * 0.22)));
       tunnel.lineStyle(2 + sc * 8, col, a);
       tunnel.strokeEllipse(CX + offX, CY + offY, rw, rh);
     }
@@ -182,7 +196,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
     // Hyperspace streaks: short radial speed-lines accelerating toward/away.
     streaks.clear();
     const speedUp = 1 + 1.6 * mix;                   // streaks get longer/faster mid-dive
-    const streakCol = sampleGrad(mix);               // loop-invariant — sample once per frame
+    const streakCol = sampleGrad(GRAD, mix);         // loop-invariant — sample once per frame
     for (let m = 0; m < STREAKS; m++) {
       let u = (stkT0[m] + p * stkSpd[m] * 1.5) % 1;
       if (u < 0) u += 1;
@@ -196,7 +210,8 @@ export function playWormholeCinematic(scene, direction, onDone) {
     }
 
     // Core lens: stacked filled ellipses + hot pupil + orbiting sparks.
-    const accent = lerpHex(0xfff3b8, 0xff7a8a, mix);  // warm pivot follows the same 0→1 mix
+    // Homecoming biases the warm end toward green (light → meadow) instead of rose.
+    const accent = lerpHex(0xfff3b8, homecoming ? 0x9be86b : 0xff7a8a, mix);
     const baseScale = (dirIn ? 0.35 + 0.95 * p : 1.30 - 0.95 * p) * (1 + 0.07 * Math.sin(p * 20));
     const cs = Math.max(0.12, baseScale);
     core.clear();
@@ -254,7 +269,7 @@ export function playWormholeCinematic(scene, direction, onDone) {
   // `shockTween` so finish() can kill it, and the onUpdate no-ops if `shock` was
   // already torn down by the scene swap.
   function fireShockwave() {
-    const tint = dirIn ? 0xff9ec7 : 0xbcd4ff;
+    const tint = homecoming ? (dirIn ? 0xffe0a0 : 0x9be86b) : (dirIn ? 0xff9ec7 : 0xbcd4ff);
     const RING_MS = 460, GAP_MS = 90, N = 3;
     const total = RING_MS + GAP_MS * (N - 1);   // last ring still expanding here
     const wave = { ms: 0 };

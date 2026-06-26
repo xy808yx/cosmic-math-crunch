@@ -40,9 +40,9 @@ export class LevelSelectScene extends Phaser.Scene {
     // not silent and it carries seamlessly into GameScene — which fades to the
     // same track and just re-applies the per-world pitch. Chapter 2 prefers its
     // bespoke Inner Space level track, falling back to the Ch1 theme if missing.
-    const worldSong = this.world.chapter === 2
-      ? music.resolveTrack(this, 'innerSpaceLevel', 'levelTheme')
-      : 'levelTheme';
+    const CHAPTER_LEVEL_TRACK = { 2: 'innerSpaceLevel', 3: 'makerLevel' };
+    const trackKey = CHAPTER_LEVEL_TRACK[this.world.chapter];
+    const worldSong = trackKey ? music.resolveTrack(this, trackKey, 'levelTheme') : 'levelTheme';
     music.fadeToTrack(this, worldSong);
     music.setPlaybackRate(getWorldMusicRate(this.world.id), 600);
 
@@ -387,7 +387,10 @@ export class LevelSelectScene extends Phaser.Scene {
     this.registry.set('currentLevel', levelNum);
     this.registry.set('levelMode', modeKey);
     this.input.enabled = false;
-    new TransitionManager(this).fadeToScene('GameScene');
+    // Chapter 3 "Maker Space" worlds (kind: 'sort') run the new Conveyor / Stamp
+    // & Ship scene instead of the falling-asteroid GameScene.
+    const sceneKey = this.world.kind === 'sort' ? 'ConveyorScene' : 'GameScene';
+    new TransitionManager(this).fadeToScene(sceneKey);
   }
 
   onSceneWake() {
