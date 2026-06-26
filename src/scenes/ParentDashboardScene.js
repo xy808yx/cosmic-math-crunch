@@ -600,13 +600,6 @@ export class ParentDashboardScene extends Phaser.Scene {
     let y = 360;
     this.addSettingButton(y, 'Change PIN', () => this.showChangePinDialog(), ACCENT); y += 130;
     this.addSettingButton(y, 'Reset All Progress', () => this.showResetConfirmation(), WARN); y += 130;
-    // Owner-only test toggle: ship-dark Chapter 3 ("Maker Space"). OFF by default so
-    // the live site shows nothing to the kids; flip ON to test it on this browser.
-    this.addSettingButton(y, `Chapter 3 Test: ${progress.chapter3Enabled ? 'ON' : 'OFF'}`, () => {
-      progress.setChapter3Enabled(!progress.chapter3Enabled);
-      this.contentContainer.removeAll(true);
-      this.showSettingsTab();
-    }, 0xff9800); y += 130;
     this.addSettingButton(y, 'Lock Dashboard', () => {
       this.registry.set('parentPinVerified', false);
       this.scene.restart();

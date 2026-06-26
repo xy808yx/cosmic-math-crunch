@@ -112,9 +112,10 @@ const KEYPAD_BTN_W = 210;
 const KEYPAD_BTN_H = 124;
 const KEYPAD_GAP_X = 24;
 const KEYPAD_GAP_Y = 22;
-const KEYPAD_TOP = 1244;          // y of the first (top) keypad row's center
+const KEYPAD_TOP = 1248;          // y of the first (top) keypad row's center
 const KEYPAD_COL0 = W / 2 - (KEYPAD_BTN_W + KEYPAD_GAP_X); // center x of left column
-const ENTRY_Y = 1140;             // recalled-answer readout, between belt and pad
+const ENTRY_Y = 1090;             // recalled-answer readout, between belt and pad
+const ENTRY_PLATE_H = 120;        // readout plate height (kept clear of the top keypad row)
 const MAX_ANSWER_DIGITS = 3;      // products top out at 12×12 = 144
 
 function shuffle(arr) {
@@ -162,6 +163,8 @@ export class ConveyorScene extends Phaser.Scene {
     this.lastCorrectDockIndex = null;
     this.bossQuota = 0;
     this.bossWon = false;
+    this.shakeTweenX = null;
+    this.shakeTweenAngle = null;
 
     audio.init?.();
 
@@ -572,8 +575,11 @@ export class ConveyorScene extends Phaser.Scene {
       this.bobTween?.stop();
       // Kill any in-flight crate tween (e.g. a lingering shakeCrate from a wrong
       // retry on THIS crate) before the ship tween, so its onComplete can't snap
-      // the now-shipping crate back to belt center.
+      // the now-shipping crate back to belt center. Reset the tilt too — a shake
+      // killed mid-wobble would otherwise ship the crate at a stray angle (the
+      // recognition route doesn't re-set angle on its way to the dock).
       this.tweens.killTweensOf(this.crate);
+      this.crate.angle = 0;
 
       const elapsed = performance.now() - this.startedAtMs;
       progress.recordFactAttempt(p.a, p.b, true, elapsed);
@@ -599,12 +605,19 @@ export class ConveyorScene extends Phaser.Scene {
         }
       }
       this.updateHud();
+      this.pulseShippedCounter();
       audio.playMatch?.();
 
       if (this.inputMode === 'recognition') {
         this.setDocksEnabled(false);
         this.shipCrateToDock(dockIndex);
       } else {
+        // Flash the recalled answer green + confirmed before it clears, so a
+        // correct punch is acknowledged on the pad as well as on the crate.
+        if (this.keypad?.entryText) {
+          this.keypad.entryText.setColor('#58d68d');
+          this.keypad.entryText.setText('= ' + p.answer + '  ✓');
+        }
         this.setKeypadEnabled(false);
         this.shipCrateToOutput();
       }
@@ -625,6 +638,8 @@ export class ConveyorScene extends Phaser.Scene {
         this.updateEntry();
         this.flashEntryWrong();
       }
+      this.crate?.flashWrong();
+      if (this.crate) this.burstReject(this.crate.x, this.crate.y);
       this.shakeCrate();
     }
   }
@@ -657,20 +672,26 @@ export class ConveyorScene extends Phaser.Scene {
     const dock = this.docks[dockIndex];
     const targetX = dock ? dock.cx : ACTIVE_X;
     const targetY = DOCK_Y - 30;
+    const sx = this.crate.x, sy = this.crate.y;
 
-    // SHIPPED stamp pops on the crate.
+    // SHIPPED stamp pops + a green burst at the crate; the dock thunks green.
     this.crate.stamp();
+    this.burstSuccess(sx, sy);
     if (dock) this.thunkDock(dockIndex, true);
 
+    // A quick anticipation squash ("pack it down"), then the routed crate flies
+    // to its dock.
     this.tweens.add({
-      targets: this.crate,
-      x: targetX,
-      y: targetY,
-      scaleX: 0.62,
-      scaleY: 0.62,
-      duration: SHIP_MS,
-      ease: 'Quad.easeIn',
-      onComplete: () => this.afterResolve()
+      targets: this.crate, scaleX: 1.12, scaleY: 0.86, duration: 80, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => {
+        if (!this.crate) return;
+        this.tweens.add({
+          targets: this.crate,
+          x: targetX, y: targetY, scaleX: 0.62, scaleY: 0.62,
+          duration: SHIP_MS, ease: 'Quad.easeIn',
+          onComplete: () => this.afterResolve()
+        });
+      }
     });
 
     // Little celebratory hop from the pet.
@@ -680,17 +701,22 @@ export class ConveyorScene extends Phaser.Scene {
   // Production has no dock row (the keypad lives there), so a shipped crate is
   // "loaded out" — the crane lifts it up-and-off toward the pet/output.
   shipCrateToOutput() {
+    const sx = this.crate.x, sy = this.crate.y;
     this.crate.stamp();
+    this.burstSuccess(sx, sy);
+
+    // Anticipation squash, then the crane lifts the stamped crate up-and-off.
     this.tweens.add({
-      targets: this.crate,
-      x: W + CRATE_SIZE,
-      y: BELT_Y - 280,
-      scaleX: 0.5,
-      scaleY: 0.5,
-      angle: -8,
-      duration: SHIP_MS,
-      ease: 'Quad.easeIn',
-      onComplete: () => this.afterResolve()
+      targets: this.crate, scaleX: 1.12, scaleY: 0.86, duration: 80, yoyo: true, ease: 'Quad.easeOut',
+      onComplete: () => {
+        if (!this.crate) return;
+        this.tweens.add({
+          targets: this.crate,
+          x: W + CRATE_SIZE, y: BELT_Y - 280, scaleX: 0.5, scaleY: 0.5, angle: -8,
+          duration: SHIP_MS, ease: 'Quad.easeIn',
+          onComplete: () => this.afterResolve()
+        });
+      }
     });
     this.pet?.bounceHappy?.();
   }
@@ -749,6 +775,14 @@ export class ConveyorScene extends Phaser.Scene {
     plate.strokeRoundedRect(-s / 2 + 26, -52, s - 52, 104, 14);
     c.add(plate);
 
+    // Wrong-answer wash — a red overlay on the plate, hidden at rest. Sits UNDER
+    // the fact text so the number stays legible while it pulses.
+    const plateFlash = this.add.graphics();
+    plateFlash.fillStyle(COLORS.error, 1);
+    plateFlash.fillRoundedRect(-s / 2 + 26, -52, s - 52, 104, 14);
+    plateFlash.setAlpha(0);
+    c.add(plateFlash);
+
     const factText = this.add.text(0, 0, '', style('display', {
       fontSize: '58px', fill: '#2c2336', stroke: '#2c2336', strokeThickness: 1
     })).setOrigin(0.5);
@@ -769,10 +803,42 @@ export class ConveyorScene extends Phaser.Scene {
     c.add(stamp);
 
     c.reveal = (display) => factText.setText(display);
+
     c.stamp = () => {
+      // Punch the SHIPPED stamp in with an overshoot + settle, plus a quick white
+      // flare behind it — a correct route should land as a satisfying "ka-CHUNK",
+      // not a gentle fade-in.
       stamp.setAlpha(1);
-      this.tweens.add({ targets: stamp, scale: 1, duration: 220, ease: 'Back.easeOut' });
+      stamp.setScale(0);
+      stamp.setAngle(-28);
+      const flare = this.add.graphics();
+      flare.fillStyle(0xffffff, 0.9);
+      flare.fillRoundedRect(-128, -42, 256, 84, 12);
+      stamp.addAt(flare, 0);
+      this.tweens.add({
+        targets: stamp, scale: 1.18, angle: -12, duration: 200, ease: 'Back.easeOut',
+        onComplete: () => this.tweens.add({ targets: stamp, scale: 1, duration: 130, ease: 'Sine.easeOut' })
+      });
+      this.tweens.add({
+        targets: flare, alpha: 0, duration: 300, ease: 'Quad.easeOut',
+        onComplete: () => { if (flare.active) flare.destroy(); }
+      });
     };
+
+    let wrongResetTimer = null;
+    c.flashWrong = () => {
+      // One firm red pulse over the plate + the fact text briefly reddening, so a
+      // miss reads instantly without relying on the buzzer alone. Restart cleanly
+      // on a rapid second miss: kill the prior pulse + reset timer so the colours
+      // don't flicker back early.
+      this.tweens.killTweensOf(plateFlash);
+      plateFlash.setAlpha(0);
+      this.tweens.add({ targets: plateFlash, alpha: 0.5, duration: 90, yoyo: true, repeat: 1 });
+      factText.setColor('#b3261e');
+      wrongResetTimer?.remove();
+      wrongResetTimer = this.time.delayedCall(380, () => { if (factText.active) factText.setColor('#2c2336'); });
+    };
+
     return c;
   }
 
@@ -859,7 +925,7 @@ export class ConveyorScene extends Phaser.Scene {
 
     // Recalled-answer readout, between the belt and the pad.
     const plateW = 520;
-    const plateH = 120;
+    const plateH = ENTRY_PLATE_H;
     const plate = this.add.graphics();
     plate.fillStyle(0x000000, 0.35);
     plate.fillRoundedRect(W / 2 - plateW / 2 + 2, ENTRY_Y - plateH / 2 + 4, plateW, plateH, 18);
@@ -970,14 +1036,71 @@ export class ConveyorScene extends Phaser.Scene {
 
   shakeCrate() {
     if (!this.crate) return;
-    const baseX = this.crate.x;
-    this.tweens.add({
-      targets: this.crate, x: baseX - 16, duration: 55, yoyo: true, repeat: 3,
-      // Only restore x if the crate is still the parked, answerable one — if a
-      // correct answer or a timeout has since launched it, leave its ship tween
-      // alone (commit/timeout already killed this tween anyway).
-      onComplete: () => { if (this.crate && this.acceptingInput) this.crate.x = baseX; }
+    // Restart the wobble cleanly from the parked pose. A parked crate always sits
+    // at ACTIVE_X with angle 0 (the bob tween owns Y), so a rapid second wrong
+    // answer can't stack offset shakes: stop ONLY the prior shake's own x/angle
+    // tweens (never the bob), snap back to center, then re-wobble. The correct and
+    // timeout paths still recover via their own killTweensOf + angle reset.
+    this.shakeTweenX?.stop();
+    this.shakeTweenAngle?.stop();
+    this.crate.x = ACTIVE_X;
+    this.crate.angle = 0;
+    this.shakeTweenX = this.tweens.add({
+      targets: this.crate, x: ACTIVE_X - 18, duration: 50, yoyo: true, repeat: 3,
+      onComplete: () => { if (this.crate && this.acceptingInput) this.crate.x = ACTIVE_X; }
     });
+    this.shakeTweenAngle = this.tweens.add({
+      targets: this.crate, angle: { from: -5, to: 5 }, duration: 66, yoyo: true, repeat: 2,
+      onComplete: () => { if (this.crate && this.acceptingInput) this.crate.angle = 0; }
+    });
+  }
+
+  // ── Shared answer-feedback juice (both input modes call these) ──────────────
+
+  // Green "shipped!" burst at a world point: an expanding ring + a scatter of
+  // neutral 4-point sparkles. Content-safe (a ring and star sparkles — no
+  // spirals/sigils). So a correct answer always lands with the same pop whether
+  // the kid punched the keypad or tapped a dock.
+  burstSuccess(x, y) {
+    const ring = this.add.graphics().setDepth(9).setPosition(x, y);
+    ring.lineStyle(10, COLORS.success, 0.9);
+    ring.strokeCircle(0, 0, 50);
+    this.tweens.add({
+      targets: ring, scale: { from: 0.4, to: 2.6 }, alpha: { from: 0.9, to: 0 },
+      duration: 460, ease: 'Quad.easeOut', onComplete: () => ring.destroy()
+    });
+    for (let i = 0; i < 8; i++) {
+      const ang = (Math.PI * 2 * i) / 8 + 0.3;
+      const dist = 110 + Math.random() * 70;
+      const sg = this.add.graphics().setDepth(9).setPosition(x, y);
+      drawSparkleIcon(sg, 0, 0, 14 + Math.random() * 8, [COLORS.success, COLORS.warning, 0xffffff][i % 3]);
+      this.tweens.add({
+        targets: sg, x: x + Math.cos(ang) * dist, y: y + Math.sin(ang) * dist,
+        scale: { from: 1, to: 0 }, alpha: { from: 1, to: 0 },
+        duration: 520 + Math.random() * 220, ease: 'Quad.easeOut', onComplete: () => sg.destroy()
+      });
+    }
+  }
+
+  // A small dust-puff "cough" under the crate on a wrong answer — muted, earthy,
+  // deliberately un-celebratory so it never reads like success.
+  burstReject(x, y) {
+    for (let i = 0; i < 5; i++) {
+      const p = this.add.circle(x + (Math.random() - 0.5) * 50, y + 70, 6 + Math.random() * 6, 0x6b5d4a, 0.7).setDepth(9);
+      this.tweens.add({
+        targets: p, y: p.y + 28 + Math.random() * 30, x: p.x + (Math.random() - 0.5) * 50,
+        alpha: 0, scale: { from: 1, to: 0.4 }, duration: 420 + Math.random() * 200,
+        ease: 'Quad.easeOut', onComplete: () => p.destroy()
+      });
+    }
+  }
+
+  // Bump the SHIPPED tally so a correct answer visibly ticks the hero counter.
+  pulseShippedCounter() {
+    if (!this.shippedText) return;
+    this.tweens.killTweensOf(this.shippedText);
+    this.shippedText.setScale(1);
+    this.tweens.add({ targets: this.shippedText, scale: 1.32, duration: 130, yoyo: true, ease: 'Quad.easeOut' });
   }
 
   updateHud() {
@@ -998,6 +1121,9 @@ export class ConveyorScene extends Phaser.Scene {
     // summary panel (the summary draws its own celebratory pet).
     this.petTween?.stop();
     if (this.crate) this.tweens.killTweensOf(this.crate);
+    // Settle the SHIPPED counter — a correct-answer pulse mid-flight could
+    // otherwise freeze it scaled-up behind the summary panel.
+    if (this.shippedText) { this.tweens.killTweensOf(this.shippedText); this.shippedText.setScale(1); }
     this.setDocksEnabled(false);
     if (this.keypad) this.setKeypadEnabled(false);
     audio.playRoundComplete?.();

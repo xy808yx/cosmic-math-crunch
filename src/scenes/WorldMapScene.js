@@ -718,18 +718,28 @@ export class WorldMapScene extends Phaser.Scene {
     const rusty = progress.getRustyFactCount();
     if (rusty <= 0) return;
 
-    // Docked in the clear band between the lowest map node (~y1500) and the
-    // bottom world-info chrome (y1700) — verified clear of every node's tap
-    // circle in BOTH chapters. (At the old y=300 the wide pill's hit area
-    // overlapped and stole taps from the top-center finale node.)
-    const c = this.add.container(W / 2, 1648).setDepth(40);
+    // Centered in the clear band between the lowest node's on-map label and the
+    // bottom world-info chrome, so it crowds neither — in EVERY chapter. The
+    // chrome's top hairline is at y=1700 (see createBottomChrome). When the kid is
+    // parked on the lowest world (always true on a fresh Chapter-3 arrival — the
+    // case the old fixed y=1648 jammed against), that node's label drops to
+    // node.y + 90 + ~halfH; the lowest node sits at y≈1500 (Ch1) / 1480 (Ch2-3),
+    // so its label bottom reaches ~1610 worst case. Centering the compact pill in
+    // [1610, 1700] keeps clear gaps above (label) and below (chrome) everywhere.
+    // (Keep the pill OUT of the top of the map: there its wide hit area stole taps
+    // from the center finale node.)
     const label = `${rusty} fact${rusty === 1 ? '' : 's'} getting rusty · Tune-Up ↻`;
     const txt = this.add.text(0, 0, label, style('subhead', {
-      fontSize: '34px', fill: '#1a1a2e', fontStyle: '900'
+      fontSize: '30px', fill: '#1a1a2e', fontStyle: '900'
     })).setOrigin(0.5);
 
-    const w = txt.width + 80;
-    const h = txt.height + 40;
+    const w = txt.width + 70;
+    const h = txt.height + 30;
+    const LABEL_BAND_TOP = 1610;     // worst-case lowest-node label bottom
+    const BOTTOM_CHROME_TOP = 1700;  // bottom world-info chrome (createBottomChrome)
+    const y = Math.round((LABEL_BAND_TOP + BOTTOM_CHROME_TOP) / 2);
+    const c = this.add.container(W / 2, y).setDepth(40);
+
     const bg = this.add.graphics();
     bg.fillStyle(COLORS.warning, 0.97);
     bg.fillRoundedRect(-w / 2, -h / 2, w, h, h / 2);
@@ -745,9 +755,10 @@ export class WorldMapScene extends Phaser.Scene {
       new TransitionManager(this).fadeToScene('ReviewScene');
     });
 
-    // Gentle breathing pulse to draw the eye without nagging.
+    // Gentle breathing pulse to draw the eye without nagging. Kept small so the
+    // peak scale doesn't eat the clearance to the chrome/label.
     this.tweens.add({
-      targets: c, scale: { from: 1, to: 1.045 },
+      targets: c, scale: { from: 1, to: 1.03 },
       duration: 1000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
     });
   }
