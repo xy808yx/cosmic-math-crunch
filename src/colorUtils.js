@@ -21,6 +21,13 @@ export function lighten(color, amount) {
            Math.min(255, Math.round(b + (255 - b) * amount)));
 }
 
+// 0xRRGGBB number → a '#rrggbb' CSS string, for Phaser text-style `fill` (which
+// wants the string form, while graphics take the numeric form). Collapses the
+// hand-inlined `'#' + c.toString(16).padStart(6,'0')` idiom scattered everywhere.
+export function hexStr(color) {
+  return '#' + (color & 0xffffff).toString(16).padStart(6, '0');
+}
+
 // Linear blend between two 0xRRGGBB colours (t in 0..1). Allocation-free, so
 // it's safe to call every frame (the wormhole cinematic samples a gradient with
 // it on each redraw).

@@ -243,6 +243,10 @@ export const WORLDS = [
     accentColor: 0xffd27a,
     description: 'Home at last — a warm workshop, lanterns to light and ship.',
     villain: 'The Tangle',
+    // Chapter 3 "rush order" briefs. Ch1/Ch2 surface their villain as a foe on the
+    // boss card; Maker Space has no foes, so the same field surfaces as a MESS to
+    // sort out: an event that happened to the shop, never a creature to fight.
+    bossBrief: 'The Tangle has knotted every wick in the shop.',
     flavorText: 'Every lantern lit. The workshop glows warm against the dusk.',
     levelsRequired: 4,
     kind: 'sort'
@@ -255,6 +259,7 @@ export const WORLDS = [
     accentColor: 0xa8e878,
     description: 'Sort the seeds, share them out, and watch the garden grow.',
     villain: 'Overgrowth',
+    bossBrief: 'Overgrowth is spilling out of every seed bin.',
     flavorText: 'Seeds sorted, beds planted. Green rolls out across the depot.',
     levelsRequired: 4,
     kind: 'sort'
@@ -267,6 +272,7 @@ export const WORLDS = [
     accentColor: 0xff9a78,
     description: 'A cheerful railyard — route every toy car to its track.',
     villain: 'Switchsnarl',
+    bossBrief: 'Switchsnarl has crossed every track in the yard.',
     flavorText: 'Every car on the right track. The little trains chuff home.',
     levelsRequired: 4,
     kind: 'sort'
@@ -279,6 +285,7 @@ export const WORLDS = [
     accentColor: 0x9bd4ff,
     description: 'High and bright — send each kite to the right open sky.',
     villain: 'Gustfront',
+    bossBrief: 'Gustfront tangled every kite line at once.',
     flavorText: 'The sky fills with kites. The wind settles into a friendly breeze.',
     levelsRequired: 4,
     kind: 'sort'
@@ -291,6 +298,7 @@ export const WORLDS = [
     accentColor: 0xffd86b,
     description: 'Brass and gears — fit every cog into its proper place.',
     villain: 'Gearjam',
+    bossBrief: 'Gearjam has frozen the whole clockwork floor.',
     flavorText: 'The clockwork ticks true again. The whole shop keeps perfect time.',
     levelsRequired: 4,
     kind: 'sort'
@@ -303,6 +311,7 @@ export const WORLDS = [
     accentColor: 0xffc89a,
     description: 'A cozy bakery — share each batch into the right number of boxes.',
     villain: 'The Big Batch',
+    bossBrief: 'The Big Batch came in twice the size it should be.',
     flavorText: 'Every order boxed and out the door. The cafe smells like home.',
     levelsRequired: 4,
     kind: 'sort'
@@ -315,6 +324,7 @@ export const WORLDS = [
     accentColor: 0x7fe0c8,
     description: 'Ship the parts that build the bridges across the bright harbor.',
     villain: 'Stormtide',
+    bossBrief: 'Stormtide knocked the bridge parts clean off the dock.',
     flavorText: 'The bridges stand. Boats glide home under a clearing sky.',
     levelsRequired: 4,
     kind: 'sort'
@@ -327,6 +337,11 @@ export const WORLDS = [
     accentColor: 0xfff3b8,
     description: 'One last big order — light the great lighthouse and guide everyone home.',
     villain: 'Nightfall',
+    // Closes the dark thread that opened in Chapter 1, WITHOUT reopening it: this
+    // is not the Void come back (that let go for good inside the smallest cell).
+    // It's ordinary evening. The maker-register answer to dark is a built light,
+    // not a battle. Surfaced by ConveyorScene's rush-order intro (see bossBrief).
+    bossBrief: 'Not the old dark. Just night now,\nthe kind that comes every evening.\nYou never fight the night. You light a lamp,\nand everybody finds their way home.',
     flavorText: 'The lighthouse blazes. Its beam reaches the cosmos, the body, and home.',
     levelsRequired: 4,
     bigBoss: true,
@@ -395,6 +410,61 @@ export const WORLDS = [
     hidden: true,
     discoveredFrom: { worldId: 26, mode: 'div' },
     kind: 'exploration'
+  },
+  // Chapter 3 secret — "Hot Pot Time": the self-serve, individual-bowl hot pot
+  // line the family actually eats at. Same real-place trick as Dad's Garage and
+  // the Playground, but it's also the chapter's OWN mechanic in real life: you
+  // walk a line filling a bowl, hand it over a counter, take a number, and it
+  // comes back made. Stamp & Ship, for dinner.
+  //
+  // Discovery is the one thing that couldn't be reused: warp asteroids only
+  // spawn in GameScene, and Chapter 3 runs ConveyorScene. So this world uses
+  // `discoveredFromCrate` instead — a rare food crate rides the Crunch Cafe
+  // (W36) belt (see getConveyorSecretForHost + ConveyorScene.spawnFoodCrate).
+  {
+    id: 19,
+    chapter: 3,
+    name: 'Hot Pot Time',
+    color: 0xb5432e,
+    accentColor: 0xffb85c,
+    description: 'The long line of bins, the scale, and your own table.',
+    villain: null,
+    flavorText: 'You found it. Five seats, and one of them is yours.',
+    levelsRequired: 1,
+    hidden: true,
+    discoveredFromCrate: { worldId: 36 },
+    kind: 'exploration'
+  },
+  // Chapter 3 secret #2 — "The Night Shift": the HARD one. The same workshop the
+  // kid has been shipping orders from all chapter, after hours: lights down,
+  // nobody in, and the labels worn off the crates. So the crates arrive
+  // BACKWARDS — `? × 8 = 56` instead of `7 × 8` — and she has to work out which
+  // bin it belongs in. Quota 48, the highest in the game (King Coli 40, the
+  // Great Lighthouse 44), on the game's longest clock.
+  //
+  // `belt: true` routes it to the ConveyorScene rather than GameScene (see
+  // usesConveyorScene): it is a gauntlet, but Chapter 3's gauntlet is the belt.
+  // Crucially the belt SPEED is untouched — the difficulty is the thinking, not
+  // the tempo, because a panic-fast belt manufactures taps the engine would
+  // wrongly certify as automatic (see the floor in ConveyorScene).
+  //
+  // No creatures, no villain. Nothing here is chasing her; it is just the shop
+  // at night and a stack of work.
+  {
+    id: 20,
+    chapter: 3,
+    name: 'The Night Shift',
+    color: 0x2a3550,
+    accentColor: 0x8fd0ff,
+    description: 'The labels wore off. Work out where each one goes.',
+    villain: null,
+    flavorText: 'Every crate placed. The floor is quiet and the board is clear.',
+    bossBrief: 'Everyone went home. The last pallet came in with the labels rubbed off, so nothing on a crate says which bin it belongs to. You have the number it makes. Work back from that.',
+    levelsRequired: 1,
+    hidden: true,
+    belt: true,
+    discoveredFromCrate: { worldId: 37 },
+    kind: 'gauntlet'
   }
 ];
 
@@ -403,6 +473,12 @@ export const VISIBLE_WORLDS = WORLDS.filter(w => !w.hidden);
 
 // Hidden worlds — discoverable via warp asteroids.
 export const HIDDEN_WORLDS = WORLDS.filter(w => w.hidden);
+
+// The three secret-room notice boards. They share one note pool and one deck
+// (see src/content/dadNotes.js + claimDailyNoteForBoard), but each keeps its own
+// once-per-day stardust claim. Declared here rather than imported so GameData
+// stays free of content-file dependencies; the list must match NOTE_BOARDS.
+export const DAD_NOTE_BOARDS = ['garage', 'playground', 'hotpot'];
 
 // Chapter finals are PINNED explicitly (not "last visible world") so that
 // adding Chapter 2 worlds can't silently move the end-of-game trigger. Beating
@@ -435,15 +511,12 @@ export function getChapterWorlds(chapter) {
   return VISIBLE_WORLDS.filter(w => (w.chapter || 1) === chapter);
 }
 
-// The worlds that "exist" for the player right now. Chapter 3 ("Maker Space") is
-// ship-dark until the owner enables it (see PlayerProgress.chapter3Enabled), so
-// until then it's excluded from world-count totals — the same way the game already
-// caps counts to avoid spoiling hidden worlds. Reads the progress singleton at
-// call-time (never at module load), so the later `export const progress` is fine.
+// The worlds that "exist" for the player right now: every visible world across
+// all three chapters. Kept as a function because world-count totals (Records, the
+// parent dashboard) read it from several places, and hidden worlds must stay out
+// of those counts.
 export function getActiveWorlds() {
-  return progress.chapter3Enabled
-    ? VISIBLE_WORLDS
-    : VISIBLE_WORLDS.filter(w => (w.chapter || 1) !== 3);
+  return VISIBLE_WORLDS;
 }
 
 // Returns the next visible world id (for ship auto-advance), or null at the end
@@ -474,6 +547,16 @@ export function getHiddenWorldForHost(worldId, mode) {
   }) || null;
 }
 
+// Which hidden world (if any) is reachable from a CONVEYOR host world? The
+// Chapter 3 belt has no asteroids to warp off, so its secret rides in on a rare
+// food crate instead (ConveyorScene.spawnFoodCrate). Keyed on the world alone —
+// every Chapter 3 level runs the same belt, so any level of the host qualifies.
+// Deliberately a separate field from `discoveredFrom` so GameScene's warp
+// arming can never accidentally match a conveyor-only secret, or vice versa.
+export function getConveyorSecretForHost(worldId) {
+  return HIDDEN_WORLDS.find(h => h.discoveredFromCrate?.worldId === worldId) || null;
+}
+
 // Mode → human-readable label and config used by GameScene/LevelSelectScene.
 // Cut: speed/missing/multi — every level is timed now (timer comes from world),
 // and missing/multi target advanced cognition rather than automaticity.
@@ -482,6 +565,30 @@ export const MODES = {
   div:   { label: 'Divide',   symbol: '÷',  duration: 60, scoreThreshold: 14 },
   mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
+
+// Per-LEVEL scene routing. Chapter 3 ("Maker Space", kind: 'sort') runs the
+// Conveyor for every level. As an owner-gated pilot, the Ch1/Ch2 "mixed" (×÷)
+// practice level can ALSO route into the Conveyor (reskinned to its own chapter)
+// so every world gets one "sort" level among its combat levels — behind
+// conveyorMixedEnabled (default OFF). Boss levels always stay on GameScene.
+// Reads the progress singleton at call-time (the later `export const progress`
+// is fine), mirroring getActiveWorlds.
+export function usesConveyorScene(world, levelMode) {
+  if (!world) return false;
+  if (world.belt) return true;                      // secret belt gauntlet (The Night Shift)
+  if (world.kind === 'sort') return true;            // Ch3 — unchanged, all levels
+  if (!progress.conveyorMixedEnabled) return false;  // pilot off → legacy routing
+  if (world.hidden) return false;                    // secret gauntlet/exploration worlds stay on GameScene
+  const chapter = world.chapter || 1;
+  if (chapter !== 1 && chapter !== 2) return false;  // pilot scope: Ch1/Ch2 only
+  if (levelMode !== 'mixed') return false;           // ONLY the mixed level (boss excluded)
+  // A mixed level that HOSTS a hidden-world warp must stay on GameScene: the warp
+  // asteroid — the only in-game way to discover that secret world (e.g. W24 mixed →
+  // King Coli, W9 mixed → Dad's Garage) — spawns only in GameScene, never on the
+  // belt. Keep those few hosts on asteroids so the pilot can't sever discovery.
+  if (getHiddenWorldForHost(world.id, levelMode)) return false;
+  return true;
+}
 
 // ── Mastery gate ─────────────────────────────────────────────────────────────
 // A level only ADVANCES the campaign (unlocks the next world) when it's truly
@@ -657,6 +764,7 @@ export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
   if (worldId === 15) return 22;       // Glitch World boss (Datamosh) — mid-game spike.
   if (worldId === 17) return 40;       // King Coli — hidden superboss, just under Patient Zero.
+  if (worldId === 20) return 48;       // The Night Shift — the hardest quota in the game, on backwards facts.
   if (CHAPTER2_BOSS_HP[worldId]) return CHAPTER2_BOSS_HP[worldId];
   if (CHAPTER3_BOSS_HP[worldId]) return CHAPTER3_BOSS_HP[worldId];
   return 8 + worldId * 2;
@@ -670,6 +778,10 @@ export function getBossHpForWorld(worldId) {
 export function getBossDurationForWorld(worldId) {
   if (worldId === 28) return 120;
   if (worldId === 17) return 110;   // King Coli — 40 HP superboss, needs a bigger clock.
+  // The Night Shift — 48 crates of INVERSE facts. Per-crate pace (~2.7s) matches
+  // King Coli's; the extra length is what makes it the hardest thing in the game,
+  // rather than a speed squeeze the belt floor exists to prevent.
+  if (worldId === 20) return 130;
   return 90;
 }
 
@@ -988,6 +1100,36 @@ export function getTwistedProblem(worldId, mode) {
   return { ...base, twistKind: 'flare' };
 }
 
+// One INVERSE problem for The Night Shift (W20). The labels wore off the crates,
+// so instead of "7 × 8" telling you the bin, the crate says `? × 8 = 56` and you
+// work backwards to 7.
+//
+// Built on top of getProblemForWorld(..., 'boss'), so it inherits the 100%-weak-
+// fact sampling and, critically, the SAME factKey — a Night Shift answer records
+// against the same fact the rest of the game tracks, rather than forking mastery
+// data into a parallel "inverse" pool. Whether the base draw came back as × or ÷
+// is irrelevant: both describe the fact a×b, and this always presents it as the
+// one question the room asks, "which factor is missing".
+//
+// The answer is always a factor (1..12), never a product, so it stays inside the
+// keypad's digit cap and the dock labels stay short.
+export function getInverseProblem(worldId, factOverride = null) {
+  const base = getProblemForWorld(worldId, 'boss', factOverride);
+  const { a, b } = base;
+  const product = a * b;
+  const hideLeft = Math.random() < 0.5;
+  const missingFactor = hideLeft ? a : b;
+  const visibleFactor = hideLeft ? b : a;
+  return {
+    ...base,
+    display: hideLeft ? `? × ${visibleFactor} = ${product}` : `${visibleFactor} × ? = ${product}`,
+    op: '×',
+    answer: missingFactor,
+    inverse: true,
+    distractors: getFactorDistractors(product, missingFactor, visibleFactor)
+  };
+}
+
 // Distractors for gravity-twist problems where the answer is the missing
 // factor. Pulls other factors of the product, off-by-one slips, and the
 // visible factor itself (kid trap: "must be the number I can see").
@@ -1052,12 +1194,21 @@ class PlayerProgress {
         // Act 2 / hidden / arcade additions — backward-compatible defaults.
         this.endingSeen = !!data.endingSeen;
         this.justClearedWorld = data.justClearedWorld || null;
-        this.hiddenWorldDiscovered = { 15: false, 16: false, ...(data.hiddenWorldDiscovered || {}) };
-        this.hiddenWorldCleared = { 15: false, 16: false, ...(data.hiddenWorldCleared || {}) };
+        // Seed every hidden world id so the shape is complete on load (15/16 Ch1,
+        // 17/18 Ch2, 19/20 Ch3). Absent keys already read false via isHiddenWorld*,
+        // but listing them keeps this the one place the roster is declared.
+        this.hiddenWorldDiscovered = { 15: false, 16: false, 17: false, 18: false, 19: false, 20: false, ...(data.hiddenWorldDiscovered || {}) };
+        this.hiddenWorldCleared = { 15: false, 16: false, 17: false, 18: false, 19: false, 20: false, ...(data.hiddenWorldCleared || {}) };
         this.arcade = { endlessBest: 0, bossRushBest: null, ...(data.arcade || {}) };
         this.petHelperUsed = !!data.petHelperUsed; // big-boss helper consumed
         this.dadNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.dadNoteState || {}) };
         this.recessNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.recessNoteState || {}) };
+        // Legacy per-board note state. Superseded by dadNotePoolState below (the
+        // three boards now share one pool); loaded so old saves still parse.
+        this.hotPotNoteState = { lastClaimDate: null, nextIndex: 0, ...(data.hotPotNoteState || {}) };
+        // Shared daily deal for all three Dad's-notes boards: one deck, three
+        // notes pinned per day, one +10 claim each. See claimDailyNoteForBoard.
+        this.dadNotePoolState = { dealDate: null, deck: [], deckN: 0, assigned: null, claimed: {}, ...(data.dadNotePoolState || {}) };
         this.tutorialSeen = !!data.tutorialSeen;
         this.cosmicHintSeen = !!data.cosmicHintSeen;
         // Chapter 2 ("Inner Space") additions — backward-compatible defaults so
@@ -1071,12 +1222,13 @@ class PlayerProgress {
         // Separate from finaleSeen (W28) so the W28 grand finale still plays once
         // for players who reached it before Ch3 existed.
         this.finale3Seen = !!data.finale3Seen;
-        // Ship-dark flag: Chapter 3 ("Maker Space") stays completely invisible —
-        // no warp gate, world 31 locked, counts capped at /28 — until the owner
-        // flips this ON from the PIN-protected parent dashboard to test. Per-browser
-        // (localStorage), default OFF, so the live site shows nothing to the kids.
-        this.chapter3Enabled = !!data.chapter3Enabled;
-        if (this.currentChapter === 3 && !this.chapter3Enabled) this.currentChapter = 2;
+        // One-shot: the "you've stopped fighting, now you build" arrival card that
+        // frames Maker Space. Shown once, the first time the player surfaces into
+        // Chapter 3, then never again (it's a premise beat, not a reminder).
+        this.makerWelcomeSeen = !!data.makerWelcomeSeen;
+        // Owner-only pilot: route the Ch1/Ch2 "mixed" level into the Conveyor
+        // (Stamp & Ship) mode. Per-browser (localStorage), default OFF.
+        this.conveyorMixedEnabled = !!data.conveyorMixedEnabled;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
         this.checkWorldUnlock(null);
       } else {
@@ -1098,18 +1250,21 @@ class PlayerProgress {
     this.cosmetics = this.getDefaultCosmetics();
     this.endingSeen = false;
     this.justClearedWorld = null;
-    this.hiddenWorldDiscovered = { 15: false, 16: false };
-    this.hiddenWorldCleared = { 15: false, 16: false };
+    this.hiddenWorldDiscovered = { 15: false, 16: false, 17: false, 18: false, 19: false, 20: false };
+    this.hiddenWorldCleared = { 15: false, 16: false, 17: false, 18: false, 19: false, 20: false };
     this.arcade = { endlessBest: 0, bossRushBest: null };
     this.petHelperUsed = false;
     this.dadNoteState = { lastClaimDate: null, nextIndex: 0 };
     this.recessNoteState = { lastClaimDate: null, nextIndex: 0 };
+    this.hotPotNoteState = { lastClaimDate: null, nextIndex: 0 };
+    this.dadNotePoolState = { dealDate: null, deck: [], deckN: 0, assigned: null, claimed: {} };
     this.tutorialSeen = false;
     this.cosmicHintSeen = false;
     this.currentChapter = 1;
     this.finaleSeen = false;
     this.finale3Seen = false;
-    this.chapter3Enabled = false;
+    this.makerWelcomeSeen = false;
+    this.conveyorMixedEnabled = false;
     this.save();
   }
 
@@ -1343,12 +1498,15 @@ class PlayerProgress {
         petHelperUsed: this.petHelperUsed,
         dadNoteState: this.dadNoteState,
         recessNoteState: this.recessNoteState,
+        hotPotNoteState: this.hotPotNoteState,
+        dadNotePoolState: this.dadNotePoolState,
         tutorialSeen: this.tutorialSeen,
         cosmicHintSeen: this.cosmicHintSeen,
         currentChapter: this.currentChapter,
         finaleSeen: this.finaleSeen,
         finale3Seen: this.finale3Seen,
-        chapter3Enabled: this.chapter3Enabled
+        makerWelcomeSeen: this.makerWelcomeSeen,
+        conveyorMixedEnabled: this.conveyorMixedEnabled
       }));
     } catch (e) {
       console.warn('Could not save progress');
@@ -1415,14 +1573,11 @@ class PlayerProgress {
     this.save();
   }
 
-  // Owner-only toggle (parent dashboard) for the Chapter 3 ship-dark flag. Turning
-  // it ON reveals the Maker Space warp gate and unlocks world 31 immediately if the
-  // W28 finale is already cleared. Turning it OFF drops a stale Maker-Space view back
-  // to Chapter 2 so the next map load can't re-render Ch3.
-  setChapter3Enabled(on) {
-    this.chapter3Enabled = !!on;
-    if (!this.chapter3Enabled && this.currentChapter === 3) this.currentChapter = 2;
-    this.checkWorldUnlock(null);
+  // Owner-only pilot toggle (Dad's Menu) for routing the Ch1/Ch2 "mixed" level
+  // into the Conveyor "Stamp & Ship" mode. Routing is computed live from this flag
+  // (see usesConveyorScene), so there's nothing to recompute — just persist.
+  setConveyorMixedEnabled(on) {
+    this.conveyorMixedEnabled = !!on;
     this.save();
   }
 
@@ -1542,15 +1697,58 @@ class PlayerProgress {
     this.save();
   }
 
-  // Dad's Garage daily note. Returns { isNewDay, message, index } where
-  // isNewDay=true means caller should award the daily stardust and show
-  // the note as "today's". Draws notes in RANDOM order from a shuffled deck:
-  // every note is shown once before any repeats, and the deck reshuffles each
-  // cycle — so it's unpredictable but never skips a note.
-  // Pull today's note for a daily board. `stateKey` selects which independent
-  // board's state to use — 'dadNoteState' (the garage whiteboard) by default, or
-  // 'recessNoteState' for the recess playground board — so each board rotates and
-  // pays out once per day independently of the other.
+  // Pull today's note for one of the three Dad's-notes boards (garage,
+  // playground, hotpot). Returns { isNewDay, message, index }, where isNewDay
+  // means the caller should award that board's daily stardust.
+  //
+  // All three boards share ONE pool and ONE shuffled deck (src/content/dadNotes.js).
+  // Each morning the deck deals three DIFFERENT notes and pins one to each board
+  // for the rest of the day, so:
+  //   • visiting all three rooms in a day gives three new notes, never the same
+  //     line repeated — which a per-board deck could not guarantee;
+  //   • every note in the pool is still seen exactly once before any repeat;
+  //   • each board keeps its own once-per-day +10 claim (30/day for all three).
+  // Re-entering a room later the same day re-shows that board's pinned note and
+  // pays nothing. The deck reshuffles when it empties or when the pool size
+  // changes (i.e. J edited a notes file), which re-deals the day.
+  claimDailyNoteForBoard(notes, boardKey) {
+    if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
+    // Local calendar date (YYYY-MM-DD) — must match EconomyManager.todayString so
+    // the note and its daily stardust reset together at LOCAL midnight.
+    const d = new Date();
+    const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    const N = notes.length;
+    let state = this.dadNotePoolState || {};
+
+    // New day (or the pool changed size) → deal one fresh note per board.
+    if (state.dealDate !== today || state.deckN !== N || !state.assigned) {
+      let deck = Array.isArray(state.deck) ? state.deck.slice() : [];
+      let lastIndex = state.lastIndex;
+      const assigned = {};
+      for (const key of DAD_NOTE_BOARDS) {
+        // Reshuffle on empty, avoiding an immediate repeat across the boundary.
+        if (deck.length === 0) deck = this._shuffledNoteDeck(N, lastIndex);
+        lastIndex = deck.shift();
+        assigned[key] = lastIndex;
+      }
+      this.dadNotePoolState = { dealDate: today, deck, deckN: N, assigned, claimed: {}, lastIndex };
+      this.save();
+      state = this.dadNotePoolState;
+    }
+
+    const raw = state.assigned[boardKey];
+    const index = Number.isInteger(raw) ? ((raw % N) + N) % N : 0;
+    const isNewDay = !state.claimed?.[boardKey];
+    if (isNewDay) {
+      state.claimed = { ...(state.claimed || {}), [boardKey]: true };
+      this.save();
+    }
+    return { isNewDay, message: notes[index], index };
+  }
+
+  // LEGACY per-board dealer, superseded by claimDailyNoteForBoard above (the
+  // three boards now share one pool). Kept so an old save's per-board state and
+  // any straggling caller still behave; safe to delete once nothing calls it.
   claimDailyDadNoteIfDue(notes, stateKey = 'dadNoteState') {
     if (!notes || notes.length === 0) return { isNewDay: false, message: '', index: 0 };
     // Local calendar date (YYYY-MM-DD) — must match EconomyManager.todayString so
@@ -1776,7 +1974,7 @@ class PlayerProgress {
           const entryOpen =
             chapter === 1 ? true :
             chapter === 2 ? this.isWorldFullyCleared(CHAPTER1_FINAL_ID) :
-            chapter === 3 ? (this.chapter3Enabled && this.isWorldFullyCleared(CHAPTER2_FINAL_ID)) :
+            chapter === 3 ? this.isWorldFullyCleared(CHAPTER2_FINAL_ID) :
             false;
           if (entryOpen) wp.unlocked = true;
           continue;

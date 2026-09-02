@@ -25,7 +25,7 @@ import {
   hiddenBranchControlPoint, sampleHiddenBranch
 } from '../MapPath.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
-import { drawGlitchPlanetNode, drawGarageNode, drawKingColiNode, drawPlaygroundNode } from './HiddenWorldScene.js';
+import { drawGlitchPlanetNode, drawGarageNode, drawKingColiNode, drawPlaygroundNode, drawHotPotNode, drawNightShiftNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
 import { drawMasteryWall } from '../MasteryWall.js';
 import {
@@ -33,6 +33,7 @@ import {
   drawGearIcon, drawShoppingBagIcon, drawHelmetIcon, drawSoundIcon
 } from '../StatIcons.js';
 import { COLORS } from '../colorPalette.js';
+import { hexStr } from '../colorUtils.js';
 import { createModal } from '../modalHelper.js';
 
 const W = 1080;
@@ -76,9 +77,6 @@ export class WorldMapScene extends Phaser.Scene {
     // (King Coli, Recess) on the Ch2 map.
     const arrivalId = this.registry.get('warpArrivalHiddenId');
     if (arrivalId) this.currentChapter = findWorld(arrivalId)?.chapter || 1;
-    // Ship-dark guard: never render the Maker Space map while Chapter 3 is disabled
-    // (e.g. the owner toggled it off after parking there). Drop back to Chapter 2.
-    if (this.currentChapter === 3 && !progress.chapter3Enabled) this.currentChapter = 2;
     this.chapterWorlds = getChapterWorlds(this.currentChapter);
 
     // Chapter 2 gets its own warm "Inner Space" ambient (falls back to the
@@ -114,6 +112,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.createShipOnActiveWorld();
     this.createBottomChrome();
     this.createTuneUpNudge();
+    this.maybeShowMakerWelcome();
 
     // Warp arrival (from the warp asteroid) takes precedence over the
     // normal auto-advance flow. If a warp arrival is in flight, still
@@ -865,10 +864,9 @@ export class WorldMapScene extends Phaser.Scene {
         });
       }
       // Forward gate → Chapter 3 (Maker Space), beside the Singularity Cell (the
-      // top-center node), gated on the grand finale (World 28) being cleared AND the
-      // ship-dark Chapter 3 flag being enabled (owner test toggle in the dashboard).
+      // top-center node), gated on the grand finale (World 28) being cleared.
       // Surfacing back OUT from the smallest speck to human scale, coming home.
-      if (progress.chapter3Enabled && progress.isWorldFullyCleared(CHAPTER2_FINAL_ID)) {
+      if (progress.isWorldFullyCleared(CHAPTER2_FINAL_ID)) {
         const host = this.nodePositions[this.nodePositions.length - 1]; // World 28
         const gate = { x: 220, y: 470 };
         this.drawHiddenBranch(host, gate, 0xffd27a);
@@ -1026,6 +1024,86 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // ============================================================
+  // MAKER SPACE ARRIVAL CARD — the premise beat for Chapter 3.
+  //
+  // The Ch1→Ch2 seam is loud (the Void cracks open and pulls you inward). The
+  // Ch2→Ch3 seam was silent: the homecoming dive played, the map recoloured, and
+  // the mode quietly changed from dodging asteroids to a calm conveyor with no
+  // explanation. A kid reads an unexplained genre change as "different game", not
+  // "next chapter". This card is the missing sentence: the fighting is over, and
+  // that is WHY the belt is calm — nothing here is chasing you.
+  //
+  // Fires once ever (progress.makerWelcomeSeen), on the first Chapter 3 map build.
+  // ============================================================
+  maybeShowMakerWelcome() {
+    if (this.currentChapter !== 3) return;
+    if (progress.makerWelcomeSeen) return;
+
+    progress.makerWelcomeSeen = true;
+    progress.save();
+
+    const root = this.add.container(0, 0).setDepth(400);
+    // Deep, near-opaque so the map behind never competes with the type (the map's
+    // own world labels are bright and sit right under this card's headline).
+    const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x0b1608, 0)
+      .setInteractive().setScrollFactor(0);
+    root.add(overlay);
+    this.tweens.add({ targets: overlay, fillAlpha: 0.97, duration: 400 });
+
+    const card = this.add.container(W / 2, H / 2 - 40).setScrollFactor(0);
+    card.setScale(0.7); card.alpha = 0;
+    root.add(card);
+
+    // Warm lamp glyph (plain concentric circles — no rays / spiral / sigil).
+    const lamp = this.add.graphics();
+    lamp.fillStyle(0xffd27a, 0.14); lamp.fillCircle(0, -300, 66);
+    lamp.lineStyle(5, 0xffd27a, 0.9); lamp.strokeCircle(0, -300, 42);
+    lamp.fillStyle(0xfff3b8, 0.95); lamp.fillCircle(0, -300, 16);
+    card.add(lamp);
+
+    card.add(this.add.text(0, -180, 'MAKER SPACE', style('display', {
+      fontSize: '72px', fill: '#ffd27a', fontStyle: '900',
+      stroke: '#1a1208', strokeThickness: 5
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -105, 'You made it home.', style('subhead', {
+      fontSize: '38px', fill: '#9be86b'
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, 20,
+      'No more fighting. No more dark to chase.\nJust a warm workshop and things to make.',
+      style('body', {
+        fontSize: '34px', fill: '#fff3b8', align: 'center',
+        lineSpacing: 12, wordWrap: { width: W - 220 }
+      })).setOrigin(0.5));
+    card.add(this.add.text(0, 140, 'Take your time.\nNothing here is chasing you.', style('body', {
+      fontSize: '30px', fill: '#e8e8d0', align: 'center', lineSpacing: 10
+    })).setOrigin(0.5));
+
+    this.tweens.add({ targets: card, scale: 1, alpha: 1, duration: 420, ease: 'Back.easeOut' });
+    audio.playStar?.();
+
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      this.tweens.add({
+        targets: root, alpha: 0, duration: 320,
+        onComplete: () => root.destroy()
+      });
+    };
+    this.time.delayedCall(1200, () => {
+      const btn = createButton(this, {
+        x: W / 2, y: H - 300, label: 'Get to work',
+        width: 380, height: 100, color: 0x4f8a3a,
+        onClick: finish
+      });
+      btn.setScrollFactor(0);
+      root.add(btn);
+      btn.alpha = 0;
+      this.tweens.add({ targets: btn, alpha: 1, duration: 500 });
+    });
+  }
+
+  // ============================================================
   // HIDDEN WORLD NODES
   // ============================================================
   createHiddenNodes() {
@@ -1091,16 +1169,48 @@ export class WorldMapScene extends Phaser.Scene {
           repeat: -1,
           ease: 'Sine.easeInOut'
         });
+      } else if (h.id === 19) {
+        node.add(drawHotPotNode(this, 0, 0, NODE_R));
+        this.tweens.add({
+          targets: node,
+          y: pos.y - 6,
+          duration: 2100,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      } else if (h.id === 20) {
+        node.add(drawNightShiftNode(this, 0, 0, NODE_R));
+        // Barely moves — a building, not a vessel. The drift is there so it
+        // doesn't sit dead next to the bobbing nodes around it.
+        this.tweens.add({
+          targets: node,
+          y: pos.y - 3,
+          duration: 3200,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
       }
 
-      // Label — sits below the larger node
-      this.add.text(pos.x, pos.y + NODE_R + 22, h.name.toUpperCase(), style('caption', {
+      // Label — sits below the larger node.
+      //
+      // Hidden nodes sit in the map's edge pockets by design, so a long secret
+      // name centred on the node can run off the canvas ("THE NIGHT SHIFT" at
+      // x=975 overflowed the right edge by 2px). Clamp the label's CENTRE so the
+      // whole string stays inside a 24px gutter — the node itself stays where the
+      // layout put it, and the label slides only as far as it must. Applies to
+      // every secret, so a future long name can't reintroduce the same bug.
+      const label = this.add.text(pos.x, pos.y + NODE_R + 22, h.name.toUpperCase(), style('caption', {
         fontSize: '24px',
-        fill: '#' + h.accentColor.toString(16).padStart(6, '0'),
+        fill: hexStr(h.accentColor),
         fontStyle: '900',
         stroke: '#0a0a1a',
         strokeThickness: 3
       })).setOrigin(0.5).setDepth(6);
+      const gutter = 24;
+      const half = label.width / 2;
+      label.x = Math.min(Math.max(pos.x, gutter + half), W - gutter - half);
 
       // Gauntlet secrets (Glitch World, King Coli) have no Level Select screen
       // to surface their rating, so show the boss star score (levelStars[1], 0-3)
@@ -1129,7 +1239,9 @@ export class WorldMapScene extends Phaser.Scene {
           this.registry.set('currentWorldId', h.id);
           this.registry.set('currentLevel', 1);
           this.registry.set('levelMode', 'boss');
-          new TransitionManager(this).fadeToScene('GameScene');
+          // Chapter 3's gauntlet is the belt, not the asteroid field: The Night
+          // Shift is flagged `belt` and runs its quota race in the Conveyor.
+          new TransitionManager(this).fadeToScene(h.belt ? 'ConveyorScene' : 'GameScene');
         } else {
           new TransitionManager(this).fadeToScene('HiddenWorldScene');
         }
@@ -1332,13 +1444,15 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   _enterHiddenDestination(hiddenId) {
-    // Gauntlet secrets (Glitch, King Coli) drop into a GameScene boss fight;
+    // Gauntlet secrets (Glitch, King Coli) drop into a GameScene boss fight; the
+    // belt-flagged one (The Night Shift) runs its quota race in the Conveyor;
     // exploration secrets (Garage, Recess) open their HiddenWorldScene.
-    if (findWorld(hiddenId)?.kind === 'gauntlet') {
+    const hidden = findWorld(hiddenId);
+    if (hidden?.kind === 'gauntlet') {
       this.registry.set('currentWorldId', hiddenId);
       this.registry.set('currentLevel', 1);
       this.registry.set('levelMode', 'boss');
-      this.scene.start('GameScene');
+      this.scene.start(hidden.belt ? 'ConveyorScene' : 'GameScene');
     } else {
       this.scene.start('HiddenWorldScene', { worldId: hiddenId });
     }

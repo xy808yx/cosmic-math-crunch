@@ -28,3 +28,6 @@ npm-debug.log*
 
 # Claude Code local state
 .claude/
+
+# Design docs with real-world names/addresses (public repo)
+HOTPOT_ROOM_SPEC.md

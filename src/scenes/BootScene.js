@@ -40,6 +40,9 @@ export class BootScene extends Phaser.Scene {
     this.load.audio('makerHome',  'audio/maker-home.mp3');
     this.load.audio('makerLevel', 'audio/maker-level.mp3');
     this.load.audio('makerBoss',  'audio/maker-boss.mp3');
+    // Chapter 3 secret room ("Hot Pot Time", W19). Falls back to the garage
+    // track — warm and intimate, and already shipped — rather than homeTheme.
+    this.load.audio('hotPotTheme', 'audio/hot-pot.mp3');
     this.load.on('loaderror', (file) => {
       console.info(`[boot] optional audio "${file?.key}" unavailable — skipped`);
     });

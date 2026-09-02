@@ -10,11 +10,32 @@ import { createButton } from '../buttonHelper.js';
 import { createModal } from '../modalHelper.js';
 import { companion, drawCompanion } from '../CompanionManager.js';
 import { cosmetics } from '../CosmeticManager.js';
-import { GARAGE_ITEMS, DAILY_NOTES } from '../content/dadGarage.js';
-import { RECESS_NOTES } from '../content/recessNotes.js';
+import { GARAGE_ITEMS } from '../content/dadGarage.js';
+import { HOTPOT_ITEMS } from '../content/hotPot.js';
+// All three notice boards deal off one shared pool + one deck, so a kid who
+// visits every room in a day reads three different notes. See dadNotes.js.
+import { DAD_NOTES } from '../content/dadNotes.js';
 
 const W = 1080;
 const H = 1920;
+
+// Shrink a Text down through `sizes` until it fits `maxH`, then, if the smallest
+// size still overflows, trim whole words off the end and add an ellipsis. Used
+// by the garage whiteboard, which letters its note onto a fixed-height panel:
+// the shared note pool contains everything from one-liners to short stories, and
+// an unbounded note would run off the board. The full text is always one tap
+// away in showDailyNotePopup, so a trimmed teaser loses nothing.
+function fitTextToBox(textObj, message, maxH, sizes) {
+  for (const size of sizes) {
+    textObj.setFontSize(size);
+    if (textObj.height <= maxH) return;
+  }
+  let words = String(message).split(' ');
+  while (words.length > 4 && textObj.height > maxH) {
+    words = words.slice(0, -1);
+    textObj.setText(words.join(' ') + '…');
+  }
+}
 
 export class HiddenWorldScene extends Phaser.Scene {
   constructor() {
@@ -39,7 +60,13 @@ export class HiddenWorldScene extends Phaser.Scene {
       return;
     }
 
-    if (this.world.id === 18) {
+    if (this.world.id === 19) {
+      // The self-serve hot pot line — the Chapter 3 "HOT POT TIME" hidden world.
+      // Falls back to the garage track (warm, intimate, already shipped) rather
+      // than homeTheme until a bespoke hot-pot MP3 exists.
+      this.createHotPotExploration();
+      music.fadeToTrack(this, music.resolveTrack(this, 'hotPotTheme', 'dadsGarage'));
+    } else if (this.world.id === 18) {
       // Quilchena playground / Point Grey track — the "RECESS" hidden world.
       this.createPlaygroundExploration();
       music.fadeToTrack(this, music.resolveTrack(this, 'playgroundTheme', 'homeTheme'));
@@ -323,7 +350,7 @@ export class HiddenWorldScene extends Phaser.Scene {
   // ----------------------------------------------------------
   createWhiteboard() {
     // Pull today's note; mark as claimed if it's a new day.
-    const { isNewDay, message } = progress.claimDailyDadNoteIfDue(DAILY_NOTES);
+    const { isNewDay, message } = progress.claimDailyNoteForBoard(DAD_NOTES, 'garage');
     let stardustAwarded = false;
     if (isNewDay) {
       progress.economy.stardust = (progress.economy.stardust || 0) + 10;
@@ -349,7 +376,9 @@ export class HiddenWorldScene extends Phaser.Scene {
     frame.fillCircle(-130, 60, 5);
     wb.add(frame);
 
-    // The day's message, hand-lettered feel.
+    // The day's message, hand-lettered feel. This board shows the note INLINE on
+    // a fixed 424x104 panel, and the shared pool holds some long notes, so shrink
+    // to fit and fall back to a trimmed teaser — tapping opens the full text.
     const noteText = this.add.text(0, 0, message, style('body', {
       fontSize: '20px',
       fill: '#2a1f12',
@@ -357,6 +386,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       wordWrap: { width: 400 },
       fontStyle: 'italic'
     })).setOrigin(0.5);
+    fitTextToBox(noteText, message, 96, [20, 18, 16, 14, 13]);
     wb.add(noteText);
 
     // "NEW +10 ✨" badge if this is a fresh claim — fades on tap.
@@ -406,13 +436,16 @@ export class HiddenWorldScene extends Phaser.Scene {
     });
   }
 
-  showDailyNotePopup(message) {
+  // `onClose` runs when the popup is dismissed (the hot pot board uses it to
+  // send the pet over once the note has actually been read, not under the dim).
+  showDailyNotePopup(message, onClose = null) {
     const { card } = createModal(this, {
       width: 920, height: 1000,
       accentColor: 0xffd86b,
       radius: 28, strokeWidth: 4,
       overlayAlpha: 0.85,
-      closeOnCardTap: true
+      closeOnCardTap: true,
+      onClose
     });
 
     card.add(this.add.text(0, -380, "DAD'S NOTE", style('display', {
@@ -783,7 +816,7 @@ export class HiddenWorldScene extends Phaser.Scene {
     // Dad's notes board on the woodchips — same daily mechanic as the garage
     // whiteboard (its own list + its own once-per-day stardust). Sits low enough
     // that it never overlaps the "Zip line" label in the row above.
-    this.createRecessNoteBoard(560, 1592);
+    this.createNotesBoard(560, 1592, { boardKey: 'playground' });
 
     // The running track spans the entire bottom of the screen (drawn in the
     // backdrop). One full-width hit zone lets the pet dash a lap.
@@ -928,19 +961,27 @@ export class HiddenWorldScene extends Phaser.Scene {
     });
   }
 
-  // Dad's notes board on the woodchips. Same daily mechanic as the garage
-  // whiteboard, but its own list (RECESS_NOTES) and its own once-per-day claim:
-  // one note per real day off a separate shuffled deck, +10 stardust the first
-  // time it's tapped each day. A "NEW +10 ✨" badge marks a fresh claim.
-  createRecessNoteBoard(x, y) {
-    const { isNewDay, message } = progress.claimDailyDadNoteIfDue(RECESS_NOTES, 'recessNoteState');
+  // Dad's notes board. Same daily mechanic as the garage whiteboard, but its own
+  // note list and its own once-per-day claim: one note per real day off a
+  // separate shuffled deck, +10 stardust the first time it's tapped each day. A
+  // "NEW +10 ✨" badge marks a fresh claim.
+  //
+  // Parameterized because there are now two of these (the Recess woodchips board
+  // and the Hot Pot table board), differing only in deck, save key and the
+  // ground-label stroke that keeps it readable against its own backdrop. Defaults
+  // are the Recess values, so the playground call site reads exactly as before.
+  createNotesBoard(x, y, {
+    boardKey = 'playground',
+    labelStroke = '#1a3a18',
+    onTap = null
+  } = {}) {
+    const { isNewDay, message } = progress.claimDailyNoteForBoard(DAD_NOTES, boardKey);
     let awarded = false;
     if (isNewDay) {
       progress.economy.stardust = (progress.economy.stardust || 0) + 10;
       progress.save();
       awarded = true;
     }
-    this._recessNoteMessage = message;
 
     const node = this.add.container(x, y).setDepth(8);
     const g = this.add.graphics();
@@ -961,7 +1002,7 @@ export class HiddenWorldScene extends Phaser.Scene {
 
     // Ground label, matching the other equipment.
     this.add.text(x, y + 132, "Dad's notes", style('caption', {
-      fontSize: '20px', fill: '#ffffff', stroke: '#1a3a18', strokeThickness: 3
+      fontSize: '20px', fill: '#ffffff', stroke: labelStroke, strokeThickness: 3
     })).setOrigin(0.5).setDepth(8);
 
     // NEW +10 ✨ badge on a fresh day; fades + stops bobbing on tap.
@@ -991,7 +1032,9 @@ export class HiddenWorldScene extends Phaser.Scene {
         badgeTween?.stop();
         this.tweens.add({ targets: fading, alpha: 0, scale: 0.6, duration: 350, onComplete: () => fading.destroy() });
       }
-      this.showDailyNotePopup(this._recessNoteMessage);
+      // The reaction waits for the popup to close, so it plays in the open
+      // room rather than hidden behind the modal dim.
+      this.showDailyNotePopup(message, onTap);
     });
   }
 
@@ -1239,6 +1282,862 @@ export class HiddenWorldScene extends Phaser.Scene {
         onComplete: () => chip.destroy()
       });
     }
+  }
+
+  // ============================================================
+  // HOT POT TIME (W19) — the Chapter 3 secret room.
+  //
+  // The self-serve, individual-bowl hot pot line the family actually eats at.
+  // Laid out top-to-bottom in the REAL order of the place, because that order IS
+  // Chapter 3's own mechanic: you walk a line collecting things, hand them over a
+  // counter, take a number, and it comes back made. Stamp & Ship, for dinner.
+  //
+  // Art rules (project): warm amber palette, plain shapes only, individual round
+  // bowls (never a divided shared pot), steam as soft plain ellipses — no rays,
+  // no sunbursts, no spirals.
+  // ============================================================
+  createHotPotExploration() {
+    this.drawHotPotBackdrop();
+
+    this.add.text(W / 2, 150, 'HOT POT TIME', style('display', {
+      fontSize: '68px',
+      fill: '#ffb85c',
+      stroke: '#2a1008',
+      strokeThickness: 6
+    })).setOrigin(0.5).setDepth(5);
+
+    // Bubble copy lives in src/content/hotPot.js.
+    const bubbleFor = id => (HOTPOT_ITEMS.find(i => i.id === id)?.bubble) || '';
+    // Fresh node table every visit: a stale one would hand the pet destroyed
+    // objects from the last time the room was built.
+    this._hotPotNode = {};
+    const items = [
+      // Row 1 — the start of the line: grab a bowl, then walk the bins.
+      { id: 'bowls', x: 150,  y: 600,  hitW: 200, hitH: 200, draw: drawBowlStack,      label: 'Empty bowls' },
+      { id: 'line',  x: 650,  y: 600,  hitW: 700, hitH: 220, draw: drawIngredientLine, label: 'The line' },
+      // Row 2 — the counter: weigh it, pick a broth, take your number.
+      { id: 'scale', x: 180,  y: 890,  hitW: 240, hitH: 210, draw: drawCounterScale,   label: 'The scale' },
+      { id: 'broth', x: 530,  y: 890,  hitW: 280, hitH: 220, draw: drawBrothStation,   label: 'Broth + spice' },
+      { id: 'tag',   x: 880,  y: 890,  hitW: 210, hitH: 210, draw: drawNumberTag,      label: 'Your number' },
+      // Row 3 — the wait: build your sauce, and the cone you already planned for.
+      { id: 'sauce', x: 220,  y: 1180, hitW: 340, hitH: 230, draw: drawSauceBar,       label: 'Sauce bar' },
+      { id: 'cone',  x: 880,  y: 1180, hitW: 240, hitH: 260, draw: drawConeMachine,    label: 'Free cones' },
+      // Row 4 — the point of the whole thing.
+      { id: 'table', x: W / 2, y: 1560, hitW: 800, hitH: 300, draw: drawFamilyTable,   label: 'Our table' }
+    ].map(it => ({ ...it, bubble: bubbleFor(it.id) }));
+
+    for (const item of items) {
+      const node = this.add.container(item.x, item.y).setDepth(8);
+      const g = this.add.graphics();
+      // Drawers get the node + scene too, so the ones with moving parts (the
+      // top bowl, the bin heaps and tongs, the number card, the sauce ladles)
+      // can hang those parts on the node for the idle pass and the pet to use.
+      // The base graphic goes in FIRST so those parts land on top of it.
+      node.add(g);
+      item.draw(g, node, this);
+      this._hotPotNode[item.id] = node;
+
+      // Gentle breathing baseline, same as the garage. The long ingredient line
+      // and the family table sit still — scaling a full-width object reads as the
+      // room lurching rather than the object being alive.
+      if (item.id !== 'line' && item.id !== 'table') {
+        this.tweens.add({
+          targets: node,
+          scale: { from: 1, to: 1.04 },
+          duration: 1400 + Math.random() * 400,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut'
+        });
+      }
+      this.animateHotPotItem(item.id, node);
+
+      this.add.text(item.x, item.y + item.hitH / 2 + 16, item.label, style('caption', {
+        fontSize: '20px',
+        fill: '#ffe0b0',
+        stroke: '#2a1008',
+        strokeThickness: 3
+      })).setOrigin(0.5).setDepth(8);
+
+      const hit = this.add.rectangle(item.x, item.y, item.hitW, item.hitH, 0, 0)
+        .setInteractive({ useHandCursor: true }).setDepth(9);
+
+      hit.on('pointerdown', () => {
+        audio.playClick?.();
+        // The cone machine is the room's unlock — the last stop on the real line,
+        // and the part the kids actually came for. Every other object just talks.
+        if (item.id === 'cone' && !progress.isHiddenWorldCleared(19)) {
+          this.showHotPotUnlock();
+          return;
+        }
+        this.showBubble(item.x, item.y, item.bubble);
+        // The companion goes and does the thing the bubble is about.
+        this.hotPotPetInteract(item.id);
+      });
+    }
+
+    // Dad's notes board — the third independent daily deck (family/sharing/
+    // people), its own once-per-day claim so all three can be read in one day.
+    // Mounted on the wall beside the table rather than on a stand.
+    this.createNotesBoard(560, 1180, {
+      boardKey: 'hotpot',
+      labelStroke: '#2a1008',
+      onTap: () => this.hotPotPetInteract('board')
+    });
+
+    this.createHotPotPet();
+
+    const leaveBtn = createButton(this, {
+      x: W - 130, y: 100, label: 'Leave',
+      width: 200, height: 80,
+      color: 0x9a9aae,
+      textOverrides: { fontSize: '24px', fill: '#ffffff' },
+      onClick: () => {
+        music.fadeToTrack(this, music.resolveTrack(this, 'makerHome', 'homeTheme'));
+        this.scene.start('WorldMapScene');
+      }
+    });
+    leaveBtn.setDepth(15);
+  }
+
+  drawHotPotBackdrop() {
+    this.cameras.main.setBackgroundColor('#2a1610');
+
+    const bg = this.add.graphics().setDepth(0);
+    const floorTop = 1240;
+
+    // --- Back wall: warm plaster over a dark wainscot ---
+    bg.fillStyle(0x8a5a3c, 1);
+    bg.fillRect(0, 0, W, floorTop);
+    // Softer, lighter band up top where the pendant lamps hang.
+    bg.fillStyle(0xa06a46, 0.55);
+    bg.fillRect(0, 0, W, 460);
+    // Dark wainscot rail along the lower wall.
+    bg.fillStyle(0x5a3524, 1);
+    bg.fillRect(0, floorTop - 250, W, 250);
+    bg.fillStyle(0x6e4530, 1);
+    bg.fillRect(0, floorTop - 250, W, 14);
+
+    // --- Pendant lamps: three cords with plain dome shades + warm pools ---
+    for (const lx of [230, 540, 850]) {
+      bg.fillStyle(0x2a1a12, 1);
+      bg.fillRect(lx - 2, 0, 4, 236);
+      // Plain trapezoid shade (no rays, no scallops).
+      bg.fillStyle(0xd9873a, 1);
+      bg.fillTriangle(lx - 62, 300, lx + 62, 300, lx, 236);
+      // Bright rim along the open bottom of the shade.
+      bg.fillStyle(0xffcf8a, 1);
+      bg.fillRect(lx - 62, 296, 124, 8);
+      // Bulb + the warm pool it throws on the wall. Plain ellipses only, stacked
+      // in a soft falloff — a couple of big flat ellipses read as hard-edged
+      // discs on the wall instead of light.
+      bg.fillStyle(0xfff0c8, 0.95);
+      bg.fillCircle(lx, 312, 11);
+      for (let i = 0; i < 7; i++) {
+        const t = i / 6;
+        bg.fillStyle(0xffb85c, 0.030 * (1 - t * 0.55));
+        bg.fillEllipse(lx, 380 + t * 300, 240 + t * 520, 220 + t * 560);
+      }
+    }
+
+    // --- Floor: warm tile, darker toward the front of the room ---
+    bg.fillStyle(0x6b4632, 1);
+    bg.fillRect(0, floorTop, W, H - floorTop);
+    bg.fillStyle(0x7a5039, 0.6);
+    bg.fillRect(0, floorTop, W, 150);
+    bg.fillStyle(0x4e3324, 0.5);
+    bg.fillRect(0, H - 260, W, 260);
+    // Tile grout — plain grid, receding rows.
+    bg.lineStyle(2, 0x40291c, 0.55);
+    for (let ty = floorTop; ty < H; ty += 92) bg.lineBetween(0, ty, W, ty);
+    for (let tx = -60; tx < W + 120; tx += 120) {
+      bg.lineBetween(tx, floorTop, tx + 90, H);
+    }
+    bg.lineStyle(3, 0x3a251a, 1);
+    bg.lineBetween(0, floorTop, W, floorTop);
+
+    // Warm lamp spill on the floor around the table.
+    bg.fillStyle(0xffb85c, 0.09);
+    bg.fillEllipse(W / 2, 1560, W * 1.2, 620);
+  }
+
+  // Companion at the family table, reaching into a bowl it should not be in.
+  createHotPotPet() {
+    // Reset first: these fields outlive the scene, and a stale pet or a busy
+    // flag left over from a mid-action exit would wedge every later visit.
+    this._hotPotPet = null;
+    this._hotPotPetBusy = false;
+    if (!companion.hasStarter()) return;
+    this._hotPotPetHome = { x: 800, y: 1470 };
+    const c = this.add.container(this._hotPotPetHome.x, this._hotPotPetHome.y).setDepth(11);
+    this._hotPotPet = c;
+    this._hotPotPetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    c.add(this._hotPotPetSprite);
+
+    this._hotPotPetBob = this.tweens.add({
+      targets: c,
+      y: this._hotPotPetHome.y - 8,
+      duration: 1500, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+    });
+
+    const hit = this.add.rectangle(0, 0, 130, 130, 0, 0)
+      .setInteractive({ useHandCursor: true });
+    c.add(hit);
+    hit.on('pointerdown', () => {
+      audio.playPetChirp?.();
+      const heart = this.add.text(c.x + 40, c.y - 40, '♥', style('display', {
+        fontSize: '36px', fill: '#ff9ec7'
+      })).setOrigin(0.5).setDepth(20);
+      this.tweens.add({
+        targets: heart, y: heart.y - 50, alpha: 0, duration: 700,
+        onComplete: () => heart.destroy()
+      });
+    });
+  }
+
+  // Redraw the table pet so a cosmetic equipped mid-visit (the Free Cone from the
+  // ice cream machine) shows up right away instead of next visit.
+  refreshHotPotPet() {
+    if (!this._hotPotPet?.active || !this._hotPotPetSprite) return;
+    this._hotPotPetSprite.destroy();
+    this._hotPotPetSprite = drawCompanion(this, 0, 0, { scale: 1.1 });
+    this._hotPotPet.addAt(this._hotPotPetSprite, 0);
+  }
+
+  // ----- Hot pot pet: the companion actually does each thing on the line -----
+  // Same shape as the Playground pet (one shared busy-guard, move / act /
+  // return home), kept separate so the two rooms stay independent. Every tap in
+  // the room routes here; the busy-guard means a second tap mid-action is
+  // simply ignored rather than teleporting the pet.
+  _hpStart() {
+    if (!this._hotPotPet?.active || this._hotPotPetBusy) return false;
+    this._hotPotPetBusy = true;
+    this._hotPotPetBob?.pause();
+    this._hotPotPet.setScale(1);
+    this._hotPotPet.angle = 0;
+    return true;
+  }
+
+  // Walk time scales with distance so a trip across the room doesn't zip and a
+  // short hop doesn't crawl.
+  _hpMoveTo(x, y, cb, ease) {
+    const pet = this._hotPotPet;
+    const dist = Phaser.Math.Distance.Between(pet.x, pet.y, x, y);
+    this.tweens.add({
+      targets: pet, x, y, duration: 240 + dist * 0.45,
+      ease: ease || 'Quad.easeInOut', onComplete: cb
+    });
+  }
+
+  _hpHome(onDone) {
+    const pet = this._hotPotPet;
+    const home = this._hotPotPetHome;
+    const dist = Phaser.Math.Distance.Between(pet.x, pet.y, home.x, home.y);
+    this.tweens.add({
+      targets: pet, x: home.x, y: home.y, angle: 0, scaleX: 1, scaleY: 1,
+      duration: 240 + dist * 0.45, ease: 'Quad.easeInOut',
+      onComplete: () => {
+        pet.angle = 0; pet.setScale(1);
+        this._hotPotPetBusy = false;
+        this._hotPotPetBob?.resume();
+        onDone?.();
+      }
+    });
+  }
+
+  // `n` quick hops in place. Anything in `extra` (a prop the pet is holding)
+  // hops with it; each target gets its own absolute tween so nothing drifts.
+  _hpHop(n, h, cb, extra = []) {
+    const pet = this._hotPotPet;
+    for (const t of extra) {
+      this.tweens.add({ targets: t, y: t.y - h, duration: 150, yoyo: true, repeat: n - 1, ease: 'Sine.easeInOut' });
+    }
+    this.tweens.add({
+      targets: pet, y: pet.y - h, duration: 150, yoyo: true, repeat: n - 1,
+      ease: 'Sine.easeInOut', onComplete: cb
+    });
+  }
+
+  // A fleck of sauce / broth thrown up from (x, y) and falling away.
+  _hpSplash(x, y, color) {
+    const d = this.add.graphics().setDepth(13);
+    d.fillStyle(color, 1);
+    d.fillCircle(0, 0, 3 + Math.random() * 3);
+    d.setPosition(x + (Math.random() - 0.5) * 30, y);
+    this.tweens.add({
+      targets: d,
+      x: d.x + (Math.random() - 0.5) * 90,
+      y: y - 40 - Math.random() * 50,
+      alpha: 0,
+      duration: 420 + Math.random() * 220,
+      ease: 'Quad.easeOut',
+      onComplete: () => d.destroy()
+    });
+  }
+
+  // Route an object tap to the matching pet activity (busy-guarded).
+  hotPotPetInteract(id) {
+    if (!this._hotPotPet?.active || this._hotPotPetBusy) return;
+    switch (id) {
+      case 'bowls': return this.petGrabTongs();
+      case 'line':  return this.petWalkTheLine();
+      case 'scale': return this.petGetWeighed();
+      case 'broth': return this.petPickBroth();
+      case 'tag':   return this.petHoldUpTag();
+      case 'sauce': return this.petDigSauce();
+      case 'cone':  return this.petEatCone();
+      case 'table': return this.petStealFromBowl();
+      case 'board': return this.petReadBoard();
+    }
+  }
+
+  // Empty bowls (150,600): trot over, pull a pair of tongs off the cup, snap
+  // them twice, pleased with itself, then bring them along home.
+  petGrabTongs() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    this._hpMoveTo(200, 700, () => {
+      const tongs = this.add.container(pet.x + 48, pet.y - 30).setDepth(12);
+      const tg = this.add.graphics();
+      drawTongs(tg, 0x5c5c68);
+      tongs.add(tg);
+      tongs.setScale(0).setAngle(-40);
+      this.tweens.add({
+        targets: tongs, scale: 1.8, angle: -12, duration: 240, ease: 'Back.easeOut',
+        onComplete: () => {
+          // Two snaps: the V closes and opens.
+          this.tweens.add({
+            targets: tongs, scaleX: 0.5, duration: 110, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
+            onComplete: () => this._hpHop(2, 12, () => {
+              this.tweens.add({ targets: tongs, alpha: 0, y: tongs.y - 18, duration: 260, onComplete: () => tongs.destroy() });
+              this._hpHome();
+            }, [tongs])
+          });
+        }
+      });
+    });
+  }
+
+  // The line (650,600): peer down the whole run of bins, leaning in, and help
+  // itself to a little of whatever looks good on the way (each heap jiggles and
+  // its tongs clack as the pet passes).
+  petWalkTheLine() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    const node = this._hotPotNode?.line;
+    const parts = node?.hpParts;
+    const walkY = 690;
+    this._hpMoveTo(330, walkY, () => {
+      let last = -1;
+      this.tweens.add({ targets: pet, angle: 12, duration: 180, ease: 'Sine.easeOut' });
+      this.tweens.add({
+        targets: pet, x: 970, duration: 2300, ease: 'Sine.easeInOut',
+        onUpdate: (tw) => {
+          const p = tw.progress;
+          pet.y = walkY - Math.abs(Math.sin(p * Math.PI * 8)) * 12;
+          if (!parts || !node.active) return;
+          // Bins sit on a 78px pitch starting at x = -312 (see drawIngredientLine).
+          const i = Math.floor((pet.x - node.x + 312) / 78);
+          if (i !== last && i >= 0 && i < parts.heaps.length) {
+            last = i;
+            this._lineServe(node, i);
+          }
+        },
+        onComplete: () => this._hpHome()
+      });
+    });
+  }
+
+  // The scale (180,890): hop up onto the platform and get weighed. The needle
+  // swings hard and settles while the pet sits there being a number.
+  petGetWeighed() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    this._hpMoveTo(180, 990, () => {
+      this.tweens.add({
+        targets: pet, y: 906, duration: 320, ease: 'Quad.easeOut',
+        onComplete: () => {
+          this._hotPotScaleSwing?.(46);
+          this.tweens.add({
+            targets: pet, scaleY: 0.8, scaleX: 1.18, duration: 170, yoyo: true, ease: 'Sine.easeOut',
+            onComplete: () => this.time.delayedCall(800, () => this._hpHome())
+          });
+        }
+      });
+    });
+  }
+
+  // Broth + spice (530,890): look up at the mild urn, look up at the spicy one,
+  // then fill a bowl from the spicy one (of course). Steam off the bowl.
+  petPickBroth() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    const node = this._hotPotNode?.broth;
+    const nx = node?.x ?? 530, ny = node?.y ?? 890;
+    // Spigot tips: urns at ±52, spigot bottom at +56 (see drawBrothStation).
+    const spigotL = { x: nx - 52, y: ny + 56 };
+    const spigotR = { x: nx + 52, y: ny + 56 };
+    const standY = 1010;
+    this._hpMoveTo(spigotL.x, standY, () => {
+      pet.angle = -8;                                     // peer up at mild
+      this._hpHop(1, 10, () => {
+        this._hpMoveTo(spigotR.x, standY, () => {
+          pet.angle = 8;                                    // ... then spicy
+          // A bowl held out in front, the pour, then the broth sitting in it.
+          const bowl = this.add.graphics().setDepth(12);
+          bowl.fillStyle(0xf7f1e6, 1); bowl.fillEllipse(0, 0, 42, 18);
+          bowl.fillStyle(0xe2d9c8, 1); bowl.fillEllipse(0, -3, 32, 10);
+          bowl.setPosition(pet.x + 4, pet.y + 16);
+          const pour = this.add.graphics().setDepth(12);
+          pour.fillStyle(0xc03a28, 0.95);
+          pour.fillRect(-3, 0, 6, bowl.y - 6 - spigotR.y);
+          pour.setPosition(spigotR.x, spigotR.y).setScale(1, 0);
+          this.tweens.add({
+            targets: pour, scaleY: 1, duration: 240, ease: 'Quad.easeIn',
+            onComplete: () => {
+              const fill = this.add.graphics().setDepth(13);
+              fill.fillStyle(0xc03a28, 1); fill.fillEllipse(0, 0, 30, 8);
+              fill.setPosition(bowl.x, bowl.y - 3).setAlpha(0);
+              this.tweens.add({ targets: fill, alpha: 1, duration: 320 });
+              this.time.delayedCall(520, () => {
+                this.tweens.add({ targets: pour, alpha: 0, duration: 180, onComplete: () => pour.destroy() });
+                this._steamPuff(null, bowl.x, bowl.y - 12, 0.6);
+                this.time.delayedCall(260, () => this._steamPuff(null, bowl.x + 8, bowl.y - 12, 0.5));
+                this.time.delayedCall(620, () => {
+                  this.tweens.add({
+                    targets: [bowl, fill], alpha: 0, duration: 240,
+                    onComplete: () => { bowl.destroy(); fill.destroy(); }
+                  });
+                  this._hpHome();
+                });
+              });
+            }
+          });
+        }, 'Sine.easeInOut');
+      });
+    });
+  }
+
+  // Your number (880,890): take the tag and hold it up high, hopping. It says 83.
+  petHoldUpTag() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    this._hpMoveTo(880, 992, () => {
+      const tag = this.add.container(pet.x, pet.y).setDepth(12);
+      const tg = this.add.graphics();
+      tg.fillStyle(0xd9a05b, 1); tg.fillRoundedRect(-32, -25, 64, 50, 6);
+      tg.fillStyle(0xf5e2b8, 1); tg.fillRoundedRect(-27, -20, 54, 40, 4);
+      tag.add(tg);
+      tag.add(this.add.text(0, 0, '83', style('caption', {
+        fontSize: '28px', fill: '#8a3a1e', fontStyle: '900'
+      })).setOrigin(0.5));
+      tag.setScale(0.4).setAlpha(0);
+      this.tweens.add({
+        targets: tag, y: pet.y - 76, scale: 1, alpha: 1, duration: 320, ease: 'Back.easeOut',
+        onComplete: () => {
+          this.tweens.add({
+            targets: tag, angle: { from: -9, to: 9 }, duration: 220, yoyo: true, repeat: 2, ease: 'Sine.easeInOut'
+          });
+          this._hpHop(3, 12, () => {
+            this.tweens.add({ targets: tag, alpha: 0, y: tag.y - 20, duration: 240, onComplete: () => tag.destroy() });
+            this._hpHome();
+          }, [tag]);
+        }
+      });
+    });
+  }
+
+  // Sauce bar (220,1180): dig in. Three dips, sauce flying off the ladles.
+  petDigSauce() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    const node = this._hotPotNode?.sauce;
+    const parts = node?.hpParts;
+    const colors = parts?.sauceColors || [0x3a2a1e, 0xc9a06a, 0xc03a28, 0x5e9a45];
+    this._hpMoveTo(165, 1270, () => {
+      pet.angle = -6;
+      let dip = 0;
+      const dig = () => {
+        const restY = pet.y;
+        this.tweens.add({
+          targets: pet, y: restY + 18, duration: 130, yoyo: true, ease: 'Quad.easeIn',
+          onYoyo: () => {
+            // Crocks sit on a 52px pitch from x = -118 (see drawSauceBar); dip a
+            // different one each time.
+            const crock = (dip * 2 + 1) % 6;
+            const cx = node ? node.x - 118 + (crock % 3) * 52 : 150;
+            const cy = node ? node.y - 22 + Math.floor(crock / 3) * 48 : 1160;
+            for (let k = 0; k < 4; k++) this._hpSplash(cx, cy - 10, colors[(crock + k) % colors.length]);
+            if (node?.active) this._sauceLadleBob(node, crock);
+          },
+          onComplete: () => {
+            dip++;
+            if (dip < 3) dig();
+            else this.time.delayedCall(220, () => this._hpHome());
+          }
+        });
+      };
+      dig();
+    });
+  }
+
+  // Free cones (880,1180): pull a cone from under the nozzle and eat it in
+  // three bites: top scoop, bottom scoop, cone. Gone.
+  petEatCone() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    const node = this._hotPotNode?.cone;
+    const nozzle = { x: node?.x ?? 880, y: (node?.y ?? 1180) + 62 };
+    this._hpMoveTo(980, 1292, () => {
+      const cone = this.add.container(nozzle.x, nozzle.y).setDepth(12).setScale(0.7);
+      const mk = (draw) => { const p = this.add.graphics(); draw(p); cone.add(p); return p; };
+      const wafer = mk(p => {
+        p.fillStyle(0xd9a05b, 1); p.fillTriangle(-16, 4, 16, 4, 0, 42);
+        p.fillStyle(0xb07a3a, 0.5); p.fillTriangle(3, 6, 16, 4, 0, 42);
+      });
+      const scoopLow = mk(p => { p.fillStyle(0xfff6e8, 1); p.fillEllipse(0, 2, 36, 18); });
+      const scoopTop = mk(p => { p.fillStyle(0xfff6e8, 1); p.fillEllipse(0, -8, 26, 16); });
+      const bites = [scoopTop, scoopLow, wafer];
+      this.tweens.add({
+        targets: cone, x: pet.x - 34, y: pet.y - 4, scale: 1, duration: 340, ease: 'Quad.easeInOut',
+        onComplete: () => {
+          let bite = 0;
+          const chomp = () => {
+            this.tweens.add({
+              targets: pet, scaleY: 0.86, scaleX: 1.1, duration: 110, yoyo: true, ease: 'Sine.easeOut',
+              // onYoyo fires once per tweened property (scaleX AND scaleY), so
+              // count the bite on one key only or two bites land per chomp.
+              onYoyo: (tw, target, key) => {
+                if (key !== 'scaleY') return;
+                bites[bite]?.setVisible(false);
+                bite++;
+              },
+              onComplete: () => {
+                if (bite < bites.length) this.time.delayedCall(170, chomp);
+                else { cone.destroy(); this._hpHop(2, 12, () => this._hpHome()); }
+              }
+            });
+          };
+          chomp();
+        }
+      });
+    });
+  }
+
+  // Our table (W/2,1560): sneak over to the fourth bowl, dip in, come up with a
+  // noodle, scurry back looking innocent.
+  petStealFromBowl() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    // The fourth bowl along the table (seat offset +144 from centre).
+    const bowlX = W / 2 + 144;
+    const bowlY = 1512;
+    this._hpMoveTo(bowlX, bowlY, () => {
+      this.tweens.add({
+        targets: pet, y: bowlY + 22, duration: 200, yoyo: true, ease: 'Sine.easeInOut',
+        onComplete: () => {
+          const loot = this.add.text(pet.x + 26, pet.y - 34, '🍜', style('display', {
+            fontSize: '30px'
+          })).setOrigin(0.5).setDepth(20);
+          this.tweens.add({
+            targets: loot, y: loot.y - 26, alpha: 0, duration: 900,
+            onComplete: () => loot.destroy()
+          });
+          this._hpHome();
+        }
+      });
+    });
+  }
+
+  // Dad's notes (560,1180): trot over and look up at the board while it's read.
+  petReadBoard() {
+    if (!this._hpStart()) return;
+    const pet = this._hotPotPet;
+    this._hpMoveTo(560, 1305, () => {
+      this.tweens.add({
+        targets: pet, angle: -12, duration: 200, ease: 'Sine.easeOut',
+        onComplete: () => this._hpHop(2, 10, () => this.time.delayedCall(700, () => this._hpHome()))
+      });
+    });
+  }
+
+  // ----- Idle life on the hot pot objects -----
+  // Every object gets something: the breathing baseline in the build loop, plus
+  // one of these. Moving parts come from the drawers via node.hpParts.
+  animateHotPotItem(id, node) {
+    switch (id) {
+      case 'bowls': return this._bowlsRestock(node);
+      case 'line':  return this._lineService(node);
+      case 'scale': return this._scaleSettle(node);
+      case 'broth': return this._brothSteam(node);
+      case 'tag':   return this._tagSetDown(node);
+      case 'sauce': return this._sauceLadles(node);
+      case 'cone':  return this._coneDrip(node);
+      case 'table': return this._tableSteam(node);
+    }
+  }
+
+  // Soft plain steam ellipses rising and dissolving. Deliberately ellipses,
+  // never rays or spirals (project art rule). Pass a node to steam inside it
+  // (ox, oy relative), or null for a scene-level puff at absolute (ox, oy).
+  _steamPuff(node, ox, oy, scale = 1) {
+    const puff = this.add.graphics();
+    puff.fillStyle(0xffe8c8, 0.4);
+    puff.fillEllipse(0, 0, 34 * scale, 22 * scale);
+    puff.setPosition(ox, oy);
+    if (node) node.add(puff);
+    else puff.setDepth(13);
+    this.tweens.add({
+      targets: puff,
+      y: oy - 90 - Math.random() * 40,
+      x: ox + (Math.random() - 0.5) * 40,
+      scaleX: 1.8, scaleY: 1.8,
+      alpha: 0,
+      duration: 2000 + Math.random() * 900,
+      ease: 'Sine.easeOut',
+      onComplete: () => puff.destroy()
+    });
+  }
+
+  _brothSteam(node) {
+    this.time.addEvent({
+      delay: 900, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        this._steamPuff(node, Math.random() < 0.5 ? -52 : 52, -60, 0.9);
+      }
+    });
+  }
+
+  _tableSteam(node) {
+    // Five bowls on the table, so steam drifts up from a few of them at a time.
+    const bowlXs = [-288, -144, 0, 144, 288];
+    this.time.addEvent({
+      delay: 700, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        const bx = bowlXs[Math.floor(Math.random() * bowlXs.length)];
+        this._steamPuff(node, bx, -42, 0.75);
+      }
+    });
+  }
+
+  // Bowl stack: every few seconds the top bowl lifts out of the stack and drops
+  // back in (someone grabbing one, changing their mind), and the chopsticks
+  // rattle in their cup as it happens.
+  _bowlsRestock(node) {
+    const { topBowl, chopsticks } = node.hpParts || {};
+    if (!topBowl) return;
+    this.time.addEvent({
+      delay: 3600, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        this.tweens.add({
+          targets: topBowl, y: -20, angle: -6, duration: 380, ease: 'Sine.easeOut',
+          onComplete: () => this.tweens.add({ targets: topBowl, y: 0, angle: 0, duration: 560, ease: 'Bounce.easeOut' })
+        });
+        if (chopsticks) {
+          this.tweens.add({
+            targets: chopsticks, angle: { from: -4, to: 4 }, duration: 70, yoyo: true, repeat: 3,
+            onComplete: () => { chopsticks.angle = 0; }
+          });
+        }
+      }
+    });
+  }
+
+  // The line: somebody is always taking a scoop from one bin or another, and a
+  // soft light slides along the sneeze guard.
+  _lineService(node) {
+    const parts = node.hpParts;
+    if (!parts) return;
+    this.time.addEvent({
+      delay: 1900, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        this._lineServe(node, Math.floor(Math.random() * parts.heaps.length));
+      }
+    });
+    const sweep = () => {
+      if (!node.active) return;
+      parts.sheen.x = -300;
+      parts.sheen.alpha = 0;
+      this.tweens.add({
+        targets: parts.sheen, x: 300, duration: 2600, ease: 'Sine.easeInOut',
+        onUpdate: (tw) => { parts.sheen.alpha = Math.sin(tw.progress * Math.PI) * 0.22; },
+        onComplete: () => this.time.delayedCall(4200, sweep)
+      });
+    };
+    this.time.delayedCall(1200, sweep);
+  }
+
+  // One scoop from bin `i`: the tongs lift and clack back down, the heap jiggles.
+  _lineServe(node, i) {
+    const parts = node.hpParts;
+    const tongs = parts?.tongs[i];
+    const heap = parts?.heaps[i];
+    if (!tongs || !heap || tongs.hpBusy) return;
+    tongs.hpBusy = true;
+    const y0 = tongs.y;
+    this.tweens.add({
+      targets: tongs, y: y0 - 16, angle: -22, duration: 180, ease: 'Quad.easeOut',
+      onComplete: () => this.tweens.add({
+        targets: tongs, y: y0, angle: 0, duration: 280, ease: 'Bounce.easeOut',
+        onComplete: () => { tongs.hpBusy = false; }
+      })
+    });
+    this.tweens.add({ targets: heap, scaleY: 0.88, scaleX: 1.06, duration: 120, yoyo: true, ease: 'Sine.easeOut' });
+  }
+
+  // The scale needle nudges and settles, like a bowl was just set down on it.
+  // The swing is kept on the scene so the pet can give it a proper wallop.
+  _scaleSettle(node) {
+    const needle = this.add.graphics();
+    needle.fillStyle(0xb3261e, 1);
+    needle.fillRect(-2, -34, 4, 36);
+    needle.setPosition(0, -6);
+    node.add(needle);
+    const swing = (peak = 26) => {
+      if (!node.active) return;
+      this.tweens.add({
+        targets: needle, angle: peak, duration: 260, ease: 'Back.easeOut',
+        onComplete: () => this.tweens.add({
+          targets: needle, angle: 18, duration: 420, ease: 'Sine.easeInOut'
+        })
+      });
+    };
+    needle.angle = 18;
+    this._hotPotScaleSwing = swing;
+    this.time.addEvent({ delay: 3200, loop: true, callback: () => swing() });
+  }
+
+  // Number tag: the card rocks on its clip now and then, like it was just set down.
+  _tagSetDown(node) {
+    const card = node.hpParts?.card;
+    if (!card) return;
+    this.time.addEvent({
+      delay: 3400, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        this.tweens.add({
+          targets: card, angle: -5, duration: 160, ease: 'Sine.easeOut',
+          onComplete: () => this.tweens.add({ targets: card, angle: 0, duration: 800, ease: 'Elastic.easeOut' })
+        });
+      }
+    });
+  }
+
+  // Sauce bar: a ladle lifts out of one crock or another and drips back in;
+  // the recipe card flutters in the kitchen draft.
+  _sauceLadles(node) {
+    const parts = node.hpParts;
+    if (!parts) return;
+    this.time.addEvent({
+      delay: 2300, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        this._sauceLadleBob(node, Math.floor(Math.random() * parts.ladles.length));
+      }
+    });
+    if (parts.recipe) {
+      this.tweens.add({
+        targets: parts.recipe, angle: { from: -1.5, to: 1.5 },
+        duration: 2100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut'
+      });
+    }
+  }
+
+  _sauceLadleBob(node, i) {
+    const parts = node.hpParts;
+    const ladle = parts?.ladles[i];
+    if (!ladle || ladle.hpBusy) return;
+    ladle.hpBusy = true;
+    const y0 = ladle.y;
+    this.tweens.add({
+      targets: ladle, y: y0 - 12, angle: -14, duration: 220, ease: 'Quad.easeOut',
+      onComplete: () => {
+        const drip = this.add.graphics();
+        drip.fillStyle(parts.sauceColors[i], 1);
+        drip.fillCircle(0, 0, 4);
+        drip.setPosition(ladle.x + 8, ladle.y - 6);
+        node.add(drip);
+        this.tweens.add({
+          targets: drip, y: drip.y + 22, alpha: 0.2, duration: 320, ease: 'Quad.easeIn',
+          onComplete: () => drip.destroy()
+        });
+        this.tweens.add({
+          targets: ladle, y: y0, angle: 0, duration: 380, ease: 'Bounce.easeOut',
+          onComplete: () => { ladle.hpBusy = false; }
+        });
+      }
+    });
+  }
+
+  // A slow soft-serve curl building at the machine's nozzle, then resetting.
+  _coneDrip(node) {
+    const drip = this.add.graphics();
+    drip.fillStyle(0xfff6e8, 1);
+    drip.fillCircle(0, 0, 9);
+    drip.setPosition(0, 44);
+    drip.setAlpha(0);
+    node.add(drip);
+    this.time.addEvent({
+      delay: 2600, loop: true,
+      callback: () => {
+        if (!node.active) return;
+        drip.setAlpha(1);
+        drip.y = 44;
+        this.tweens.add({
+          targets: drip, y: 78, alpha: 0, duration: 900, ease: 'Quad.easeIn'
+        });
+      }
+    });
+  }
+
+  showHotPotUnlock() {
+    progress.clearHiddenWorld(19);
+    cosmetics.addAndEquip('acc_free_cone');
+    audio.playMatch?.();
+
+    const { card, close } = createModal(this, {
+      width: 880, height: 660,
+      accentColor: 0xffb85c,
+      showCloseHint: false
+    });
+    card.add(this.add.text(0, -220, 'YOU FOUND IT!', style('display', {
+      fontSize: '60px',
+      fill: '#ffb85c',
+      stroke: '#2a1008',
+      strokeThickness: 5
+    })).setOrigin(0.5));
+    card.add(this.add.text(0, -130, 'The one at the end. On the house.', style('caption', {
+      fontSize: '24px',
+      fill: '#cfcfe0',
+      align: 'center'
+    })).setOrigin(0.5));
+
+    const previewPet = drawCompanion(this, 0, 20, { scale: 1.4 });
+    card.add(previewPet);
+
+    card.add(this.add.text(0, 150, 'Unlocked: Free Cone', style('subhead', {
+      fontSize: '32px',
+      fill: '#ffb85c',
+      align: 'center'
+    })).setOrigin(0.5));
+
+    card.add(createButton(this, {
+      x: 0, y: 240, width: 320, height: 92,
+      label: 'Yes!',
+      color: 0xffb85c,
+      textOverrides: { fontSize: '28px', fill: '#2a1008', fontStyle: '900' },
+      // Stay in the room after the cone — the kid keeps exploring and leaves on
+      // their own, same as the garage.
+      onClick: () => {
+        this.refreshHotPotPet();
+        close();
+      }
+    }));
+    return card;
   }
 }
 
@@ -1886,6 +2785,680 @@ export function drawPlaygroundNode(scene, x, y, R) {
   }
 
   return c;
+}
+
+// ============================================================
+// HOT POT TIME — map node + item renderers (W19).
+// Item helpers draw a fresh Graphics `g` centered at (0,0), same contract as
+// the garage and playground renderers above. Plain shapes only: individual
+// round bowls, straight-edged stations, no divided pot, no radial art.
+// ============================================================
+
+// Map node: a single round bowl of broth under a warm halo, steam curling off.
+// Once the room has been found (the free cone claimed) the broth glows and a
+// little number tag leans against the bowl.
+export function drawHotPotNode(scene, x, y, R) {
+  const c = scene.add.container(x, y);
+  const cleared = progress.isHiddenWorldCleared(19);
+
+  // Warm halo — brighter once the room has been cleared.
+  const halo = scene.add.graphics();
+  halo.fillStyle(0xffb85c, cleared ? 0.28 : 0.14);
+  halo.fillCircle(0, 0, R + (cleared ? 18 : 13));
+  c.add(halo);
+
+  const g = scene.add.graphics();
+  // Placemat / tabletop disc under the bowl.
+  g.fillStyle(0x6b4632, 1);
+  g.fillEllipse(0, R * 0.5, R * 1.9, R * 0.7);
+  // Bowl body — a plain round bowl, tapering to a foot.
+  g.fillStyle(0xf2ece0, 1);
+  g.fillEllipse(0, R * 0.1, R * 1.6, R * 1.25);
+  g.fillStyle(0xd8cfbe, 1);
+  g.fillRect(-R * 0.28, R * 0.55, R * 0.56, R * 0.22);
+  // Broth surface.
+  g.fillStyle(cleared ? 0xd4552e : 0xa8452a, 1);
+  g.fillEllipse(0, -R * 0.28, R * 1.32, R * 0.5);
+  g.fillStyle(0xffb85c, cleared ? 0.55 : 0.35);
+  g.fillEllipse(-R * 0.2, -R * 0.34, R * 0.5, R * 0.18);
+  // A couple of things floating in it (corn, greens) — plain dots and ovals.
+  g.fillStyle(0xffd86b, 1);
+  g.fillCircle(R * 0.28, -R * 0.26, R * 0.09);
+  g.fillCircle(R * 0.44, -R * 0.32, R * 0.07);
+  g.fillStyle(0x5e9a45, 1);
+  g.fillEllipse(-R * 0.36, -R * 0.2, R * 0.3, R * 0.13);
+  // Bowl rim.
+  g.lineStyle(3, 0xb9ae9a, 1);
+  g.strokeEllipse(0, -R * 0.28, R * 1.32, R * 0.5);
+  c.add(g);
+
+  // Steam — two soft plain ellipses drifting up (never rays or spirals).
+  const steam = scene.add.graphics();
+  steam.fillStyle(0xffe8c8, 0.42);
+  steam.fillEllipse(-R * 0.22, -R * 0.75, R * 0.42, R * 0.24);
+  steam.fillStyle(0xffe8c8, 0.26);
+  steam.fillEllipse(R * 0.2, -R * 1.05, R * 0.52, R * 0.28);
+  c.add(steam);
+  scene.tweens.add({
+    targets: steam,
+    y: -R * 0.35,
+    alpha: { from: 1, to: 0.25 },
+    duration: 2600,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  // Cleared: the table number tag leans against the bowl.
+  if (cleared) {
+    const tag = scene.add.graphics();
+    tag.fillStyle(0xf5e2b8, 1);
+    // Wide enough for two digits (the number is 83).
+    tag.fillRoundedRect(R * 0.5, -R * 0.05, R * 0.74, R * 0.62, 4);
+    tag.lineStyle(2, 0x8a5a3c, 1);
+    tag.strokeRoundedRect(R * 0.5, -R * 0.05, R * 0.74, R * 0.62, 4);
+    c.add(tag);
+    c.add(scene.add.text(R * 0.87, R * 0.26, '83', style('caption', {
+      fontSize: Math.round(R * 0.38) + 'px', fill: '#8a3a1e', fontStyle: '900'
+    })).setOrigin(0.5));
+  }
+
+  return c;
+}
+
+// The Night Shift map node (W20) — the workshop from the outside, after dark:
+// a black shopfront with exactly one window still lit. Reads at node scale
+// because it's one bright square in a dark block, and it says the thing the room
+// is about without a symbol: somebody is still in there working.
+export function drawNightShiftNode(scene, x, y, R) {
+  const c = scene.add.container(x, y);
+  const cleared = progress.isHiddenWorldCleared(20);
+
+  // Cool halo — the night around the building, brighter once it's been cleared.
+  const halo = scene.add.graphics();
+  halo.fillStyle(0x8fd0ff, cleared ? 0.24 : 0.12);
+  halo.fillCircle(0, 0, R + (cleared ? 18 : 13));
+  c.add(halo);
+
+  const g = scene.add.graphics();
+  // Ground shadow, then the dark shop block.
+  g.fillStyle(0x05070f, 0.5);
+  g.fillEllipse(0, R * 0.72, R * 1.9, R * 0.4);
+  g.fillStyle(0x151d2e, 1);
+  g.fillRoundedRect(-R * 0.85, -R * 0.5, R * 1.7, R * 1.25, 6);
+  // Flat roof lip, catching a little of the night sky.
+  g.fillStyle(0x223049, 1);
+  g.fillRect(-R * 0.95, -R * 0.62, R * 1.9, R * 0.16);
+  c.add(g);
+
+  // Three windows. Two dark, one lit — the shift that stayed.
+  const dark = scene.add.graphics();
+  dark.fillStyle(0x0b1120, 1);
+  dark.fillRect(-R * 0.62, -R * 0.28, R * 0.34, R * 0.34);
+  dark.fillRect(-R * 0.14, -R * 0.28, R * 0.34, R * 0.34);
+  c.add(dark);
+
+  const lit = scene.add.graphics();
+  // Soft spill first (plain ellipse, no rays), then the window itself.
+  lit.fillStyle(0xffd98a, 0.22);
+  lit.fillEllipse(R * 0.51, -R * 0.11, R * 1.05, R * 0.8);
+  lit.fillStyle(cleared ? 0xffe6ad : 0xf5c46a, 1);
+  lit.fillRect(R * 0.34, -R * 0.28, R * 0.34, R * 0.34);
+  // Window bar, so it reads as a pane rather than a glowing tile.
+  lit.fillStyle(0x8a6a30, 1);
+  lit.fillRect(R * 0.34, -R * 0.13, R * 0.34, R * 0.04);
+  c.add(lit);
+  scene.tweens.add({
+    targets: lit,
+    alpha: { from: 1, to: 0.72 },
+    duration: 2200,
+    yoyo: true,
+    repeat: -1,
+    ease: 'Sine.easeInOut'
+  });
+
+  // Door, always dark — she's inside, not coming out.
+  const door = scene.add.graphics();
+  door.fillStyle(0x0b1120, 1);
+  door.fillRoundedRect(-R * 0.2, R * 0.24, R * 0.4, R * 0.51, 3);
+  c.add(door);
+
+  // Cleared: the last crate, placed and squared up by the door on the way out.
+  if (cleared) {
+    const crate = scene.add.graphics();
+    crate.fillStyle(0x6b7a99, 1);
+    crate.fillRoundedRect(R * 0.36, R * 0.42, R * 0.36, R * 0.33, 3);
+    crate.lineStyle(2, 0x2b3852, 1);
+    crate.strokeRoundedRect(R * 0.36, R * 0.42, R * 0.36, R * 0.33, 3);
+    c.add(crate);
+  }
+
+  return c;
+}
+
+// 1. The stack of empty bowls at the door: four nested plain round bowls. The
+// top bowl and the chopsticks are their own pieces so the idle pass can lift
+// one out of the stack and rattle the sticks.
+function drawBowlStack(g, node, scene) {
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(6, 78, 190, 34);
+  const bowl = (gg, oy, w, tone) => {
+    gg.fillStyle(tone, 1);
+    gg.fillEllipse(0, oy, w, 58);
+    gg.fillStyle(0xd3c9b6, 1);
+    gg.fillEllipse(0, oy - 14, w - 18, 30);
+    gg.lineStyle(2, 0xb9ae9a, 0.9);
+    gg.strokeEllipse(0, oy - 14, w - 18, 30);
+  };
+  // Bottom three, lowest painted last so each rim sits in front of the bowl above.
+  for (let i = 2; i >= 0; i--) bowl(g, 46 - i * 26, 168 - i * 6, i % 2 ? 0xece4d6 : 0xf7f1e6);
+  // Chopstick cup beside the stack.
+  g.fillStyle(0x7a4a30, 1);
+  g.fillRoundedRect(74, -6, 44, 74, 6);
+
+  if (!scene) return;
+  // Top bowl goes UNDER the base graphic (index 0) so, lifted, it rises out
+  // from behind the rim of the bowl below instead of floating over it.
+  const topBowl = scene.add.graphics();
+  bowl(topBowl, -32, 150, 0xece4d6);
+  node.addAt(topBowl, 0);
+  // Chopsticks pivot at the cup mouth (100, 10) so a wiggle reads as a rattle.
+  const chopsticks = scene.add.graphics();
+  chopsticks.fillStyle(0xd9b382, 1);
+  for (let i = 0; i < 3; i++) chopsticks.fillRect(-18 + i * 12, -56, 5, 46);
+  chopsticks.setPosition(100, 10);
+  node.add(chopsticks);
+  node.hpParts = { topBowl, chopsticks };
+}
+
+// A pair of serving tongs, hinge at the top, open V, drawn centred on (0,0).
+function drawTongs(g, color = 0xd0d0d8) {
+  g.lineStyle(4, color, 1);
+  g.lineBetween(0, -16, -9, 14);
+  g.lineBetween(0, -16, 9, 14);
+  g.fillStyle(color, 1);
+  g.fillCircle(0, -16, 4);
+  g.fillRect(-13, 12, 8, 4);
+  g.fillRect(5, 12, 8, 4);
+}
+
+// 2. The long ingredient line, the signature object of the room. A stainless
+// self-serve counter: steel pans sunk into the top, each heaped with one thing,
+// tongs resting on every pan, a sneeze guard over the lot. Eight bins on a 78px
+// pitch from x = -312; the heaps and tongs are separate pieces so the idle pass
+// (and the pet walking the line) can serve from them.
+function drawIngredientLine(g, node, scene) {
+  const w = 660;
+  // Ground shadow, then the counter: brushed top rail, panelled front, kick plate.
+  g.fillStyle(0x000000, 0.35);
+  g.fillRoundedRect(-w / 2 + 8, -46, w, 140, 12);
+  g.fillStyle(0x8e8e9a, 1);
+  g.fillRoundedRect(-w / 2, -62, w, 148, 12);
+  g.fillStyle(0xb9b9c4, 1);
+  g.fillRect(-w / 2, -62, w, 20);
+  g.fillStyle(0xd6d6de, 1);
+  g.fillRect(-w / 2, -62, w, 5);
+  g.fillStyle(0x9d9daa, 1);
+  for (let i = 0; i < 4; i++) g.fillRoundedRect(-w / 2 + 14 + i * 160, -30, 140, 96, 6);
+  g.fillStyle(0x5c5c68, 1);
+  for (let i = 0; i < 4; i++) g.fillRoundedRect(-w / 2 + 70 + i * 160, 12, 28, 6, 3);
+  g.fillStyle(0x3d3d48, 1);
+  g.fillRect(-w / 2, 76, w, 10);
+
+  // Sneeze guard: two posts, a top rail, a pane of glass over the bins.
+  g.fillStyle(0xb9b9c4, 1);
+  g.fillRect(-w / 2 + 2, -116, 7, 60);
+  g.fillRect(w / 2 - 9, -116, 7, 60);
+  g.fillRoundedRect(-w / 2 - 4, -120, w + 8, 8, 3);
+  g.fillStyle(0xe6f6ff, 0.14);
+  g.fillRect(-w / 2 + 9, -112, w - 18, 52);
+  g.fillStyle(0xffffff, 0.35);
+  g.fillRect(-w / 2 + 9, -112, w - 18, 3);
+
+  const heapDrawers = [
+    drawHeapGreens, drawHeapMushrooms, drawHeapFishballs, drawHeapMeatRolls,
+    drawHeapTofu, drawHeapNoodles, drawHeapCorn, drawHeapAssorted
+  ];
+  const heaps = [], tongs = [];
+  heapDrawers.forEach((drawHeap, i) => {
+    const bx = -273 + i * 78;
+    // Steel pan: rim, then the dark interior the food sits in.
+    g.fillStyle(0xd0d0d8, 1);
+    g.fillRoundedRect(bx - 38, -56, 76, 62, 6);
+    g.fillStyle(0x3a3a46, 1);
+    g.fillRoundedRect(bx - 34, -52, 68, 54, 5);
+    // Little label card on the glass above each pan.
+    g.fillStyle(0xfff8ea, 0.9);
+    g.fillRoundedRect(bx - 17, -98, 34, 14, 3);
+    g.fillStyle(0x6a5a44, 0.8);
+    g.fillRect(bx - 12, -92, 24, 2);
+
+    if (!scene) { drawHeap(g, bx, 2); return; }
+    // Heap origin at the pan floor so a jiggle squashes down into the pan.
+    const heap = scene.add.graphics();
+    heap.setPosition(bx, 2);
+    drawHeap(heap, 0, 0);
+    node.add(heap);
+    heaps.push(heap);
+    // Tongs resting over the front rim.
+    const t = scene.add.graphics();
+    drawTongs(t, 0x5c5c68);
+    t.setPosition(bx + 22, -6).setScale(0.8);
+    node.add(t);
+    tongs.push(t);
+  });
+  if (!scene) return;
+
+  // The light that slides along the glass (driven by _lineService).
+  const sheen = scene.add.graphics();
+  sheen.fillStyle(0xffffff, 1);
+  sheen.fillRect(-16, -112, 32, 52);
+  sheen.setPosition(-300, 0).setAlpha(0);
+  node.add(sheen);
+
+  node.hpParts = { heaps, tongs, sheen };
+}
+
+// Bin contents. Each mound is drawn around (x, y - 30): the pan floor is at
+// (x, y), the pan's back rim ~18px above that, so the food heaps up over it.
+// Plain shapes only: ellipses, circles, rects, a few straight strokes.
+function drawHeapGreens(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  g.fillStyle(0x3f7a2e, 1);
+  g.fillEllipse(0, 8, 66, 40);
+  const leaves = [
+    [-20, -2, 26, 20, 0x5fa542], [14, -8, 28, 22, 0x6db54d], [-4, -20, 26, 18, 0x86cc5e],
+    [22, 8, 22, 16, 0x4f9137], [-24, 12, 22, 14, 0x5fa542], [2, 0, 22, 16, 0x86cc5e],
+    [12, 16, 24, 14, 0x6db54d]
+  ];
+  for (const [lx, ly, lw, lh, c] of leaves) { g.fillStyle(c, 1); g.fillEllipse(lx, ly, lw, lh); }
+  g.fillStyle(0xdcefc2, 1);
+  g.fillRect(-12, -14, 4, 14);
+  g.fillRect(6, -4, 4, 12);
+  g.fillRect(-2, 10, 4, 10);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapMushrooms(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  // Enoki: a tight bundle of thin stems with tiny caps, banded at the base.
+  g.fillStyle(0xf3ead6, 1);
+  for (let i = 0; i < 7; i++) g.fillRect(-32 + i * 4, -14 + (i % 3) * 3, 3, 34);
+  g.fillStyle(0xfbf5e8, 1);
+  for (let i = 0; i < 7; i++) g.fillCircle(-30.5 + i * 4, -15 + (i % 3) * 3, 3);
+  g.fillStyle(0xd9c9a8, 1);
+  g.fillRect(-34, 8, 30, 5);
+  // Shiitake: three brown caps, plus one turned over showing its pale underside.
+  const cap = (cx, cy, cw, ch) => {
+    g.fillStyle(0x6f4a30, 1); g.fillEllipse(cx, cy, cw, ch);
+    g.fillStyle(0x8c6244, 1); g.fillEllipse(cx - 2, cy - 3, cw * 0.6, ch * 0.5);
+  };
+  cap(12, 2, 30, 20);
+  cap(24, 14, 26, 18);
+  cap(4, 16, 24, 16);
+  g.fillStyle(0xe8dcc4, 1);
+  g.fillEllipse(20, -12, 22, 14);
+  g.fillStyle(0xcdbb9a, 1);
+  g.fillEllipse(20, -12, 8, 5);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapFishballs(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  const rows = [[14, [-27, -9, 9, 27]], [2, [-18, 0, 18]], [-10, [-9, 9]], [-22, [0]]];
+  for (const [ry, xs] of rows) {
+    for (const bx of xs) {
+      g.fillStyle(0xd9d0bf, 1); g.fillCircle(bx + 2, ry + 2, 9);
+      g.fillStyle(0xf4eee2, 1); g.fillCircle(bx, ry, 9);
+      g.fillStyle(0xffffff, 0.8); g.fillCircle(bx - 3, ry - 3, 2.5);
+    }
+  }
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapMeatRolls(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  // Rolled slices seen from the side: a pink log with a fat streak and the
+  // rolled end showing as a lighter ring.
+  const roll = (rx, ry) => {
+    g.fillStyle(0xe27c73, 1); g.fillRoundedRect(rx - 13, ry - 7, 26, 14, 6);
+    g.fillStyle(0xf9d6cf, 1); g.fillRect(rx - 9, ry - 2, 18, 3);
+    g.fillStyle(0xf2a49a, 1); g.fillCircle(rx + 13, ry, 7);
+    g.fillStyle(0xfae2dd, 1); g.fillCircle(rx + 13, ry, 3);
+  };
+  // Bottom row sits left so the right-hand end cap stays inside the pan.
+  roll(-24, 14); roll(-2, 14); roll(18, 14);
+  roll(-11, 2); roll(11, 2);
+  roll(0, -10);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapTofu(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  const cube = (cx, cy) => {
+    g.fillStyle(0xd4c9b2, 1); g.fillRect(cx - 11, cy - 11, 22, 22);
+    g.fillStyle(0xf6efe0, 1); g.fillRect(cx - 11, cy - 11, 19, 19);
+  };
+  cube(-24, 12); cube(0, 12); cube(24, 12);
+  cube(-12, -8); cube(12, -8);
+  cube(0, -26);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapNoodles(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  // Nests: a pale mound with two nested rings (concentric, not a spiral) and a
+  // strand or two hanging over the edge.
+  const nest = (nx, ny) => {
+    g.fillStyle(0xf0d99a, 1); g.fillEllipse(nx, ny, 32, 20);
+    g.lineStyle(2, 0xd4b46a, 1);
+    g.strokeEllipse(nx, ny, 24, 13);
+    g.strokeEllipse(nx, ny, 13, 7);
+    g.lineBetween(nx - 14, ny + 2, nx - 20, ny + 10);
+    g.lineBetween(nx + 12, ny + 4, nx + 18, ny + 11);
+  };
+  nest(-17, 10); nest(17, 10); nest(0, -8);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapCorn(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  const cob = (cx, cy) => {
+    g.fillStyle(0xf7c948, 1); g.fillRoundedRect(cx - 8, cy - 18, 16, 36, 6);
+    g.fillStyle(0xe0aa2a, 1);
+    for (let r = 0; r < 5; r++) for (let c = 0; c < 3; c++) g.fillCircle(cx - 5 + c * 5, cy - 13 + r * 6.5, 1.6);
+    g.fillStyle(0xfbe08a, 1); g.fillEllipse(cx, cy - 18, 12, 6);
+  };
+  cob(-20, 6); cob(0, -2); cob(20, 8);
+  g.fillStyle(0xf7c948, 1);
+  g.fillCircle(-30, 24, 3); g.fillCircle(30, 22, 3); g.fillCircle(8, 26, 3);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+function drawHeapAssorted(g, x, y) {
+  g.translateCanvas(x, y - 30);
+  // Lotus root slice with its holes.
+  g.fillStyle(0xf2e8d2, 1); g.fillCircle(-16, 6, 12);
+  g.fillStyle(0xd9cdb2, 1);
+  for (let k = 0; k < 6; k++) {
+    const a = (k / 6) * Math.PI * 2;
+    g.fillCircle(-16 + Math.cos(a) * 6.5, 6 + Math.sin(a) * 6.5, 2);
+  }
+  g.fillCircle(-16, 6, 2);
+  // Quail eggs, speckled.
+  for (const [ex, ey] of [[14, -16], [26, -2]]) {
+    g.fillStyle(0xf7f0e0, 1); g.fillEllipse(ex, ey, 11, 14);
+    g.fillStyle(0xa88b6a, 1);
+    g.fillCircle(ex - 2, ey - 3, 1.2); g.fillCircle(ex + 2, ey + 2, 1.2); g.fillCircle(ex - 1, ey + 4, 1);
+  }
+  // A dumpling, crimped along the top.
+  g.fillStyle(0xf3e6cf, 1); g.fillEllipse(12, 16, 26, 14);
+  g.fillStyle(0xe2d1b3, 1);
+  for (let k = 0; k < 4; k++) g.fillCircle(3 + k * 6, 11, 2.2);
+  // A red chili with a green stem.
+  g.fillStyle(0xd83a2a, 1); g.fillEllipse(-4, -14, 20, 7);
+  g.fillStyle(0x5e9a45, 1); g.fillRect(5, -16, 6, 4);
+  // A chunk of pumpkin.
+  g.fillStyle(0xf0a23a, 1); g.fillRoundedRect(-32, -10, 18, 13, 4);
+  g.fillStyle(0xf8c67a, 1); g.fillRect(-29, -8, 12, 3);
+  g.translateCanvas(-x, -(y - 30));
+}
+
+// 3. The cashier scale — you pay by weight. A platform, a post, and a dial.
+// (The needle itself is added live by _scaleSettle so it can swing.)
+function drawCounterScale(g) {
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(6, 92, 190, 30);
+  // Base + platform.
+  g.fillStyle(0x5a5a64, 1);
+  g.fillRoundedRect(-88, 52, 176, 34, 8);
+  g.fillStyle(0xc9c3bb, 1);
+  g.fillRoundedRect(-96, 34, 192, 24, 8);
+  // A bowl sitting on the platform, waiting to be weighed.
+  g.fillStyle(0xf7f1e6, 1);
+  g.fillEllipse(0, 16, 122, 44);
+  g.fillStyle(0xc85a4a, 1);
+  g.fillEllipse(0, 4, 100, 24);
+  g.lineStyle(2, 0xb9ae9a, 1);
+  g.strokeEllipse(0, 4, 100, 24);
+  // Post + round dial face (plain circle + tick marks, not a sunburst).
+  g.fillStyle(0x5a5a64, 1);
+  g.fillRect(-8, -34, 16, 60);
+  g.fillStyle(0x3a3a44, 1);
+  g.fillCircle(0, -62, 52);
+  g.fillStyle(0xf7f1e6, 1);
+  g.fillCircle(0, -62, 44);
+  g.fillStyle(0x8a8a96, 1);
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 - Math.PI / 2;
+    g.fillCircle(Math.cos(a) * 34, -62 + Math.sin(a) * 34, 2.5);
+  }
+  g.fillStyle(0x3a3a44, 1);
+  g.fillCircle(0, -62, 5);
+}
+
+// 4. Broth + spice level — two INDIVIDUAL urns (never one divided pot), plus a
+// mild-to-spicy dial. Individual bowls is the format, so no S-curve divider.
+function drawBrothStation(g) {
+  g.fillStyle(0x000000, 0.35);
+  g.fillRoundedRect(-124, 66, 260, 26, 10);
+  // Counter.
+  g.fillStyle(0x8d6a4a, 1);
+  g.fillRoundedRect(-130, 46, 260, 40, 10);
+  g.fillStyle(0xa8815c, 1);
+  g.fillRect(-130, 46, 260, 10);
+
+  // Two urns side by side: clear broth on the left, spicy on the right.
+  const urn = (ox, body, lid) => {
+    g.fillStyle(0x8f8f9c, 1);
+    g.fillRoundedRect(ox - 46, -52, 92, 100, 10);
+    g.fillStyle(body, 1);
+    g.fillRoundedRect(ox - 38, -30, 76, 70, 8);
+    g.fillStyle(lid, 1);
+    g.fillRoundedRect(ox - 52, -66, 104, 18, 8);
+    g.fillStyle(0x5a5a64, 1);
+    g.fillRoundedRect(ox - 8, -78, 16, 14, 4);
+    // Spigot.
+    g.fillStyle(0x8f8f9c, 1);
+    g.fillRect(ox - 5, 40, 10, 16);
+  };
+  urn(-52, 0xd9b070, 0xc9c3bb);   // clear / bone broth
+  urn(52, 0xc03a28, 0xc9c3bb);    // spicy
+
+  // Spice-level dial: four dots getting redder, left to right.
+  g.fillStyle(0x3f2a1c, 1);
+  g.fillRoundedRect(-56, 96, 112, 28, 8);
+  const heat = [0xf3ecdc, 0xf6c368, 0xe8763f, 0xc03a28];
+  heat.forEach((h, i) => {
+    g.fillStyle(h, 1);
+    g.fillCircle(-38 + i * 25, 110, 8);
+  });
+}
+
+// 5. The table number tag: take your number, go sit down, it comes. The card
+// is its own piece (with real text, so 83 reads as 83) so it can rock on its clip.
+function drawNumberTag(g, node, scene) {
+  g.fillStyle(0x000000, 0.35);
+  g.fillEllipse(6, 76, 130, 26);
+  // Weighted base + stem.
+  g.fillStyle(0x5a5a64, 1);
+  g.fillEllipse(0, 62, 116, 26);
+  g.fillRect(-6, -6, 12, 66);
+  if (!scene) return;
+  const card = scene.add.container(0, 2);
+  const cg = scene.add.graphics();
+  cg.fillStyle(0xd9a05b, 1);
+  cg.fillRoundedRect(-62, -94, 124, 96, 8);
+  cg.fillStyle(0xf5e2b8, 1);
+  cg.fillRoundedRect(-54, -86, 108, 80, 6);
+  card.add(cg);
+  // The number is 83, the family's number.
+  card.add(scene.add.text(0, -46, '83', style('caption', {
+    fontSize: '58px', fill: '#8a3a1e', fontStyle: '900'
+  })).setOrigin(0.5));
+  node.add(card);
+  node.hpParts = { card };
+}
+
+// 6. The DIY sauce bar: a row of small crocks with ladles, and a recipe card.
+// Ladles and the card are their own pieces so the idle pass can dip and flutter.
+function drawSauceBar(g, node, scene) {
+  const w = 300, h = 116;
+  g.fillStyle(0x000000, 0.35);
+  g.fillRoundedRect(-w / 2 + 8, -h / 2 + 16, w, h, 10);
+  g.fillStyle(0x8d6a4a, 1);
+  g.fillRoundedRect(-w / 2, -h / 2, w, h, 10);
+  g.fillStyle(0xa8815c, 1);
+  g.fillRect(-w / 2, -h / 2, w, 12);
+
+  // Six little crocks: soy, sesame, chili oil, garlic, scallion, vinegar.
+  // Crocks sit on a 52px pitch from x = -118, two rows 48px apart.
+  const sauces = [0x3a2a1e, 0xc9a06a, 0xc03a28, 0xf3ecdc, 0x5e9a45, 0x8a5a3c];
+  const ladles = [];
+  sauces.forEach((s, i) => {
+    const cx = -w / 2 + 32 + (i % 3) * 52;
+    const cy = -h / 2 + 36 + Math.floor(i / 3) * 48;
+    g.fillStyle(0xe8e0d2, 1);
+    g.fillCircle(cx, cy, 21);
+    g.fillStyle(s, 1);
+    g.fillCircle(cx, cy, 15);
+    g.lineStyle(2, 0xb9ae9a, 1);
+    g.strokeCircle(cx, cy, 21);
+    if (!scene) {
+      g.fillStyle(0xc9c3bb, 1);
+      g.fillRect(cx + 12, cy - 30, 5, 26);
+      return;
+    }
+    // Ladle: handle sticking up out of the crock, pivoting at the crock centre.
+    const ladle = scene.add.graphics();
+    ladle.fillStyle(0xc9c3bb, 1);
+    ladle.fillRect(12, -30, 5, 26);
+    ladle.fillCircle(14.5, -30, 4);
+    ladle.setPosition(cx, cy);
+    node.add(ladle);
+    ladles.push(ladle);
+  });
+
+  // Recipe card propped at the right end.
+  const drawCard = (cg, ox, oy) => {
+    cg.fillStyle(0xf5e2b8, 1);
+    cg.fillRoundedRect(ox - 42, oy - 48, 84, 96, 6);
+    cg.lineStyle(2, 0x8a5a3c, 1);
+    cg.strokeRoundedRect(ox - 42, oy - 48, 84, 96, 6);
+    cg.fillStyle(0xb0906a, 1);
+    for (let i = 0; i < 5; i++) cg.fillRect(ox - 32, oy - 30 + i * 15, 64, 4);
+  };
+  if (!scene) { drawCard(g, w / 2 - 54, -h / 2 + 38); return; }
+  const recipe = scene.add.graphics();
+  drawCard(recipe, 0, 0);
+  recipe.setPosition(w / 2 - 54, -h / 2 + 38);
+  node.add(recipe);
+  node.hpParts = { ladles, recipe, sauceColors: sauces };
+}
+
+// 7. The family table — five seats, five individual bowls. The whole point, so
+// it's drawn at full weight: a real table you could sit five people at, not a
+// bench. Everything else in the room is a station; this is the destination.
+function drawFamilyTable(g) {
+  const w = 760;
+  const seatXs = [-288, -144, 0, 144, 288];
+
+  // Five chairs behind the table — only their backs show above the tabletop,
+  // which is what you actually see looking at a set table. (Drawn as stool seats
+  // they read as discs floating over the food.)
+  for (const sx of seatXs) {
+    g.fillStyle(0x6b4632, 1);
+    g.fillRoundedRect(sx - 40, -128, 80, 96, 12);
+    g.fillStyle(0x8a5a3c, 1);
+    g.fillRoundedRect(sx - 33, -121, 66, 82, 9);
+    // Two slats so the back reads as a chair, not a block.
+    g.fillStyle(0x6b4632, 1);
+    g.fillRect(sx - 33, -100, 66, 9);
+    g.fillRect(sx - 33, -76, 66, 9);
+  }
+
+  // Tabletop — chunky slab with a lit front edge.
+  g.fillStyle(0x000000, 0.38);
+  g.fillRoundedRect(-w / 2 + 12, -20, w, 56, 14);
+  g.fillStyle(0x9a6b45, 1);
+  g.fillRoundedRect(-w / 2, -46, w, 92, 16);
+  g.fillStyle(0xb5804f, 1);
+  g.fillRect(-w / 2 + 8, -40, w - 16, 16);
+  g.fillStyle(0x000000, 0.22);
+  g.fillRect(-w / 2 + 8, 20, w - 16, 20);
+  // Plank seams across the top.
+  g.fillStyle(0x83593a, 0.7);
+  for (let i = 1; i < 5; i++) g.fillRect(-w / 2 + i * (w / 5), -46, 3, 92);
+
+  // Legs.
+  g.fillStyle(0x6b4632, 1);
+  g.fillRect(-w / 2 + 46, 46, 28, 78);
+  g.fillRect(w / 2 - 74, 46, 28, 78);
+  g.fillStyle(0x5a3524, 1);
+  g.fillRect(-w / 2 + 46, 116, 28, 10);
+  g.fillRect(w / 2 - 74, 116, 28, 10);
+
+  // Five individual bowls, one per seat, each with its own broth. Individual
+  // bowls is the whole format — there is no shared pot to divide.
+  const broths = [0xc85a4a, 0xd9b070, 0xc85a4a, 0xc03a28, 0xd9b070];
+  broths.forEach((b, i) => {
+    const bx = seatXs[i];
+    g.fillStyle(0x000000, 0.2);
+    g.fillEllipse(bx + 4, 2, 128, 34);
+    g.fillStyle(0xf7f1e6, 1);
+    g.fillEllipse(bx, -10, 132, 58);
+    g.fillStyle(0xe2d9c8, 1);
+    g.fillEllipse(bx, 4, 96, 26);
+    g.fillStyle(b, 1);
+    g.fillEllipse(bx, -24, 110, 36);
+    g.lineStyle(3, 0xb9ae9a, 1);
+    g.strokeEllipse(bx, -24, 110, 36);
+    // Something floating in each bowl so no two look identical.
+    g.fillStyle(i % 2 ? 0xffd15c : 0x5e9a45, 1);
+    g.fillEllipse(bx + (i % 2 ? 20 : -20), -26, 26, 13);
+    // A pair of chopsticks resting across the rim.
+    g.fillStyle(0xd9b382, 1);
+    g.fillRect(bx - 48, -40, 96, 4);
+    g.fillRect(bx - 48, -32, 96, 4);
+  });
+}
+
+// 8. The free ice cream machine — the last stop, and the best part.
+function drawConeMachine(g) {
+  g.fillStyle(0x000000, 0.35);
+  g.fillRoundedRect(-66, 108, 140, 26, 8);
+  // Machine body.
+  g.fillStyle(0xc9c3bb, 1);
+  g.fillRoundedRect(-72, -104, 144, 214, 14);
+  g.fillStyle(0xe4dfd6, 1);
+  g.fillRoundedRect(-64, -96, 128, 76, 10);
+  // Flavour placard — a little cone pictured on it, so it reads as ice cream
+  // rather than a blank white panel.
+  g.fillStyle(0xd9a05b, 1);
+  g.fillRoundedRect(-52, -84, 104, 46, 6);
+  g.fillStyle(0x8a5a3c, 1);
+  g.fillTriangle(-12, -62, 12, -62, 0, -42);
+  g.fillStyle(0xfff6e8, 1);
+  g.fillEllipse(0, -66, 30, 18);
+  g.fillEllipse(0, -74, 20, 14);
+  // Dispensing nozzle + lever.
+  g.fillStyle(0x8f8f9c, 1);
+  g.fillRoundedRect(-22, -14, 44, 34, 6);
+  g.fillRect(-4, 20, 8, 22);
+  g.fillStyle(0x5a5a64, 1);
+  g.fillRoundedRect(26, -10, 12, 46, 5);
+  // A cone waiting under the nozzle, already half-filled.
+  g.fillStyle(0xd9a05b, 1);
+  g.fillTriangle(-24, 56, 24, 56, 0, 106);
+  g.fillStyle(0xb07a3a, 0.5);
+  g.fillTriangle(4, 60, 24, 56, 0, 106);
+  g.fillStyle(0xfff6e8, 1);
+  g.fillEllipse(0, 52, 54, 26);
+  g.fillEllipse(0, 38, 38, 22);
+  // A short stack of spare cones beside it.
+  g.fillStyle(0xd9a05b, 1);
+  g.fillTriangle(52, 62, 74, 62, 63, 104);
+  g.fillTriangle(46, 68, 68, 68, 57, 110);
 }
 
 // ============================================================

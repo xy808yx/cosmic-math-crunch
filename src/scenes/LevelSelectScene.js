@@ -2,7 +2,8 @@
 // cards in front (×, ÷, mixed, boss). Locked modes show a lock icon.
 
 import Phaser from 'phaser';
-import { WORLDS, MODES, progress, findWorld, getWorldMusicRate, getNextVisibleWorldId } from '../GameData.js';
+import { WORLDS, MODES, progress, findWorld, getWorldMusicRate, getNextVisibleWorldId, usesConveyorScene } from '../GameData.js';
+import { CONVEYOR_CHAPTER } from './ConveyorScene.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -15,6 +16,7 @@ import {
   drawStarIcon, drawLockIcon
 } from '../StatIcons.js';
 import { COLORS } from '../colorPalette.js';
+import { hexStr } from '../colorUtils.js';
 
 const W = 1080;
 const H = 1920;
@@ -40,8 +42,11 @@ export class LevelSelectScene extends Phaser.Scene {
     // not silent and it carries seamlessly into GameScene — which fades to the
     // same track and just re-applies the per-world pitch. Chapter 2 prefers its
     // bespoke Inner Space level track, falling back to the Ch1 theme if missing.
-    const CHAPTER_LEVEL_TRACK = { 2: 'innerSpaceLevel', 3: 'makerLevel' };
-    const trackKey = CHAPTER_LEVEL_TRACK[this.world.chapter];
+    // The chapter's level theme comes from the single CONVEYOR_CHAPTER source (also
+    // read by the belt), so this briefing track and the belt handoff can't desync.
+    // Ch1 resolves to 'levelTheme'; Ch2/Ch3 to their bespoke tracks (falling back to
+    // the Ch1 theme until those MP3s ship).
+    const trackKey = CONVEYOR_CHAPTER[this.world.chapter]?.levelTrack;
     const worldSong = trackKey ? music.resolveTrack(this, trackKey, 'levelTheme') : 'levelTheme';
     music.fadeToTrack(this, worldSong);
     music.setPlaybackRate(getWorldMusicRate(this.world.id), 600);
@@ -86,7 +91,7 @@ export class LevelSelectScene extends Phaser.Scene {
 
     this.add.text(W / 2, 145, this.world.name, style('display', {
       fontSize: '76px',
-      fill: '#' + this.world.accentColor.toString(16).padStart(6, '0')
+      fill: hexStr(this.world.accentColor)
     })).setOrigin(0.5).setDepth(15);
 
     const soundBtn = createIconButton(this, {
@@ -152,6 +157,10 @@ export class LevelSelectScene extends Phaser.Scene {
   createMissionCard(x, y, w, h, levelNum, modeKey, stars, isBoss, isLocked, mastered = false) {
     const c = this.add.container(x, y).setDepth(10);
     const accent = isBoss ? COLORS.error : this.world.accentColor;
+    // This is a PILOT belt level — the Ch1/Ch2 "mixed" level rerouted into the
+    // Conveyor by the owner flag (NOT a Ch3 'sort' world, which is natively a belt
+    // and needs no surprise-signal). Used to label the card so it's not a surprise.
+    const isPilotBelt = !isBoss && this.world.kind !== 'sort' && usesConveyorScene(this.world, modeKey);
 
     // Drop shadow
     const shadow = this.add.graphics();
@@ -214,6 +223,15 @@ export class LevelSelectScene extends Phaser.Scene {
         fontSize: '28px',
         fill: '#ff8b8b',
         fontStyle: '900'
+      })).setOrigin(0.5));
+    }
+
+    // Pilot signal (Ch1/Ch2 only — on Ch3 every level is already a belt): show the
+    // chapter's sort verb so tapping "MIXED" → a conveyor isn't a silent surprise.
+    if (isPilotBelt) {
+      const verb = CONVEYOR_CHAPTER[this.world.chapter || 1]?.copy.title || 'SORT & SHIP';
+      c.add(this.add.text(0, 30, verb, style('subhead', {
+        fontSize: '24px', fill: hexStr(accent), fontStyle: '900'
       })).setOrigin(0.5));
     }
 
@@ -387,9 +405,10 @@ export class LevelSelectScene extends Phaser.Scene {
     this.registry.set('currentLevel', levelNum);
     this.registry.set('levelMode', modeKey);
     this.input.enabled = false;
-    // Chapter 3 "Maker Space" worlds (kind: 'sort') run the new Conveyor / Stamp
-    // & Ship scene instead of the falling-asteroid GameScene.
-    const sceneKey = this.world.kind === 'sort' ? 'ConveyorScene' : 'GameScene';
+    // Chapter 3 ("Maker Space", kind: 'sort') runs the Conveyor / Stamp & Ship
+    // scene for every level. As an owner-gated pilot, the Ch1/Ch2 "mixed" level
+    // can also route there (reskinned to its chapter) — see usesConveyorScene.
+    const sceneKey = usesConveyorScene(this.world, modeKey) ? 'ConveyorScene' : 'GameScene';
     new TransitionManager(this).fadeToScene(sceneKey);
   }
 

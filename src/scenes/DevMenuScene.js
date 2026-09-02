@@ -71,14 +71,13 @@ export class DevMenuScene extends Phaser.Scene {
         }
       },
       {
-        // Owner-only gate for the ship-dark Chapter 3 ("Maker Space"). OFF by
-        // default so the live site shows nothing to the kids; flip ON to test it
-        // on this browser. Lives here in Dad's Menu (not the parent dashboard) so
-        // it stays fully out of reach. Restart refreshes the ON/OFF label.
-        label: `Chapter 3 "Maker Space": ${progress.chapter3Enabled ? 'ON' : 'OFF'}`,
-        color: 0xff9800,
+        // Owner-only pilot: route the Ch1/Ch2 "mixed" (×÷) level into the Conveyor
+        // "Stamp & Ship" mode, reskinned to its chapter. OFF by default; per-browser.
+        // Restart refreshes the ON/OFF label.
+        label: `Conveyor "mixed" pilot (Ch1-2): ${progress.conveyorMixedEnabled ? 'ON' : 'OFF'}`,
+        color: 0xffb142,
         onClick: () => {
-          progress.setChapter3Enabled(!progress.chapter3Enabled);
+          progress.setConveyorMixedEnabled(!progress.conveyorMixedEnabled);
           this.scene.restart();
         }
       },

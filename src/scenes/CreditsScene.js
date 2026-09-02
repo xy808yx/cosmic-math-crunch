@@ -364,6 +364,67 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   // ============================================================
+  // HOMEWARD OUTRO (after the Chapter 2 hero card, ONLY when Maker Space is
+  // enabled) — the on-ramp into Chapter 3.
+  //
+  // This is deliberately NOT a cliffhanger. Chapter 1 ended by opening a threat
+  // ("the dark did not leave. It SHRANK") because Chapter 2 was more story. The
+  // story is DONE here: Patient Zero is beaten, the last shadow let go, and the
+  // hero card has already landed. So this coda closes the conflict out loud
+  // ("nothing left to fight") and opens a DOOR instead of a wound — the journey
+  // home. Maker Space is where you've stopped fighting, not where you fight next.
+  // ============================================================
+  showHomewardOutro() {
+    const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1208, 1).setDepth(80);
+    wash.alpha = 0;
+    this.tweens.add({ targets: wash, alpha: 0.94, duration: 1400, ease: 'Quad.easeIn' });
+
+    const lines = [
+      { t: 'And that was the last of it.', size: 42, fill: '#fff3b8', y: 0.26, delay: 700 },
+      { t: 'Nothing left to fight.\nNot out in the stars. Not down in the smallest cell.', size: 34, fill: '#ffe0a0', y: 0.38, delay: 2600 },
+      { t: 'But you are a long way from home,\nand the light you switched back on\nis waiting for you there.', size: 36, fill: '#ffd27a', y: 0.55, delay: 5000 },
+      { t: 'Find the WARM GATE beside THE SINGULARITY CELL\nand take the long way home.', size: 30, fill: '#9be86b', y: 0.72, delay: 7800 }
+    ];
+    lines.forEach(l => {
+      const txt = this.add.text(W / 2, H * l.y, l.t, style('display', {
+        fontSize: `${l.size}px`, fill: l.fill, align: 'center',
+        stroke: '#0a0a1a', strokeThickness: 4, wordWrap: { width: W - 120 }
+      })).setOrigin(0.5).setDepth(85);
+      txt.alpha = 0; txt.setScale(0.92);
+      this.time.delayedCall(l.delay, () => {
+        audio.playMatch?.();
+        this.tweens.add({ targets: txt, alpha: 1, scale: 1, duration: 800, ease: 'Back.easeOut' });
+      });
+    });
+
+    // A warm lamp glyph (plain concentric circles — no rays / spiral / sigil),
+    // the daylight answer to the cliffhanger outro's cold portal rings.
+    this.time.delayedCall(6200, () => {
+      const g = this.add.graphics().setDepth(84);
+      g.x = W / 2; g.y = H * 0.65;
+      g.fillStyle(0xffd27a, 0.16); g.fillCircle(0, 0, 40);
+      g.lineStyle(4, 0xffd27a, 0.9); g.strokeCircle(0, 0, 26);
+      g.fillStyle(0xfff3b8, 0.95); g.fillCircle(0, 0, 10);
+      g.alpha = 0;
+      this.tweens.add({ targets: g, alpha: 1, duration: 600 });
+      this.tweens.add({
+        targets: g, scale: { from: 1, to: 1.25 }, alpha: { from: 1, to: 0.55 },
+        duration: 1800, repeat: -1, yoyo: true, ease: 'Sine.easeInOut'
+      });
+    });
+
+    this.time.delayedCall(10200, () => {
+      const btn = createButton(this, {
+        x: W / 2, y: H - 180, label: 'Head home',
+        width: 380, height: 100, color: 0xffd27a,
+        onClick: () => this.exitFinale()
+      });
+      btn.setDepth(88); btn.alpha = 0;
+      this.tweens.add({ targets: btn, alpha: 1, duration: 800 });
+    });
+  }
+
+  // ============================================================
   // HOMECOMING OUTRO (Chapter 3 / World 38) — the warm daylight payoff.
   // After the cards, a teal→gold→green DAWN gradient floods in (a plain
   // daylight reveal — NO spiral/wormhole, per the content rule), the Great
@@ -767,11 +828,13 @@ export class CreditsScene extends Phaser.Scene {
     // "Onward" button arrives at ~33s, landing right as the 52s song
     // resolves (cards 14s + evolution 4s + this 33s ≈ 51s).
     this.time.delayedCall(33000, () => {
+      // The hero card is not the last beat: a short homeward coda follows it
+      // (see showHomewardOutro), which is the on-ramp into Maker Space.
       const btn = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100,
         color: 0xfbbf24,
-        onClick: () => this.exitFinale()
+        onClick: () => this.showHomewardOutro()
       });
       btn.setDepth(75);
       btn.alpha = 0;

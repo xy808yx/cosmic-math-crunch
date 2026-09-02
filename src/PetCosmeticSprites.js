@@ -586,11 +586,65 @@ function driedMango() {
   ], { O, m, d, h }];
 }
 
+// Free Cone — a soft-serve vanilla swirl in a plain cake cone. Earned at the
+// ice cream machine on the way out of the hidden "Hot Pot Time" line (W19).
+// Deliberately distinct from the shop's `acc_icecream` (a pink scoop with
+// chocolate drips): this one is the tall white swirl you get for free.
+function freeCone() {
+  const s = 0xfff6e8, h = 0xffffff, m = 0xe8d5bb, c = 0xd9a05b, k = 0xb07a3a;
+  return [[
+    '.....OO.....',
+    '....OshO....',
+    '....OsshO...',
+    '...OsshhO...',
+    '...OssshhO..',
+    '..OsssshhO..',
+    '..OmsssshO..',
+    '.OmsssssshO.',
+    '.OmmssssshO.',
+    '..OOOOOOOO..',
+    '..OccccckO..',
+    '...OcccckO..',
+    '....OcckO...',
+    '.....OckO...',
+    '.....OkO....',
+    '......O.....'
+  ], { O, s, h, m, c, k }];
+}
+
+// Night Noodles — a cup of instant noodles, lid off, still steaming. The trophy
+// for clearing the hidden Night Shift (W20). Tapered cup so it reads as the
+// styrofoam cup rather than the shop's takeout box, and the noodle mound sits
+// proud of the rim so it's legible at pet scale.
+function nightNoodles() {
+  const n = 0xf2d98a, c = 0xf7f2e6, b = 0xc8402e, w = 0xffffff, l = 0xfaeec0;
+  return [[
+    '............',
+    '...OnnnnO...',
+    '..OnnlnnlO..',
+    '..OnnnnnnO..',
+    '.OOOOOOOOOO.',
+    '.OccccccccO.',
+    '.OccccccccO.',
+    '.ObbbbbbbbO.',
+    '.ObbwwwwbbO.',
+    '.ObbbbbbbbO.',
+    '.OccccccccO.',
+    '..OccccccO..',
+    '..OccccccO..',
+    '...OccccO...',
+    '...OOOOOO...',
+    '............'
+  ], { O, n, c, b, w, l }];
+}
+
 // `hat_*` drawer ids are preserved because they're what player saves reference.
 const ACC_DRAWERS = {
   acc_shades: shades,
   acc_dad_glasses: dadGlasses,
   acc_dried_mango: driedMango,
+  acc_free_cone: freeCone,
+  acc_noodles: nightNoodles,
   hat_strawberry: strawberryHat,
   hat_banana: bananaHat,
   hat_avocado: avocadoHat,

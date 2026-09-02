@@ -12,7 +12,7 @@ themes, so it's never silent.
 ## Chapter 1 (present)
 home-theme.mp3 · levels.mp3 · boss-fight.mp3 · dads-garage.mp3 · credits.mp3
 
-## Chapter 2 "Inner Space" — STILL NEEDED (4 tracks)
+## Chapter 2 "Inner Space" (present)
 
 Aesthetic: **Chrono Trigger** (Yasunori Mitsuda / Nobuo Uematsu, SNES SPC) — melody-
 forward, lush sampled orchestra, the same era/idiom as the Chapter 1 music. Suno
@@ -39,7 +39,7 @@ Style box:
 
 > King Coli (secret boss, W17) needs no track — it reuses `inner-space-boss` pitched up.
 
-## Chapter 3 "Maker Space" — STILL NEEDED (3 tracks)
+## Chapter 3 "Maker Space" — STILL NEEDED (4 tracks)
 
 Aesthetic: the **homecoming** chapter — warm, daytime, hand-built. Same 16-bit SNES JRPG
 idiom as Ch1/Ch2, but the mood matures from *defend → heal → MAKE*: cozy workshop, sunlit,
@@ -60,5 +60,13 @@ NOT a monster fight — a *big rush order before the truck leaves*: urgent but P
 Style box:
 `16-bit SNES JRPG upbeat time-pressure theme, driving up-tempo marimba and brass fanfare, busy hand percussion and ticking clock, rising triumphant build, exciting but warm and non-threatening (a deadline, not a battle), instrumental, ~146 BPM`
 
+### 4. `hot-pot.mp3` → key `hotPotTheme`  (the hidden Hot Pot Time room, W19)
+The Chapter 3 counterpart to `dads-garage` and `playground`: a secret room has its own
+theme, not the chapter's. Warm and communal rather than industrious — a full table, not
+a workbench. Until this file exists the room falls back to the garage track.
+Style box:
+`16-bit SNES JRPG warm gathering-place theme, bustling but cozy, plucked strings and gentle woodblock, mellow flute and clarinet trading a simple melody, soft hand percussion, steam-and-chatter warmth, generous and unhurried, instrumental, ~84 BPM`
+
 > The W38 "Great Lighthouse" finale reuses `maker-boss` (pitched per world); the homecoming
-> credits cinematic reuses `creditsSong`.
+> credits cinematic reuses `creditsSong`. The hidden Night Shift (W20) deliberately reuses
+> `maker-boss` too — it is a deadline, not a new place.

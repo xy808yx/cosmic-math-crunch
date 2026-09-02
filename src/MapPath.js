@@ -127,8 +127,19 @@ export const HIDDEN_NODE_POSITIONS = {
   17: { x: 880, y: 790 },  // The Royal Flush (King Coli) — branches up-right from
                            // its host Neuron Forest (660, 1040) into the open
                            // pocket under Mitochondria Core (860, 560).
-  18: { x: 230, y: 700 }   // Recess — branches up-left of its host Immune Front
+  18: { x: 230, y: 700 },  // Recess — branches up-left of its host Immune Front
                            // (560, 720), into the open left pocket below Marrow Caverns.
+  // --- Chapter 3 secrets (positions are on the CH3 map) ---
+  20: { x: 948, y: 810 },  // The Night Shift — branches down-right of its host
+                           // Harbor Bridgeworks (860, 560), into the open right
+                           // pocket above Toy Railyard (840, 1220). Pulled in from
+                           // the Glitch node's x (970) because this name is longer:
+                           // at 975 the label ran 2px off the canvas. The label
+                           // clamp in WorldMapScene is the real guard; this keeps
+                           // the label naturally centred under its node.
+  19: { x: 230, y: 700 }   // Hot Pot Time — branches up-left of its host Crunch
+                           // Cafe (560, 720) into the same open left pocket the
+                           // Ch2 map uses (CH2/CH3 share their node coordinates).
 };
 
 // Host world id each hidden world is connected to. Used to draw the dashed
@@ -139,7 +150,9 @@ export const HIDDEN_HOST_INDEX = {
   15: 4,  // W5  (CH1 index 4)
   16: 8,  // W9  (CH1 index 8)
   17: 3,  // W24 Neuron Forest (CH2 index 3)
-  18: 5   // W26 Immune Front  (CH2 index 5)
+  18: 5,  // W26 Immune Front  (CH2 index 5)
+  19: 5,  // W36 Crunch Cafe   (CH3 index 5)
+  20: 6   // W37 Harbor Bridgeworks (CH3 index 6)
 };
 
 // Control point for the quadratic-Bezier arc that connects a host world to a
