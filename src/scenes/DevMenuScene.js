@@ -1,6 +1,7 @@
 // Parent / dev menu. Hidden behind a long-press + corner-tap combo from the
-// world map (see WorldMapScene). Lets Dad: replay the endgame credits, jump
-// to any world, unlock cosmetics, reset progress.
+// world map (see WorldMapScene). Lets Dad: max the pet and shop, replay any
+// chapter finale, flip the conveyor pilot, open every world (with or without
+// stars), and wipe progress. Kept to one flat stack that fits a phone screen.
 
 import Phaser from 'phaser';
 import { progress, HIDDEN_WORLDS } from '../GameData.js';
@@ -32,7 +33,7 @@ export class DevMenuScene extends Phaser.Scene {
       strokeThickness: 4
     })).setOrigin(0.5);
 
-    this.add.text(W / 2, 220, '(shh — kids can\'t see this)', style('caption', {
+    this.add.text(W / 2, 220, '(shh, kids can\'t see this)', style('caption', {
       fontSize: '22px',
       fill: '#9a9aae'
     })).setOrigin(0.5);
@@ -82,32 +83,23 @@ export class DevMenuScene extends Phaser.Scene {
         }
       },
       {
-        label: 'Open Arcade menu',
-        color: 0x4ecdc4,
-        onClick: () => new TransitionManager(this).fadeToScene('ArcadeMenuScene')
-      },
-      {
-        label: 'Mark hidden worlds discovered',
-        color: 0x39ff14,
-        onClick: () => {
-          for (const h of HIDDEN_WORLDS) progress.discoverHiddenWorld(h.id);
-          this.flashToast('Hidden worlds revealed.');
-        }
-      },
-      {
-        label: 'Unlock all visible worlds',
+        // One button for "let me see everything": every visible world unlocked
+        // and every secret room revealed, with no stars awarded, so nothing is
+        // spoiled for the kid. Clearing levels (below) is the stronger step.
+        label: 'Unlock every world (+secrets)',
         color: 0x10b981,
         onClick: () => {
           progress.unlockAllVisibleWorlds();
-          this.flashToast('All worlds unlocked.');
+          for (const h of HIDDEN_WORLDS) progress.discoverHiddenWorld(h.id);
+          this.flashToast('Every world unlocked, secrets revealed.');
         }
       },
       {
-        label: 'Clear ALL levels (+portal +Ch.2)',
+        label: 'Clear ALL levels (every chapter)',
         color: 0x7dffd0,
         onClick: () => {
           progress.devClearAllWorlds();
-          this.flashToast('All levels cleared — portal + Chapter 2 open.');
+          this.flashToast('All levels cleared. Every chapter open.');
         }
       },
       {
@@ -195,7 +187,7 @@ export class DevMenuScene extends Phaser.Scene {
       fontSize: '40px',
       fill: '#ffffff'
     })).setOrigin(0.5));
-    card.add(this.add.text(0, -60, 'Stars, worlds, pet, ship, cosmetics — all gone.', style('caption', {
+    card.add(this.add.text(0, -60, 'Stars, worlds, pet, ship, cosmetics. All gone.', style('caption', {
       fontSize: '22px',
       fill: '#cfcfe0',
       align: 'center'
