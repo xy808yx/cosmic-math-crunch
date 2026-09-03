@@ -155,41 +155,50 @@ export function createInnerSpaceBase(scene, opts = {}) {
   return { base, glow, membrane };
 }
 
-// Chapter 3 "Maker Space" map base — the warm daytime homecoming replacement for
-// the cosmic starfield and the living-body interior. Deliberately NO white stars
-// and NO shooting stars: a warm dusk-to-workshop gradient, a hearth glow welling
-// up from the floor, and one slow drifting pool of daylight ("sun through the
-// workshop window"). Plain soft shapes only — no rays/sunburst (content rule).
-// Drawn behind everything (depth -10 / -9); warm motes are layered on top by
-// WorldAmbience.createMapAmbience.
-export function createMakerSpaceBase(scene, opts = {}) {
+// Chapter 3 "Home Ground" map base: one summer Saturday, the daytime
+// replacement for the cosmic starfield and the living-body interior.
+// Deliberately NO white stars and NO shooting stars: a soft sky gradient (pale
+// morning blue up top, warm cream down at the ground), a warm glow welling up
+// from the bottom like sunlit pavement, a soft sun cast from the upper corner,
+// and one slow drifting pool of daylight that gently breathes. Plain soft
+// shapes only, no rays or sunburst (content rule). Drawn behind everything
+// (depth -10 / -9); the warm drifting motes and the edge vignette are layered
+// on top by WorldAmbience.createMapAmbience. The 28px node labels keep their
+// dark stroke, which is what carries them on a light ground.
+export function createHomeGroundBase(scene, opts = {}) {
   const { width = W_DEFAULT, height = H_DEFAULT } = opts;
 
-  // B1 — warm dusk-to-workshop vertical gradient, darker than any per-node
-  // background so the world nodes always read on top.
+  // B1: the sky, in two stacked bands so it reads as a real one. Morning blue
+  // at the top fades to a pale haze around the middle of the map, and the haze
+  // warms to cream at the bottom, where the day's first stops sit.
   const base = scene.add.graphics().setDepth(-10);
-  base.fillGradientStyle(0x161024, 0x161024, 0x3a2a14, 0x3a2a14, 1);
-  base.fillRect(0, 0, width, height);
+  const split = Math.round(height * 0.55);
+  base.fillGradientStyle(0x9ccfee, 0x9ccfee, 0xd2e8f3, 0xd2e8f3, 1);
+  base.fillRect(0, 0, width, split);
+  base.fillGradientStyle(0xd2e8f3, 0xd2e8f3, 0xf4e3c4, 0xf4e3c4, 1);
+  base.fillRect(0, split, width, height - split);
 
-  // B2 — hearth glow welling up from the workshop floor + a soft daylight cast
-  // from the upper corner. Keeps the centre dim for label contrast.
+  // B2: warm ground glow welling up from the bottom edge, plus a soft sun cast
+  // from the upper-left corner. Both are plain ellipses, no rays.
   const glow = scene.add.graphics().setDepth(-9);
-  glow.fillStyle(0xc8862e, 0.18);
+  glow.fillStyle(0xffd9a0, 0.28);
   glow.fillEllipse(width / 2, height + height * 0.26, width * 1.5, height * 0.9);
-  glow.fillStyle(0xffd27a, 0.06);
+  glow.fillStyle(0xfff6d8, 0.16);
   glow.fillEllipse(width * 0.3, -height * 0.08, width * 1.2, height * 0.5);
 
-  // B3 — a slow drifting pool of warm daylight that gently breathes, the signature
-  // "we've come home, it's daytime" cue (no rays — a plain soft ellipse).
+  // B3: a slow drifting pool of daylight that gently breathes, the "it is
+  // daytime and nothing is chasing you" cue carried over from the shipped
+  // chapter (a plain soft ellipse, no rays). Runs a touch stronger than it did
+  // on the old dark base so it still shows against a pale sky.
   const daylight = scene.add.graphics().setDepth(-9);
-  daylight.fillStyle(0xffe6b0, 1);
+  daylight.fillStyle(0xfffaf0, 1);
   daylight.fillEllipse(0, 0, width * 0.9, height * 0.5);
   daylight.x = width * 0.62;
   daylight.y = height * 0.34;
-  daylight.setAlpha(0.05);
+  daylight.setAlpha(0.10);
   scene.tweens.add({
     targets: daylight,
-    x: width * 0.4, alpha: 0.09, scaleX: 1.06, scaleY: 1.04,
+    x: width * 0.4, alpha: 0.18, scaleX: 1.06, scaleY: 1.04,
     duration: 9000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
   });
 

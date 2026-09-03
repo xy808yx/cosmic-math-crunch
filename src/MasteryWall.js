@@ -1,4 +1,4 @@
-// Mastery Wall — the Chapter 3 "Maker Space" garden.
+// Mastery Wall: the Chapter 3 "Home Ground" garden.
 //
 // The runner-up "Grid Gardens" mode contributed exactly one asset to the build:
 // a persistent, at-a-glance display of which multiplication facts the kid has
@@ -124,7 +124,7 @@ export function drawMasteryWall(scene, x, y, opts = {}) {
     fontSize: '40px', fill: '#ffe6b0'
   })).setOrigin(0.5));
   const sub = stats.attempted === 0
-    ? 'Plant your first bloom — keep playing!'
+    ? 'Plant your first bloom. Keep playing!'
     : `${stats.automatic} blooms open` + (rustySet.size ? `  ·  ${rustySet.size} need water` : '');
   cont.add(scene.add.text(0, -panelH / 2 + 70, sub, style('caption', {
     fontSize: '22px', fill: '#cfcfe0'

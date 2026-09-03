@@ -1290,7 +1290,7 @@ export class HiddenWorldScene extends Phaser.Scene {
   // The self-serve, individual-bowl hot pot line the family actually eats at.
   // Laid out top-to-bottom in the REAL order of the place, because that order IS
   // Chapter 3's own mechanic: you walk a line collecting things, hand them over a
-  // counter, take a number, and it comes back made. Stamp & Ship, for dinner.
+  // counter, take a number, and it comes back made. Pack & Go, for dinner.
   //
   // Art rules (project): warm amber palette, plain shapes only, individual round
   // bowls (never a divided shared pot), steam as soft plain ellipses — no rays,
@@ -1393,7 +1393,7 @@ export class HiddenWorldScene extends Phaser.Scene {
       color: 0x9a9aae,
       textOverrides: { fontSize: '24px', fill: '#ffffff' },
       onClick: () => {
-        music.fadeToTrack(this, music.resolveTrack(this, 'makerHome', 'homeTheme'));
+        music.fadeToTrack(this, music.resolveTrack(this, 'homeGroundHome', 'homeTheme'));
         this.scene.start('WorldMapScene');
       }
     });
@@ -2866,10 +2866,11 @@ export function drawHotPotNode(scene, x, y, R) {
   return c;
 }
 
-// The Night Shift map node (W20) — the workshop from the outside, after dark:
-// a black shopfront with exactly one window still lit. Reads at node scale
-// because it's one bright square in a dark block, and it says the thing the room
-// is about without a symbol: somebody is still in there working.
+// The Night Shift map node (W20): the grocery store (world 31) seen from outside
+// after closing. A dark storefront with exactly one window still lit. Reads at
+// node scale because it's one bright square in a dark block, and it says the
+// thing the room is about without a symbol: somebody is still in there
+// restocking.
 export function drawNightShiftNode(scene, x, y, R) {
   const c = scene.add.container(x, y);
   const cleared = progress.isHiddenWorldCleared(20);

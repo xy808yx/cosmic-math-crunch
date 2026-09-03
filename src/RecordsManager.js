@@ -21,7 +21,7 @@ function todayString() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-// Conveyor (Chapter 3 "Stamp & Ship") instrumentation. Keyed by input mode so the
+// Conveyor (Chapter 3 "Pack & Go") instrumentation. Keyed by input mode so the
 // owner can resolve the production-vs-recognition A/B from real timing data
 // (Phase 6). Per mode we keep the correct-answer recall-time distribution
 // (buckets) so "fast but not retrieving" clustering is visible; recognition also
@@ -229,7 +229,7 @@ class RecordsManager {
     return Math.round(this.paceMs || 0);
   }
 
-  // ── Conveyor (Stamp & Ship) instrumentation ───────────────────────────────
+  // ── Conveyor (Pack & Go) instrumentation ───────────────────────────────
   // Record one CORRECT crate's recall time, bucketed for the dashboard. Only
   // correct answers carry recall-speed signal (mirrors recordAnswer/factMastery).
   recordConveyorTiming(mode, elapsedMs) {

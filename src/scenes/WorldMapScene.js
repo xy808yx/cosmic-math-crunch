@@ -11,7 +11,7 @@ import {
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
-import { createStarfield, createInnerSpaceBase, createMakerSpaceBase } from '../starfieldHelper.js';
+import { createStarfield, createInnerSpaceBase, createHomeGroundBase } from '../starfieldHelper.js';
 import { playWormholeCinematic } from '../WormholeCinematic.js';
 import { createIconButton, createPetPortraitButton, createButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
@@ -28,6 +28,7 @@ import { drawWorldNode } from '../WorldNodeArt.js';
 import { drawGlitchPlanetNode, drawGarageNode, drawKingColiNode, drawPlaygroundNode, drawHotPotNode, drawNightShiftNode } from './HiddenWorldScene.js';
 import { createMapAmbience } from '../WorldAmbience.js';
 import { drawMasteryWall } from '../MasteryWall.js';
+import { paper, ink } from '../homeGround/paper.js';
 import {
   drawSparkleIcon, drawStarIcon,
   drawGearIcon, drawShoppingBagIcon, drawHelmetIcon, drawSoundIcon
@@ -84,16 +85,16 @@ export class WorldMapScene extends Phaser.Scene {
     // and returns from levels glide rather than hard-cut.
     let mapMusic = 'homeTheme';
     if (this.currentChapter === 2) mapMusic = music.resolveTrack(this, 'innerSpaceHome', 'homeTheme');
-    else if (this.currentChapter === 3) mapMusic = music.resolveTrack(this, 'makerHome', 'homeTheme');
+    else if (this.currentChapter === 3) mapMusic = music.resolveTrack(this, 'homeGroundHome', 'homeTheme');
     music.fadeToTrack(this, mapMusic);
 
     // Backdrop: cold cosmic starfield for Outer Space, warm breathing living
-    // interior for Inner Space, warm daytime workshop for Maker Space — so no two
+    // interior for Inner Space, a summer Saturday sky for Home Ground, so no two
     // chapters ever look alike.
     if (this.currentChapter === 2) {
       createInnerSpaceBase(this, { width: W, height: H });
     } else if (this.currentChapter === 3) {
-      createMakerSpaceBase(this, { width: W, height: H });
+      createHomeGroundBase(this, { width: W, height: H });
     } else {
       createStarfield(this, { width: W, height: H, accentStrength: 0 });
     }
@@ -112,7 +113,7 @@ export class WorldMapScene extends Phaser.Scene {
     this.createShipOnActiveWorld();
     this.createBottomChrome();
     this.createTuneUpNudge();
-    this.maybeShowMakerWelcome();
+    this.maybeShowHomeGroundWelcome();
 
     // Warp arrival (from the warp asteroid) takes precedence over the
     // normal auto-advance flow. If a warp arrival is in flight, still
@@ -280,9 +281,10 @@ export class WorldMapScene extends Phaser.Scene {
     const chipW = 240;
     const gap = 32;
 
-    // Chapter 3 "Maker Space" adds a Mastery Garden chip — the persistent
-    // bloom display of automatic facts (the Grid Gardens graft), reachable from
-    // the map as well as between rounds.
+    // Chapter 3 "Home Ground" adds a Mastery Garden chip: the persistent bloom
+    // display of automatic facts (the Grid Gardens graft), reachable from the
+    // map as well as between rounds. The garden name stays even though world 32
+    // is a real garden now; it is a metaphor the kid already knows.
     const chips = [
       {
         field: 'starsChip',
@@ -692,7 +694,7 @@ export class WorldMapScene extends Phaser.Scene {
     });
 
     const subtitle = fullyCleared
-      ? 'World cleared — replay any mission'
+      ? 'World cleared. Replay any mission'
       : world.description;
     this.add.text(W / 2, 1820, subtitle, style('body', {
       fontSize: '38px',
@@ -863,23 +865,28 @@ export class WorldMapScene extends Phaser.Scene {
           onTap: () => this.warpToChapter(1)
         });
       }
-      // Forward gate → Chapter 3 (Maker Space), beside the Singularity Cell (the
+      // Forward gate → Chapter 3 (Home Ground), beside the Singularity Cell (the
       // top-center node), gated on the grand finale (World 28) being cleared.
-      // Surfacing back OUT from the smallest speck to human scale, coming home.
+      // Surfacing back OUT from the smallest speck to human scale, coming home
+      // to one Saturday around the family's own city. Keeps the chapter's gold.
       if (progress.isWorldFullyCleared(CHAPTER2_FINAL_ID)) {
         const host = this.nodePositions[this.nodePositions.length - 1]; // World 28
         const gate = { x: 220, y: 470 };
         this.drawHiddenBranch(host, gate, 0xffd27a);
         this.buildGateNode(gate, {
-          accent: 0xffd27a, core: 0xfff3b8, inward: false, label: 'MAKER SPACE',
+          accent: 0xffd27a, core: 0xfff3b8, inward: false, label: 'HOME GROUND',
           onTap: () => this.warpToChapter(3)
         });
       }
     } else {
-      // Chapter 3 (Maker Space): return gate → Chapter 2 (back inward to the body).
+      // Chapter 3 (Home Ground): return gate → Chapter 2 (back inward to the body).
       const back = this.nodePositions[0];
       if (!back) return;
-      const gate = { x: 180, y: 1300 };
+      // Sits in the bottom-left pocket above The Grocery Store. The paper-cutout
+      // node is taller than the old lantern, and the ship's YOU ARE HERE pill
+      // parks about 105px above the node, so the gate and its label live at
+      // y 1195 (label near 1295) to clear both, and below The Big Store's label.
+      const gate = { x: 150, y: 1195 };
       this.drawHiddenBranch(back, gate, 0xff7a8a);
       this.buildGateNode(gate, {
         accent: 0xff7a8a, core: 0xffcf6b, inward: true, label: 'INNER SPACE',
@@ -1000,21 +1007,21 @@ export class WorldMapScene extends Phaser.Scene {
     // its first world; surfacing/returning parks at the finale gate they left
     // from (not all the way back at the chapter's start).
     let parkId;
-    if (target === 3) parkId = getChapterWorlds(3)[0]?.id;            // → Maker Space start
+    if (target === 3) parkId = getChapterWorlds(3)[0]?.id;            // → Home Ground start
     else if (target === 2) parkId = this.currentChapter === 3
-      ? CHAPTER2_FINAL_ID                                             // back from Maker → the finale gate
+      ? CHAPTER2_FINAL_ID                                             // back from Home Ground → the finale gate
       : getChapterWorlds(2)[0]?.id;                                   // in from Outer → Inner Space start
     else parkId = CHAPTER1_FINAL_ID;                                  // back to the surface (World 11 gate)
     if (parkId != null) this.registry.set('shipParkedWorldId', parkId);
 
     // Direction by scale: Inner Space (2) is the innermost, Outer (1) the
-    // outermost, Maker (3) human-scale in between. Diving toward a more-inward
+    // outermost, Home Ground (3) human-scale in between. Diving toward a more-inward
     // chapter plays 'in'; surfacing toward a more-outward one plays 'out'. The
     // cinematic restarts the scene under its opaque hold, so the rebuilt map
     // fades in seamlessly.
     const inwardRank = { 1: 0, 3: 1, 2: 2 };
     const dir = inwardRank[target] > inwardRank[this.currentChapter] ? 'in' : 'out';
-    // Entering Maker Space (Chapter 3) is the homecoming — recolor the dive warm
+    // Entering Home Ground (Chapter 3) is the homecoming: recolor the dive warm
     // daylight. Leaving it (back toward the body) keeps the default cosmic↔body bridge.
     const opts = target === 3 ? { palette: 'homecoming' } : {};
     playWormholeCinematic(this, dir, () => {
@@ -1024,23 +1031,26 @@ export class WorldMapScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // MAKER SPACE ARRIVAL CARD — the premise beat for Chapter 3.
+  // HOME GROUND ARRIVAL CARD: the premise beat for Chapter 3.
   //
   // The Ch1→Ch2 seam is loud (the Void cracks open and pulls you inward). The
   // Ch2→Ch3 seam was silent: the homecoming dive played, the map recoloured, and
-  // the mode quietly changed from dodging asteroids to a calm conveyor with no
-  // explanation. A kid reads an unexplained genre change as "different game", not
-  // "next chapter". This card is the missing sentence: the fighting is over, and
-  // that is WHY the belt is calm — nothing here is chasing you.
+  // the mode quietly changed from dodging asteroids to a calm line with no
+  // explanation. A kid reads an unexplained genre change as "different game",
+  // not "next chapter". This card is the missing sentence: the fighting is
+  // over, this is one Saturday around home, and that is WHY the line is calm.
   //
-  // Fires once ever (progress.makerWelcomeSeen), on the first Chapter 3 map build.
+  // Fires once ever (progress.homeGroundWelcomeSeen), on the first Chapter 3
+  // map build after the Home Ground rework. The older makerWelcomeSeen flag is
+  // left in saves untouched, so a kid who saw the old card sees this one once
+  // as well. The body copy is a narrator placeholder until J writes
+  // his own lines.
   // ============================================================
-  maybeShowMakerWelcome() {
+  maybeShowHomeGroundWelcome() {
     if (this.currentChapter !== 3) return;
-    if (progress.makerWelcomeSeen) return;
+    if (progress.homeGroundWelcomeSeen) return;
 
-    progress.makerWelcomeSeen = true;
-    progress.save();
+    progress.markHomeGroundWelcomeSeen();
 
     const root = this.add.container(0, 0).setDepth(400);
     // Deep, near-opaque so the map behind never competes with the type (the map's
@@ -1054,27 +1064,45 @@ export class WorldMapScene extends Phaser.Scene {
     card.setScale(0.7); card.alpha = 0;
     root.add(card);
 
-    // Warm lamp glyph (plain concentric circles — no rays / spiral / sigil).
-    const lamp = this.add.graphics();
-    lamp.fillStyle(0xffd27a, 0.14); lamp.fillCircle(0, -300, 66);
-    lamp.lineStyle(5, 0xffd27a, 0.9); lamp.strokeCircle(0, -300, 42);
-    lamp.fillStyle(0xfff3b8, 0.95); lamp.fillCircle(0, -300, 16);
-    card.add(lamp);
+    // Paper-cutout gondola cabin hanging from a short wire: the chapter's one
+    // big image (the ride up the mountain at dusk) in plain shapes. A rounded
+    // rect body in awning red, a darker roof cap, a pale window strip, and the
+    // same shapes drawn first in black at 0.22, pushed down and right, for the
+    // hard paper shadow. Plain shapes only, no rays, no spiral.
+    const cabin = this.add.graphics();
+    const CY = -300;
+    // The wire is a thin stroke, the one kind of line the cutout style allows.
+    cabin.lineStyle(4, 0xe8dcc4, 0.9);
+    cabin.lineBetween(-120, CY - 92, 120, CY - 92);
+    paper(cabin, 4, 6, (g, shadow) => {
+      ink(g, shadow, 0x9c2f26); g.fillRoundedRect(-16, CY - 102, 32, 18, 6);   // grip on the wire
+      ink(g, shadow, 0x9c2f26); g.fillRoundedRect(-6, CY - 92, 12, 48, 4);     // hanger arm
+      ink(g, shadow, 0xe8594a); g.fillRoundedRect(-50, CY - 44, 100, 78, 16);  // cabin body
+      ink(g, shadow, 0xb8392e); g.fillRoundedRect(-56, CY - 50, 112, 20, 8);   // roof cap
+      ink(g, shadow, 0xfff8e7); g.fillRoundedRect(-36, CY - 22, 72, 24, 7);    // window strip
+      ink(g, shadow, 0xe8594a); g.fillRect(-3, CY - 22, 6, 24);                // window post
+    });
+    // One white highlight, a glint along the roof cap.
+    cabin.fillStyle(0xffffff, 0.5);
+    cabin.fillRoundedRect(-46, CY - 47, 26, 5, 2);
+    card.add(cabin);
 
-    card.add(this.add.text(0, -180, 'MAKER SPACE', style('display', {
+    card.add(this.add.text(0, -180, 'HOME GROUND', style('display', {
       fontSize: '72px', fill: '#ffd27a', fontStyle: '900',
       stroke: '#1a1208', strokeThickness: 5
     })).setOrigin(0.5));
     card.add(this.add.text(0, -105, 'You made it home.', style('subhead', {
       fontSize: '38px', fill: '#9be86b'
     })).setOrigin(0.5));
-    card.add(this.add.text(0, 20,
-      'No more fighting. No more dark to chase.\nJust a warm workshop and things to make.',
+    // Narrator placeholder for J's words: second person, three short lines,
+    // each under 40 characters so nothing wraps at 34px inside 860px.
+    card.add(this.add.text(0, 12,
+      'No more fighting. No more dark to chase.\nJust one Saturday, close to home,\nand a ride up the mountain by dark.',
       style('body', {
         fontSize: '34px', fill: '#fff3b8', align: 'center',
         lineSpacing: 12, wordWrap: { width: W - 220 }
       })).setOrigin(0.5));
-    card.add(this.add.text(0, 140, 'Take your time.\nNothing here is chasing you.', style('body', {
+    card.add(this.add.text(0, 168, 'Take your time.\nNothing here is chasing you.', style('body', {
       fontSize: '30px', fill: '#e8e8d0', align: 'center', lineSpacing: 10
     })).setOrigin(0.5));
 
@@ -1092,7 +1120,7 @@ export class WorldMapScene extends Phaser.Scene {
     };
     this.time.delayedCall(1200, () => {
       const btn = createButton(this, {
-        x: W / 2, y: H - 300, label: 'Get to work',
+        x: W / 2, y: H - 300, label: "Let's go",
         width: 380, height: 100, color: 0x4f8a3a,
         onClick: finish
       });

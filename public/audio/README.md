@@ -39,26 +39,31 @@ Style box:
 
 > King Coli (secret boss, W17) needs no track — it reuses `inner-space-boss` pitched up.
 
-## Chapter 3 "Maker Space" — STILL NEEDED (4 tracks)
+## Chapter 3 "Home Ground" → STILL NEEDED (4 tracks)
 
-Aesthetic: the **homecoming** chapter — warm, daytime, hand-built. Same 16-bit SNES JRPG
-idiom as Ch1/Ch2, but the mood matures from *defend → heal → MAKE*: cozy workshop, sunlit,
-constructive, no menace. Until each file exists, Maker Space falls back to the Chapter 1
-home/level/boss themes (resolveTrack), so it's never silent.
+Aesthetic: the **homecoming** chapter, now one family Saturday around the city:
+the grocery store in the morning, the big garden, the mall in the rain, the beach,
+the big store, the bread place, the seawall at golden hour, and the mountain at
+dusk as the lights come on. Same 16-bit SNES JRPG idiom as Ch1/Ch2, but sunlit,
+contented and unhurried: errands, not battles. Until each file exists, Home Ground
+falls back to the Chapter 1 home/level/boss themes (resolveTrack), so it's never
+silent.
 
-### 1. `maker-home.mp3` → key `makerHome`  (Ch3 map / overworld)
+### 1. `home-ground-home.mp3` → key `homeGroundHome`  (Ch3 map / overworld)
+Loop seamlessly, no lead vocals.
 Style box:
-`16-bit SNES JRPG cozy hometown/workshop theme, sunlit afternoon, gentle music-box and celesta, warm fingerpicked acoustic guitar, soft strings and mellow brass, light woodblock and hammer-tap percussion, contented homecoming warmth, instrumental, ~80 BPM`
+`16-bit SNES JRPG hometown Saturday-morning theme, sunlit, gentle music-box and celesta, warm fingerpicked acoustic guitar, soft strings, light shaker and woodblock like a walk to the store, contented and unhurried, instrumental, ~80 BPM`
 
-### 2. `maker-level.mp3` → key `makerLevel`  (Ch3 gameplay; game pitch-shifts per world)
+### 2. `home-ground-level.mp3` → key `homeGroundLevel`  (Ch3 belt; the engine re-pitches it per world)
 Produce at a NEUTRAL key/tempo (the engine re-pitches it per world).
 Style box:
-`16-bit SNES JRPG busy-workshop work theme, bouncy marimba and pizzicato, plucky clarinet/recorder lead, light anvil/woodblock/ticking-clock percussion as a steady make-and-ship groove, cheerful industrious daytime, instrumental, ~108 BPM`
+`16-bit SNES JRPG errand-day groove, bouncy marimba and pizzicato, plucky clarinet lead, light hand percussion with a checkout-beep feel, cheerful and busy but never tense, instrumental, ~108 BPM`
 
-### 3. `maker-boss.mp3` → key `makerBoss`  (Ch3 "Rush Order" + W38 finale; engine may re-pitch)
-NOT a monster fight — a *big rush order before the truck leaves*: urgent but POSITIVE.
+### 3. `home-ground-boss.mp3` → key `homeGroundBoss`  (Ch3 rush orders + the W38 finale; engine may re-pitch)
+NOT a monster fight: a deadline, not a battle. Urgent but POSITIVE. Leave headroom
+for the engine's pitch changes.
 Style box:
-`16-bit SNES JRPG upbeat time-pressure theme, driving up-tempo marimba and brass fanfare, busy hand percussion and ticking clock, rising triumphant build, exciting but warm and non-threatening (a deadline, not a battle), instrumental, ~146 BPM`
+`16-bit SNES JRPG upbeat time-pressure theme, driving marimba and warm brass, busy hand percussion, rising build like the last gondola before dark, exciting and positive, a deadline not a battle, instrumental, ~146 BPM`
 
 ### 4. `hot-pot.mp3` → key `hotPotTheme`  (the hidden Hot Pot Time room, W19)
 The Chapter 3 counterpart to `dads-garage` and `playground`: a secret room has its own
@@ -67,6 +72,6 @@ a workbench. Until this file exists the room falls back to the garage track.
 Style box:
 `16-bit SNES JRPG warm gathering-place theme, bustling but cozy, plucked strings and gentle woodblock, mellow flute and clarinet trading a simple melody, soft hand percussion, steam-and-chatter warmth, generous and unhurried, instrumental, ~84 BPM`
 
-> The W38 "Great Lighthouse" finale reuses `maker-boss` (pitched per world); the homecoming
-> credits cinematic reuses `creditsSong`. The hidden Night Shift (W20) deliberately reuses
-> `maker-boss` too — it is a deadline, not a new place.
+> The W38 finale (The Mountain) reuses `home-ground-boss` (pitched per world); the
+> homecoming credits cinematic reuses `creditsSong`. The hidden Night Shift (W20)
+> deliberately reuses `home-ground-boss` too: it is a deadline, not a new place.

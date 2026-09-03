@@ -1,11 +1,15 @@
-// Endgame cinematic — runs in one of two modes (registry 'creditsMode'):
+// Endgame cinematic. Runs in one of three modes (registry 'creditsMode'):
 //
-//   'cliffhanger' (Chapter 1 / World 11): cards → pet evolves to Cosmic →
-//      a light teaser outro pointing at the warp gate. Keeps endingSeen (Cosmic
-//      pet + Arcade unlock). NO hero card — that moves to the true finale.
-//   'finale' (Chapter 2 / World 28): cards → (evolve only if not already
-//      Cosmic) → prominent 中文 hero shout-out for the three kids + the
-//      Nanocraft reward reveal. Sets finaleSeen.
+//   'cliffhanger' (Chapter 1 / World 11): cards, then the pet evolves to Cosmic,
+//      then a light teaser outro pointing at the warp gate. Keeps endingSeen
+//      (Cosmic pet + Arcade unlock). NO hero card, that moves to the true finale.
+//   'finale' (Chapter 2 / World 28): cards, then (evolve only if not already
+//      Cosmic) the prominent 中文 hero shout-out for the three kids + the
+//      Nanocraft reward reveal, then a short homeward coda that points at the
+//      gate into Chapter 3. Sets finaleSeen.
+//   'homecoming' (Chapter 3 / World 38, Home Ground): cards over the dusk sky,
+//      then the lit mountain and the city lights coming on below, closing on the
+//      personal message. No pet beat (the pet is already Cosmic). Sets finale3Seen.
 //
 // On exit, returns to WorldMapScene parked on the chapter's final world and
 // clears justClearedWorld so the auto-advance doesn't run on top of the finale.
@@ -48,14 +52,61 @@ const FINALE_CARDS = [
   'You did it, pilot. Outer space AND inner space are yours.'
 ];
 
-// Chapter 3 (World 38, The Great Lighthouse): the homecoming. The scale arc lands
-// at human scale — you stop fighting and come home to MAKE. Warm, daytime, no void.
+// Chapter 3 (World 38, The Mountain): the homecoming. The scale arc lands at
+// human scale: one Saturday around the family's own city, morning to dusk, and
+// the last stop is the ride up the mountain as the lights come on. No void.
+// Card four and the World 38 description are near-twins on purpose.
 const HOMECOMING_CARDS = [
   'You journeyed to the edge of the cosmos. Then into the smallest cell.',
   'And now the long way around brings you somewhere new: home.',
-  'The workshops are humming. Lanterns lit, kites flying, orders shipped.',
-  'One last big order — light the Great Lighthouse, and guide everyone home.'
+  'A whole Saturday of it. The store, the garden, the beach, the bread place.',
+  'One last ride up the mountain, and the lights come on for everyone.'
 ];
+
+// Home Ground finale sky: dusk on the mountain. Violet overhead, afterglow at
+// the ridge line, warm cream low down where the city lights are coming on.
+// Plain stacked gradients only, no rays. Shared by the recap cards (homecoming
+// mode opens on this sky from the first frame instead of the starfield; the
+// far-stars callback is given up on purpose) and by the outro wash.
+const DUSK_TOP = 0x6a4b8f;
+const DUSK_MID = 0xf0b489;
+const DUSK_LOW = 0xffe9a8;
+const DUSK_SPLIT = 0.56;   // where the violet gives way to the afterglow band
+function paintDuskSky(scene, depth) {
+  const g = scene.add.graphics().setDepth(depth);
+  const split = Math.round(H * DUSK_SPLIT);
+  g.fillGradientStyle(DUSK_TOP, DUSK_TOP, DUSK_MID, DUSK_MID, 1);
+  g.fillRect(0, 0, W, split);
+  g.fillGradientStyle(DUSK_MID, DUSK_MID, DUSK_LOW, DUSK_LOW, 1);
+  g.fillRect(0, split, W, H - split);
+  return g;
+}
+
+// A small paper-cutout red gondola cabin, the Home Ground stand-in for the old
+// lamp glyph. Like every cutout it is drawn twice: first the same shapes in
+// black at alpha 0.22, offset (+4, +6), then in colour on top. Origin (0, 0) is
+// the wheel on the cable, so a sway tween pivots where a real cabin hangs from.
+// Rounded rect body, darker roof cap, one pale window, a thin hanger arm up to
+// a plain wheel disc. Plain shapes only, no spirals or sunbursts, no rays.
+const CABIN_RED = 0xe8594a;
+const CABIN_ROOF = 0xb33f33;
+const CABIN_DARK = 0x3a2a50;
+function drawGondolaCabin(g) {
+  [{ dx: 4, dy: 6, shadow: true }, { dx: 0, dy: 0, shadow: false }].forEach(({ dx, dy, shadow }) => {
+    const ink = (color, alpha = 1) => g.fillStyle(shadow ? 0x000000 : color, shadow ? 0.22 : alpha);
+    // Wheel on the cable, then the hanger arm down to the roof.
+    ink(CABIN_DARK); g.fillCircle(dx, dy, 7);
+    g.lineStyle(4, shadow ? 0x000000 : CABIN_DARK, shadow ? 0.22 : 0.95);
+    g.lineBetween(dx, 6 + dy, dx, 24 + dy);
+    // Roof cap, a shade darker than the body.
+    ink(CABIN_ROOF); g.fillRoundedRect(-30 + dx, 22 + dy, 60, 14, 6);
+    // Body.
+    ink(CABIN_RED); g.fillRoundedRect(-26 + dx, 32 + dy, 52, 46, 10);
+    // Pale window.
+    ink(DUSK_LOW); g.fillRoundedRect(-16 + dx, 40 + dy, 32, 20, 6);
+  });
+  return g;
+}
 
 export class CreditsScene extends Phaser.Scene {
   constructor() {
@@ -66,10 +117,10 @@ export class CreditsScene extends Phaser.Scene {
     audio.init();
     music.pause();
 
-    // 'cliffhanger' (World 11) or 'finale' (World 28). Default to the HARMLESS
-    // cliffhanger path: the finale path grants the Nanocraft trophy + marks the
-    // finale seen, so a flagless/accidental entry must never land there. Every
-    // real finale launch sets creditsMode='finale' explicitly.
+    // 'cliffhanger' (World 11), 'finale' (World 28) or 'homecoming' (World 38).
+    // Default to the HARMLESS cliffhanger path: the finale path grants the
+    // Nanocraft trophy + marks the finale seen, so a flagless/accidental entry
+    // must never land there. Every real finale launch sets creditsMode explicitly.
     this.mode = this.registry.get('creditsMode') || 'cliffhanger';
     this.cards = this.mode === 'cliffhanger' ? CLIFFHANGER_CARDS
       : this.mode === 'homecoming' ? HOMECOMING_CARDS
@@ -85,31 +136,38 @@ export class CreditsScene extends Phaser.Scene {
       this._creditsSong.play();
     }
 
-    createStarfield(this, { width: W, height: H, accentStrength: 0 });
+    if (this.mode === 'homecoming') {
+      // Home Ground credits open on daylight: the four recap cards play over
+      // the dusk sky on the mountain from the first frame. No starfield, no
+      // velvet dim, no twinkle sprinkle here; the outro wash is this same sky.
+      paintDuskSky(this, 0);
+    } else {
+      createStarfield(this, { width: W, height: H, accentStrength: 0 });
 
-    // Deep velvet backdrop on top of the starfield for cinematic mood.
-    this.backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 1).setDepth(5);
-    this.backdrop.alpha = 0;
-    this.tweens.add({ targets: this.backdrop, alpha: 0.6, duration: 800 });
+      // Deep velvet backdrop on top of the starfield for cinematic mood.
+      this.backdrop = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 1).setDepth(5);
+      this.backdrop.alpha = 0;
+      this.tweens.add({ targets: this.backdrop, alpha: 0.6, duration: 800 });
 
-    // Sprinkle 80 twinkly stars (same as the original finale).
-    this.starLayer = this.add.container(0, 0).setDepth(8);
-    for (let i = 0; i < 80; i++) {
-      const sx = Math.random() * W;
-      const sy = Math.random() * (H - 100) + 50;
-      const r = Math.random() * 2 + 1.2;
-      const star = this.add.graphics();
-      star.fillStyle(0xffffff, 1);
-      star.fillCircle(sx, sy, r);
-      star.alpha = 0;
-      this.starLayer.add(star);
-      this.tweens.add({
-        targets: star,
-        alpha: 1,
-        duration: 600 + Math.random() * 1200,
-        delay: 200 + Math.random() * 2200,
-        ease: 'Quad.easeOut'
-      });
+      // Sprinkle 80 twinkly stars (same as the original finale).
+      this.starLayer = this.add.container(0, 0).setDepth(8);
+      for (let i = 0; i < 80; i++) {
+        const sx = Math.random() * W;
+        const sy = Math.random() * (H - 100) + 50;
+        const r = Math.random() * 2 + 1.2;
+        const star = this.add.graphics();
+        star.fillStyle(0xffffff, 1);
+        star.fillCircle(sx, sy, r);
+        star.alpha = 0;
+        this.starLayer.add(star);
+        this.tweens.add({
+          targets: star,
+          alpha: 1,
+          duration: 600 + Math.random() * 1200,
+          delay: 200 + Math.random() * 2200,
+          ease: 'Quad.easeOut'
+        });
+      }
     }
 
     new TransitionManager(this).fadeIn(400);
@@ -179,8 +237,8 @@ export class CreditsScene extends Phaser.Scene {
   // (unless a player skipped World 11 entirely — then show it once here too).
   afterCards() {
     if (this.mode === 'homecoming') {
-      // Maker Space: the pet is already Cosmic by Chapter 3, so skip the evolution
-      // beat and go straight to the warm daylight homecoming reveal.
+      // Home Ground: the pet is already Cosmic by Chapter 3, so skip the evolution
+      // beat and go straight to the dusk-on-the-mountain homecoming reveal.
       this.showHomecomingOutro();
       return;
     }
@@ -364,15 +422,16 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // HOMEWARD OUTRO (after the Chapter 2 hero card, ONLY when Maker Space is
-  // enabled) — the on-ramp into Chapter 3.
+  // HOMEWARD OUTRO (after the Chapter 2 hero card): the on-ramp into Chapter 3,
+  // Home Ground. Plays unconditionally now that the chapter is always on.
   //
   // This is deliberately NOT a cliffhanger. Chapter 1 ended by opening a threat
   // ("the dark did not leave. It SHRANK") because Chapter 2 was more story. The
   // story is DONE here: Patient Zero is beaten, the last shadow let go, and the
   // hero card has already landed. So this coda closes the conflict out loud
-  // ("nothing left to fight") and opens a DOOR instead of a wound — the journey
-  // home. Maker Space is where you've stopped fighting, not where you fight next.
+  // ("nothing left to fight") and opens a DOOR instead of a wound: the journey
+  // home. Home Ground is where you've stopped fighting, not where you fight next.
+  // The two payoff lines below stay exactly as shipped; they still fit.
   // ============================================================
   showHomewardOutro() {
     const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1208, 1).setDepth(80);
@@ -397,18 +456,22 @@ export class CreditsScene extends Phaser.Scene {
       });
     });
 
-    // A warm lamp glyph (plain concentric circles — no rays / spiral / sigil),
-    // the daylight answer to the cliffhanger outro's cold portal rings.
+    // A small red gondola cabin on its cable (paper cutout, plain shapes, no
+    // rays / spiral / sigil): the first glimpse of the ride up the mountain that
+    // ends the chapter, and the daylight answer to the cliffhanger outro's cold
+    // portal rings. The cable is its own static graphic so the cabin can sway
+    // from the wheel without dragging the cable with it.
     this.time.delayedCall(6200, () => {
-      const g = this.add.graphics().setDepth(84);
-      g.x = W / 2; g.y = H * 0.65;
-      g.fillStyle(0xffd27a, 0.16); g.fillCircle(0, 0, 40);
-      g.lineStyle(4, 0xffd27a, 0.9); g.strokeCircle(0, 0, 26);
-      g.fillStyle(0xfff3b8, 0.95); g.fillCircle(0, 0, 10);
-      g.alpha = 0;
-      this.tweens.add({ targets: g, alpha: 1, duration: 600 });
+      const cx = W / 2, cy = H * 0.625;
+      const cable = this.add.graphics().setDepth(83);
+      cable.lineStyle(3, 0x000000, 0.22); cable.lineBetween(cx - 90 + 4, cy + 6, cx + 90 + 4, cy + 6);
+      cable.lineStyle(3, CABIN_DARK, 0.9);  cable.lineBetween(cx - 90, cy, cx + 90, cy);
+      const g = drawGondolaCabin(this.add.graphics().setDepth(84));
+      g.x = cx; g.y = cy;
+      cable.alpha = 0; g.alpha = 0;
+      this.tweens.add({ targets: [cable, g], alpha: 1, duration: 600 });
       this.tweens.add({
-        targets: g, scale: { from: 1, to: 1.25 }, alpha: { from: 1, to: 0.55 },
+        targets: g, rotation: { from: -0.05, to: 0.05 },
         duration: 1800, repeat: -1, yoyo: true, ease: 'Sine.easeInOut'
       });
     });
@@ -425,47 +488,50 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // HOMECOMING OUTRO (Chapter 3 / World 38) — the warm daylight payoff.
-  // After the cards, a teal→gold→green DAWN gradient floods in (a plain
-  // daylight reveal — NO spiral/wormhole, per the content rule), the Great
-  // Lighthouse lights, and the journey closes on the personal message.
+  // HOMECOMING OUTRO (Chapter 3 / World 38): dusk on the mountain, the payoff.
+  // After the cards, the dusk wash (violet overhead, afterglow, warm cream low
+  // down) settles in as a plain gradient reveal, NO spiral/wormhole, per the
+  // content rule. The lit mountain rises, the city lights come on below it, and
+  // the journey closes on the personal message.
   // ============================================================
   showHomecomingOutro() {
-    // Daylight wash: a gold-sky→green-land base with a teal band fading down the
-    // top half — teal→gold→green, the homecoming dawn. Floods in over the cards.
-    const day = this.add.graphics().setDepth(60);
-    day.fillGradientStyle(0xffe0a0, 0xffe0a0, 0x6fbf4a, 0x6fbf4a, 1);
-    day.fillRect(0, 0, W, H);
-    day.fillGradientStyle(0x4ecdc4, 0x4ecdc4, 0x4ecdc4, 0x4ecdc4, 0.55, 0.55, 0, 0);
-    day.fillRect(0, 0, W, H * 0.55);
+    // Dusk wash: the same sky the recap cards played over, settling in on top of
+    // them so the stage is clean. Violet down to afterglow down to warm cream.
+    const day = paintDuskSky(this, 60);
     day.alpha = 0;
     this.tweens.add({ targets: day, alpha: 1, duration: 1800, ease: 'Quad.easeIn' });
 
-    // Soft sun glow (a plain ellipse — no rays).
+    // The sun is already down behind the ridge; what is left is a soft afterglow
+    // band at the horizon under the mountain (plain ellipses, no rays).
     const sun = this.add.graphics().setDepth(61);
-    sun.fillStyle(0xfff3b8, 0.5); sun.fillEllipse(W * 0.74, H * 0.18, 520, 360);
-    sun.fillStyle(0xffffff, 0.6); sun.fillEllipse(W * 0.74, H * 0.18, 240, 180);
+    sun.fillStyle(DUSK_LOW, 0.35); sun.fillEllipse(W * 0.5, H * 0.545, 760, 220);
+    sun.fillStyle(0xfff8e7, 0.45); sun.fillEllipse(W * 0.5, H * 0.545, 360, 110);
     sun.alpha = 0;
     this.tweens.add({ targets: sun, alpha: 1, duration: 2200, delay: 500 });
 
-    // The Great Lighthouse, lit — reuse the World-38 node art (tower + straight
-    // beams), so the icon the kid tapped on the map is the one that lights up.
+    // The Mountain, lit: reuse the World 38 node art (the lit peak with one
+    // cabin heading down toward the city lights) at 2.4x, so the icon the kid
+    // tapped on the map is the one that lights up.
     this.time.delayedCall(1300, () => {
       const lh = drawWorldNode(this, W / 2, H * 0.44, 38, { scale: 2.4 });
       lh.setDepth(62); lh.setScale(0); lh.alpha = 0;
       this.tweens.add({ targets: lh, scale: 2.4, alpha: 1, duration: 900, ease: 'Back.easeOut' });
     });
 
+    // The two payoff lines (coming home, and the lights coming on below) are a
+    // NARRATOR fallback in second person, holding the spot for J's own words.
+    // The headline sits in the violet band, so it gets a cream fill on a dusk
+    // stroke; the lower lines sit on the afterglow and cream and keep dark fills.
     const lines = [
-      { t: 'CHAPTER 3 COMPLETE', size: 58, fill: '#2f5a22', y: 0.14, delay: 800 },
-      { t: 'From the far stars, and the deep cell —', size: 36, fill: '#5a4410', y: 0.62, delay: 2600 },
-      { t: 'you came home, and made it bright.', size: 42, fill: '#2f5a22', y: 0.69, delay: 4400 },
-      { t: 'The Great Lighthouse is lit.\nIts beam reaches everyone.', size: 32, fill: '#1f5a6a', y: 0.78, delay: 6600 },
+      { t: 'CHAPTER 3 COMPLETE', size: 58, fill: '#ffe9a8', stroke: '#3a2a50', y: 0.14, delay: 800 },
+      { t: 'From the far stars, and the deep cell,', size: 36, fill: '#5a4410', y: 0.62, delay: 2600 },
+      { t: 'you took the long way home.', size: 42, fill: '#4a3568', y: 0.69, delay: 4400 },
+      { t: 'The mountain is lit for the ride down.\nBelow you, one by one, the city lights come on.', size: 32, fill: '#1f5a6a', y: 0.78, delay: 6600 },
     ];
     lines.forEach(l => {
       const txt = this.add.text(W / 2, H * l.y, l.t, style('display', {
         fontSize: `${l.size}px`, fill: l.fill, align: 'center',
-        stroke: '#fff6e0', strokeThickness: 4, wordWrap: { width: W - 120 }
+        stroke: l.stroke || '#fff6e0', strokeThickness: 4, wordWrap: { width: W - 120 }
       })).setOrigin(0.5).setDepth(70);
       txt.alpha = 0; txt.setScale(0.92);
       this.time.delayedCall(l.delay, () => {
@@ -490,7 +556,7 @@ export class CreditsScene extends Phaser.Scene {
       });
     });
 
-    // "Home" button → back to the (now-complete) Maker Space map.
+    // "Home" button: back to the (now-complete) Home Ground map.
     this.time.delayedCall(10800, () => {
       const btn = createButton(this, {
         x: W / 2, y: H - 140, label: 'Home',
@@ -829,7 +895,7 @@ export class CreditsScene extends Phaser.Scene {
     // resolves (cards 14s + evolution 4s + this 33s ≈ 51s).
     this.time.delayedCall(33000, () => {
       // The hero card is not the last beat: a short homeward coda follows it
-      // (see showHomewardOutro), which is the on-ramp into Maker Space.
+      // (see showHomewardOutro), which is the on-ramp into Home Ground.
       const btn = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100,

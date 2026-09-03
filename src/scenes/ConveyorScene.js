@@ -1,11 +1,12 @@
-// ConveyorScene — Chapter 3 "Maker Space" mode: STAMP & SHIP (Conveyor Sort).
+// ConveyorScene: Chapter 3 "Home Ground" mode, PACK & GO (Conveyor Sort).
 //
-// The new mode of play for Chapter 3: instead of falling asteroids you tap to
-// destroy, math-stamped crates ride a calm belt and you route each one to the
-// dock whose label matches its answer. No falling threat, no ship to defend —
-// just SHIPPED! stamps and a growing tally. The whole pedagogy engine is reused
-// untouched (getProblemForWorld / getDistractors / recordFactAttempt); only the
-// presentation + interaction layer is new.
+// The mode of play for Chapter 3: instead of falling asteroids you tap to
+// destroy, math-labelled crates ride a calm belt and you route each one to the
+// dock whose label matches its answer. No falling threat, no ship to defend,
+// just a stamp on every correct crate and a growing tally. Each chapter's copy
+// table names its own stamp word (PACKED is Chapter 3's). The whole pedagogy
+// engine is reused untouched (getProblemForWorld / getDistractors /
+// recordFactAttempt); only the presentation + interaction layer is new.
 //
 // CORE LOOP (Phase 1):
 //   • Exactly ONE crate is readable/answerable at a time — non-negotiable for a
@@ -13,8 +14,9 @@
 //     `startedAtMs` is set only when it parks in the active zone and the input
 //     opens (mirrors GameScene's "readable → committed" measure). This kills
 //     the "pre-read the next crate" exploit.
-//   • Correct answer → crate ships, SHIPPED ticks, recordFactAttempt(a, b, true,
-//     elapsedMs) — elapsed measures the readable→first-correct window. Wrong
+//   • Correct answer → the crate is stamped and packed off, the tally ticks,
+//     recordFactAttempt(a, b, true, elapsedMs) where elapsed measures the
+//     readable→first-correct window. Wrong
 //     answer → gentle "return to sender" wobble, recordFactAttempt(a, b, false)
 //     with NO timing (only correct answers carry recall-speed signal — identical
 //     to GameScene's protocol), and the crate stays so the kid can retry.
@@ -42,18 +44,22 @@
 //
 // PHASE 3 (boss = "Rush Order"): the level-4 boss runs the SAME core loop with
 // levelMode==='boss' (the engine then serves 100% weak facts). Instead of a
-// fixed-time round scored on accuracy, it's a QUOTA race: fill a big order
+// fixed-time round scored on accuracy, it's a QUOTA race: pack a big rush
 // (getBossHpForWorld crates) before the clock (getBossDurationForWorld) runs out.
 // A WIN is the mastery demonstration (isRoundMastered({isBoss:true,bossWin})),
 // and clearing the boss masters the world → unlocks the next. Tonally it's a
-// "big order to fill before the truck leaves" — NO monster, no enemy (Maker
-// Space has no combat), so the GameScene boss INTRO/DEFEAT cinematics (monster
-// silhouette + shatter, and coupled to a boss asteroid + ship HP that don't
-// exist here) are deliberately NOT reused; a calm Maker-native intro + order-
-// complete beat stand in. Boss stars use a Conveyor metric (accuracy + time to
+// "get everything packed before the place closes" rush, NO monster, no enemy
+// (Home Ground has no combat), so the GameScene boss INTRO/DEFEAT cinematics
+// (monster silhouette + shatter, coupled to a boss asteroid + ship HP that don't
+// exist here) are deliberately NOT reused; a calm rush-order intro + an
+// all-packed beat stand in. Boss stars use a Conveyor metric (accuracy + time to
 // spare) since there is no ship HP for GameScene.calculateBossStars to read.
 //
-// The Maker-Space art/audio/finale pass lands in Phases 4-5.
+// Chapter 3 is "Home Ground": one family Saturday around the city, eight real
+// places drawn in plain shapes with no real names anywhere in copy or code.
+// Wave 1 reskins the copy, palettes and backdrops; wave 2 lands each place's own
+// line and item (the belt, the pet's station and the crate below are the shared
+// stand-ins until then).
 // See /Users/j/.claude/plans/cosmic-crunch-i-want-purring-dawn.md.
 
 import Phaser from 'phaser';
@@ -132,14 +138,22 @@ function shuffle(arr) {
 
 // Single per-chapter Conveyor presentation. The mode runs in every chapter now
 // (Ch3 for all levels; the Ch1/Ch2 "mixed" level as an owner-gated pilot), so the
-// look + sort-fiction are parameterized rather than hardcoded to the Maker workshop:
-//   skin       — palette lift, back-wall glow, halo, floor/belt darkening. Ch3 lifts
-//                toward warm daylight (a workshop) and adds the bright accent
-//                "window" halo; Ch1/Ch2 keep their own dark void / bloodstream
-//                gradient + a faint cool/red glow (a cold salvage line / cell sorter).
-//   copy       — the verb set; the mechanic is identical, only the fantasy changes.
-//   levelTrack — the chapter's level theme. resolveTrack falls back to the Ch1 themes
-//                until the bespoke MP3s ship, so the chapter is never silent.
+// look + sort-fiction are parameterized rather than hardcoded to Home Ground:
+//   skin:       palette lift, back-wall glow, halo, floor/belt darkening. Ch3 lifts
+//               toward daylight (a Saturday around town) and adds the bright accent
+//               halo (the place's own light); Ch1/Ch2 keep their own dark void /
+//               bloodstream gradient + a faint cool/red glow (a cold salvage line /
+//               cell sorter).
+//   copy:       the verb set; the mechanic is identical, only the fantasy changes.
+//               Boss rounds read from the same table so no boss string is hardcoded
+//               in the scene: bossHeadline (HUD label + summary mode line),
+//               bossIncoming (intro card headline), bossMiss (summary title on a
+//               loss), bossStat (summary stat label), bossDone (the win banner) and
+//               quotaLine(n, world) (the deadline sentence on the intro card). A boss
+//               WIN's summary title is summaryWin. The Night Shift table below
+//               follows the same shape.
+//   levelTrack: the chapter's level theme. resolveTrack falls back to the Ch1 themes
+//               until the bespoke MP3s exist, so the chapter is never silent.
 // Crate/belt/dock colors already derive from the world palette, so once the daytime
 // lift is gated they reskin per chapter for free. Exported so the level-select
 // mission card can label the pilot belt with the same verb the scene will use.
@@ -147,39 +161,64 @@ export const CONVEYOR_CHAPTER = {
   1: {
     levelTrack: 'levelTheme',
     skin: { liftTop: 0.0,  liftBottom: 0.0,  pool: { tint: 0x6f7ec4, alpha: 0.06 }, halo: false, floorDarken: 0.55, beltBody: 0.62, beltSlat: 0.40 }, // cold metal salvage
-    copy: { title: 'SORT & SHIP',  stamp: 'SALVAGED', chute: 'recheck', summaryWin: 'Cargo Sorted!' }
+    copy: {
+      title: 'SORT & SHIP', stamp: 'SALVAGED', chute: 'recheck', summaryWin: 'Cargo Sorted!',
+      // Boss strings exactly as the pilot belt has always shown them. A Ch1/Ch2 boss
+      // never actually runs on the belt (usesConveyorScene excludes it), so these
+      // only matter as the shape every chapter table shares.
+      bossHeadline: 'RUSH ORDER', bossIncoming: 'BIG ORDER INCOMING', bossMiss: 'Order Unfinished',
+      bossStat: 'ORDER', bossDone: 'BIG ORDER\nSHIPPED!',
+      quotaLine: n => `Pack ${n} crates before the truck leaves!`
+    }
   },
   2: {
     levelTrack: 'innerSpaceLevel',
     skin: { liftTop: 0.0,  liftBottom: 0.04, pool: { tint: 0xff7a8a, alpha: 0.10 }, halo: false, floorDarken: 0.42, beltBody: 0.55, beltSlat: 0.34 }, // warm-red membrane
-    copy: { title: 'SORT & SEND',  stamp: 'ABSORBED', chute: 'reflux',  summaryWin: 'Nutrients Sent!' }
+    copy: {
+      title: 'SORT & SEND', stamp: 'ABSORBED', chute: 'reflux',  summaryWin: 'Nutrients Sent!',
+      bossHeadline: 'RUSH ORDER', bossIncoming: 'BIG ORDER INCOMING', bossMiss: 'Order Unfinished',
+      bossStat: 'ORDER', bossDone: 'BIG ORDER\nSHIPPED!',
+      quotaLine: n => `Pack ${n} crates before the truck leaves!`
+    }
   },
   3: {
-    levelTrack: 'makerLevel',
-    skin: { liftTop: 0.10, liftBottom: 0.28, pool: { tint: null,     alpha: 0.16 }, halo: true,  floorDarken: 0.45, beltBody: 0.62, beltSlat: 0.40 }, // warm workshop
-    copy: { title: 'STAMP & SHIP', stamp: 'SHIPPED',  chute: 'recheck', summaryWin: 'Order Shipped!' }
+    levelTrack: 'homeGroundLevel',
+    skin: { liftTop: 0.10, liftBottom: 0.28, pool: { tint: null,     alpha: 0.16 }, halo: true,  floorDarken: 0.45, beltBody: 0.62, beltSlat: 0.40 }, // daylight around town
+    copy: {
+      title: 'PACK & GO', stamp: 'PACKED', chute: 'recheck', summaryWin: 'All Packed!',
+      bossHeadline: 'RUSH ORDER', bossIncoming: 'BIG RUSH INCOMING', bossMiss: 'Rush Unfinished',
+      bossStat: 'RUSH', bossDone: 'BIG RUSH\nPACKED!',
+      // Each place names its own deadline: world.rushLine is a lowercase tail with
+      // no period ("before the cart rolls", "before dark"). Read it off the world
+      // passed in, never a captured one, so the sentence always matches the belt
+      // that is actually running.
+      quotaLine: (n, world) => `Pack all ${n} ${world?.rushLine || 'before the truck leaves'}.`
+    }
   }
 };
 
-// The Night Shift (hidden W20) — the same workshop the kid ships from all
-// chapter, after hours. It is NOT a fourth chapter skin: it overrides whichever
-// chapter skin would otherwise apply, because the room's whole point is that it
-// is a place she already knows with the lights off.
+// The Night Shift (hidden W20): the grocery store (W31) after closing. The same
+// store the kid packed bags in that morning, now on a restocking night. It is
+// NOT a fourth chapter skin: it overrides whichever chapter skin would otherwise
+// apply, because the room's whole point is that it is a place she already knows
+// with the lights off.
 //
 // `bgTop`/`bgBottom` are absolute rather than a lift, because the chapter lifts
-// are all POSITIVE (lighten toward daylight) and lighten() has no negative-clamp
-// — feeding it a negative amount would roll the channel below zero and corrupt
+// are all POSITIVE (lighten toward daylight) and lighten() has no negative clamp:
+// feeding it a negative amount would roll the channel below zero and corrupt
 // the color. An explicit night sky is both safer and easier to read.
 //
-// bgWorldId borrows the Lantern Workshop (W31) back wall: the chapter's first
-// shop, and the one whose lanterns still make sense with everything else dark.
+// bgWorldId borrows the grocery store's (W31) back wall: the chapter's first
+// stop, and the one whose fridge cases and lit exit sign still make sense with
+// everything else dark. The scrim in drawBackdrop was tuned against the old
+// wall and needs a retune pass once the new W31 art is in.
 const NIGHT_SHIFT = {
   bgWorldId: 31,
   skin: {
     bgTop: 0x070b14, bgBottom: 0x16223a,
     liftTop: 0, liftBottom: 0,
     pool: { tint: 0x8fd0ff, alpha: 0.05 },
-    halo: true,             // one cool work lamp hanging over the belt
+    halo: true,             // one cool night light left on over the belt
     floorDarken: 0.72, beltBody: 0.72, beltSlat: 0.52
   },
   copy: {
@@ -195,6 +234,13 @@ const NIGHT_SHIFT = {
   }
 };
 
+// The Night Shift table above is frozen and predates the newer boss keys, so the
+// scene fills bossMiss / bossStat / bossDone with the strings the room has always
+// shown and lets its own words win everywhere it has them (see create()).
+// bossIncoming is left out on purpose: AFTER HOURS does double duty on the HUD
+// and at the head of the intro card, as it always has.
+const NIGHT_SHIFT_FILL = { bossMiss: 'Order Unfinished', bossStat: 'ORDER', bossDone: 'BIG ORDER\nSHIPPED!' };
+
 export class ConveyorScene extends Phaser.Scene {
   constructor() {
     super({ key: 'ConveyorScene' });
@@ -208,9 +254,9 @@ export class ConveyorScene extends Phaser.Scene {
     this.accent = this.world.accentColor;
     this.isBoss = this.levelMode === 'boss';
 
-    // Chapter-native skin + sort fiction — the mode now runs in Ch1/Ch2 too (the
+    // Chapter-native skin + sort fiction: the mode now runs in Ch1/Ch2 too (the
     // owner-gated "mixed" pilot), so the belt reskins to its chapter (see
-    // CONVEYOR_CHAPTER) instead of always reading as a workshop.
+    // CONVEYOR_CHAPTER) instead of always reading as Home Ground.
     const chapter = this.world.chapter || 1;
     const chapterCfg = CONVEYOR_CHAPTER[chapter] || CONVEYOR_CHAPTER[3];
     this.skin = chapterCfg.skin;
@@ -223,7 +269,7 @@ export class ConveyorScene extends Phaser.Scene {
     this.isNightShift = !!this.world.belt;
     if (this.isNightShift) {
       this.skin = NIGHT_SHIFT.skin;
-      this.copy = NIGHT_SHIFT.copy;
+      this.copy = { ...NIGHT_SHIFT_FILL, ...NIGHT_SHIFT.copy };
     }
     // The production-vs-recognition A/B is a Chapter-3-only instrument; the Ch1/Ch2
     // pilot must not pollute that cohort, so every A/B record gates on this one flag.
@@ -266,10 +312,11 @@ export class ConveyorScene extends Phaser.Scene {
 
     // Music: each chapter keeps its OWN level theme (see CONVEYOR_CHAPTER.levelTrack)
     // so the briefing→belt handoff is seamless and re-pitches per world; the boss
-    // keeps the maker boss theme (boss is Ch3-only in scope). resolveTrack falls back
-    // to the Chapter-1 themes until the bespoke MP3s ship, so it's never silent.
+    // keeps the Home Ground boss theme (boss is Ch3-only in scope). resolveTrack
+    // falls back to the Chapter-1 themes until the bespoke MP3s exist, so it's
+    // never silent.
     const trackKey = this.isBoss
-      ? music.resolveTrack(this, 'makerBoss', 'bossTheme')
+      ? music.resolveTrack(this, 'homeGroundBoss', 'bossTheme')
       : music.resolveTrack(this, chapterCfg.levelTrack, 'levelTheme');
     music.fadeToTrack(this, trackKey);
     music.setPlaybackRate(getWorldMusicRate(this.worldId), 600);
@@ -277,9 +324,9 @@ export class ConveyorScene extends Phaser.Scene {
     this.drawBackdrop();
 
     // ── Round state (mirrors GameScene's campaign run) ──────────────────────
-    this.score = 0;        // crates correctly shipped
+    this.score = 0;        // crates correctly packed off
     this.attempts = 0;     // every committed answer (correct + wrong) → accuracy
-    this.shipped = 0;      // SHIPPED tally (== score; named for the HUD)
+    this.shipped = 0;      // the stamp tally (== score; drives the HUD hero counter)
     this.streak = 0;
     this.bestStreak = 0;
     this.stardustEarned = 0;
@@ -336,7 +383,7 @@ export class ConveyorScene extends Phaser.Scene {
 
     new TransitionManager(this).fadeIn(280);
 
-    // The boss opens with a calm "big order incoming" card; the round clock only
+    // The boss opens with a calm "rush incoming" card; the round clock only
     // starts once it's dismissed so the intro doesn't eat the timer. Practice
     // levels just roll the first crate in.
     if (this.isBoss) {
@@ -368,11 +415,11 @@ export class ConveyorScene extends Phaser.Scene {
     // The per-world palette + back-wall scene come from the shared WorldBackgrounds
     // table (the same source GameScene uses), so each world reads as its own place.
     // The mode runs in all three chapters now, so the look is chapter-skinned (see
-    // CONVEYOR_CHAPTER): Ch3 lifts the palette toward warm daylight (a workshop);
-    // Ch1/Ch2 keep their own dark void / bloodstream gradient (a cold salvage line
-    // / a warm cell sorter).
-    // The Night Shift has no back wall of its own — it borrows the Lantern
-    // Workshop's, which is the point: same room, lights off.
+    // CONVEYOR_CHAPTER): Ch3 lifts the palette toward daylight (a Saturday around
+    // town); Ch1/Ch2 keep their own dark void / bloodstream gradient (a cold
+    // salvage line / a warm cell sorter).
+    // The Night Shift has no back wall of its own. It borrows the grocery store's
+    // (W31), which is the point: same store, after closing.
     const wb = getWorldBackground(this.isNightShift ? NIGHT_SHIFT.bgWorldId : this.worldId);
     const top = this.skin.bgTop ?? lighten(wb.bgTop, this.skin.liftTop);
     const bottom = this.skin.bgBottom ?? lighten(wb.bgBottom, this.skin.liftBottom);
@@ -381,8 +428,9 @@ export class ConveyorScene extends Phaser.Scene {
     g.fillRect(0, 0, W, H);
 
     // A soft pool of light on the back wall so the scene reads lit, not dim (no
-    // rays — content rule). Ch3 is warm daylight; Ch1/Ch2 get a fainter cool/red-
-    // tinted glow. The brighter accent halo (the workshop "window") is Ch3 only.
+    // rays, content rule). Ch3 is daylight; Ch1/Ch2 get a fainter cool/red-tinted
+    // glow. The brighter accent halo (the place's own light: a store window, open
+    // sky over the sand) is Ch3 only.
     const day = this.add.graphics().setDepth(-2);
     day.fillStyle(this.skin.pool.tint ?? lighten(this.world.color, 0.45), this.skin.pool.alpha);
     day.fillEllipse(W / 2, BELT_Y - 150, W * 1.1, 560);
@@ -397,17 +445,21 @@ export class ConveyorScene extends Phaser.Scene {
     hz?.setDepth(-1);
 
     // The back wall is borrowed art and draws its own DAYTIME palette, which the
-    // skin's gradient never touches — so without this the Night Shift reads as the
-    // workshop at noon standing on a blue floor. A cold scrim sits above the wall
-    // (-1) and below the floor/belt (1), knocking the sunlit panels back to night
-    // while leaving the lanterns as the brightest thing left burning.
+    // skin's gradient never touches, so without this the Night Shift reads as the
+    // store at nine in the morning standing on a blue floor. A cold scrim sits
+    // above the wall (-1) and below the floor/belt (1), knocking the daylit aisles
+    // back to night while leaving the fridge cases and the lit exit sign as the
+    // brightest things left on. The 0.62 alpha was tuned against the old wall and
+    // needs a retune pass once the new W31 art lands (keep the cases and the sign
+    // readable, everything else dark).
     if (this.isNightShift) {
       const dusk = this.add.graphics().setDepth(-0.5);
       dusk.fillStyle(0x070b14, 0.62);
       dusk.fillRect(0, 0, W, BELT_Y + BELT_H);
     }
 
-    // Plank/deck floor under the belt to ground the scene (darkness per chapter).
+    // Plank floor under the belt to ground the scene (darkness per chapter). Wave 2
+    // reskins it per place along with the line.
     const floor = this.add.graphics().setDepth(1);
     floor.fillStyle(darken(this.world.color, this.skin.floorDarken), 1);
     floor.fillRect(0, BELT_Y + BELT_H - 40, W, H - (BELT_Y + BELT_H) + 40);
@@ -434,8 +486,7 @@ export class ConveyorScene extends Phaser.Scene {
       onClick: () => this.abandonRound('LevelSelectScene')
     }).setDepth(20);
 
-    const bossLabel = this.copy.bossHeadline || 'RUSH ORDER';
-    this.add.text(W / 2, 70, this.isBoss ? bossLabel : this.copy.title, style('caption', {
+    this.add.text(W / 2, 70, this.isBoss ? this.copy.bossHeadline : this.copy.title, style('caption', {
       fontSize: '26px', fill: this.isBoss ? '#ffb142' : '#cfcfe0', fontStyle: '900'
     })).setOrigin(0.5).setDepth(20);
 
@@ -444,11 +495,12 @@ export class ConveyorScene extends Phaser.Scene {
       fill: hexStr(this.accent)
     })).setOrigin(0.5).setDepth(20);
 
-    // Hero counter — crates shipped (== quota progress in a boss order).
+    // Hero counter: crates packed (== quota progress in a rush). The label under it
+    // is the chapter's own stamp word, so a rush reads "OF 44 PACKED".
     this.shippedText = this.add.text(W / 2, 250, '0', style('display', {
       fontSize: '92px', fill: '#ffffff'
     })).setOrigin(0.5).setDepth(20);
-    this.add.text(W / 2, 322, this.isBoss ? `OF ${this.bossMaxQuota} SHIPPED` : this.copy.stamp, style('caption', {
+    this.add.text(W / 2, 322, this.isBoss ? `OF ${this.bossMaxQuota} ${this.copy.stamp}` : this.copy.stamp, style('caption', {
       fontSize: '24px', fill: '#cfcfe0', fontStyle: '900'
     })).setOrigin(0.5).setDepth(20);
 
@@ -468,7 +520,7 @@ export class ConveyorScene extends Phaser.Scene {
     this.timeBarFill = this.add.graphics().setDepth(20);
     this.drawTimeBar(1);
 
-    // Boss quota bar — sits under the time bar and fills as the order is packed.
+    // Boss quota bar: sits under the time bar and fills as the rush is packed.
     if (this.isBoss) {
       this.quotaBarX = W / 2;
       this.quotaBarY = 432;
@@ -510,8 +562,9 @@ export class ConveyorScene extends Phaser.Scene {
     const right = W - 40;
     const top = BELT_Y - BELT_H / 2;
 
-    // Belt tones derived from the world palette + chapter skin (warm wood for the
-    // workshop; cold metal / warm membrane for Ch1/Ch2).
+    // Belt tones derived from the world palette + chapter skin (each place's own
+    // colour for Ch3; cold metal / warm membrane for Ch1/Ch2). This shared plank
+    // belt is the wave 1 stand-in; wave 2 replaces it with each place's own line.
     const beltBody = darken(this.world.color, this.skin.beltBody);
     const beltSlat = darken(this.world.color, this.skin.beltSlat);
     const roller = this.accent;
@@ -535,7 +588,7 @@ export class ConveyorScene extends Phaser.Scene {
       g.fillRect(x - 5, top + 14, 3, BELT_H - 28);
     }
 
-    // Brass rollers at each end.
+    // Rollers at each end, in the accent colour.
     g.fillStyle(darken(this.accent, 0.35), 1);
     g.fillCircle(left + 4, BELT_Y, BELT_H / 2 - 6);
     g.fillCircle(right - 4, BELT_Y, BELT_H / 2 - 6);
@@ -583,9 +636,10 @@ export class ConveyorScene extends Phaser.Scene {
     const px = W - 200;
     const py = BELT_Y - BELT_H / 2 - 120;
 
-    // A little loading crane the pet works — a warm wooden mast + jib reaching
-    // over the belt with a pulley and hook. Cosmetic; sits behind the pet so the
-    // companion reads as the crane operator.
+    // The pet's loading station, reskinned per place in wave 2 (bagging at the
+    // checkout, the tray window, the gondola platform). Today it is a wooden mast +
+    // jib reaching over the belt with a pulley and hook. Cosmetic; sits behind the
+    // pet so the companion reads as the one working it.
     const crane = this.add.graphics().setDepth(3);
     const wood = darken(this.world.color, 0.5);
     const woodLite = lighten(this.world.color, 0.06);
@@ -611,7 +665,7 @@ export class ConveyorScene extends Phaser.Scene {
     crane.strokePath();
     this.crane = crane;
 
-    // The pet works the line — a warm anchor beside the belt. Cosmetic only.
+    // The pet works the line: a warm anchor beside the belt. Cosmetic only.
     this.pet = drawCompanion(this, px, py, { scale: 1.0 });
     this.pet.setDepth(4);
     this.petTween = this.tweens.add({
@@ -750,8 +804,8 @@ export class ConveyorScene extends Phaser.Scene {
         this.drawQuotaBar();
         if (this.bossQuota >= this.bossMaxQuota) {
           this.bossWon = true;
-          // Order filled — disarm the round clock NOW. The win isn't banked until
-          // afterResolve() fires (after the ~460ms ship animation); without this,
+          // Quota filled: disarm the round clock NOW. The win isn't banked until
+          // afterResolve() fires (after the ~460ms pack-off animation); without this,
           // a buzzer-beater final crate lets the round timer fire finishRound()
           // (a LOSS) first, set ended=true, and swallow the real win.
           this.roundTimer?.remove();
@@ -776,7 +830,7 @@ export class ConveyorScene extends Phaser.Scene {
         this.shipCrateToOutput();
       }
     } else {
-      // Return to sender — the crate STAYS (retry allowed), the clock keeps
+      // Return to sender: the crate STAYS (retry allowed), the clock keeps
       // running. Each wrong answer is a real attempt + de-certifies the fact.
       this.attempts++;
       this.streak = 0;
@@ -828,7 +882,7 @@ export class ConveyorScene extends Phaser.Scene {
     const targetY = DOCK_Y - 30;
     const sx = this.crate.x, sy = this.crate.y;
 
-    // SHIPPED stamp pops + a green burst at the crate; the dock thunks green.
+    // The stamp pops + a green burst at the crate; the dock thunks green.
     this.crate.stamp();
     this.burstSuccess(sx, sy);
     if (dock) this.thunkDock(dockIndex, true);
@@ -852,14 +906,14 @@ export class ConveyorScene extends Phaser.Scene {
     this.pet?.bounceHappy?.();
   }
 
-  // Production has no dock row (the keypad lives there), so a shipped crate is
-  // "loaded out" — the crane lifts it up-and-off toward the pet/output.
+  // Production has no dock row (the keypad lives there), so a packed crate is
+  // "loaded out": the pet's station lifts it up-and-off toward the pet/output.
   shipCrateToOutput() {
     const sx = this.crate.x, sy = this.crate.y;
     this.crate.stamp();
     this.burstSuccess(sx, sy);
 
-    // Anticipation squash, then the crane lifts the stamped crate up-and-off.
+    // Anticipation squash, then the station lifts the stamped crate up-and-off.
     this.tweens.add({
       targets: this.crate, scaleX: 1.12, scaleY: 0.86, duration: 80, yoyo: true, ease: 'Quad.easeOut',
       onComplete: () => {
@@ -881,7 +935,7 @@ export class ConveyorScene extends Phaser.Scene {
     this.crate = null;
     this.clearDocks();
 
-    // Boss order filled → win immediately (don't wait for the clock).
+    // Boss quota filled → win immediately (don't wait for the clock).
     if (this.isBoss && this.bossWon) {
       this.finishRound({ bossWin: true });
     } else if (this.time.now >= this.roundEndsAt) {
@@ -987,7 +1041,7 @@ export class ConveyorScene extends Phaser.Scene {
     progress.discoverHiddenWorld(targetId);
     audio.playMatch?.();
 
-    // The crate opens toward the kid instead of shipping out.
+    // The crate opens toward the kid instead of being packed off.
     this.tweens.killTweensOf(this.foodCrate);
     this.tweens.add({
       targets: this.foodCrate,
@@ -1002,7 +1056,7 @@ export class ConveyorScene extends Phaser.Scene {
       return;
     }
 
-    // Steam swallows the screen — the Maker-Space answer to the hyperspace
+    // Steam swallows the screen, Home Ground's answer to the hyperspace
     // streaks. Plain expanding ellipses only (project art rule: no rays).
     const steam = this.add.container(ACTIVE_X, BELT_Y).setDepth(80);
     for (let i = 0; i < 26; i++) {
@@ -1146,8 +1200,9 @@ export class ConveyorScene extends Phaser.Scene {
     plate.strokeTriangle(78, -34, 96, -22, 74, -8);
     c.add(plate);
 
-    // Cool halo — same invitation the food crate makes, in the room's own light
-    // so it reads as a work lamp catching it rather than something warm arriving.
+    // Cool halo: the same invitation the food crate makes, but in the Night Shift's
+    // own cold light, so it reads as an after-hours light catching it rather than
+    // something warm arriving.
     const halo = this.add.graphics();
     for (let i = 0; i < 4; i++) {
       const pad = 12 + i * 13;
@@ -1276,12 +1331,14 @@ export class ConveyorScene extends Phaser.Scene {
     const body = this.add.graphics();
     body.fillStyle(wood, 1);
     body.fillRoundedRect(-s / 2, -s / 2, s, s, 22);
-    // Horizontal plank slats — a plain shipping crate (no diagonal cross).
+    // Horizontal plank slats: a plain crate (no diagonal cross). This shared crate
+    // is the wave 1 stand-in; wave 2 swaps it for each place's own item (a grocery
+    // bag, a bread box, a gondola cabin) with the fact where the label plate sits.
     body.fillStyle(lighten(this.world.color, 0.14), 0.5);
     for (let i = 0; i < 4; i++) {
       body.fillRect(-s / 2 + 10, -s / 2 + 18 + i * (s - 36) / 4, s - 20, 5);
     }
-    // Edge frame + corner bolts (the maker's hardware).
+    // Edge frame + corner bolts in the accent colour.
     body.lineStyle(8, woodDark, 1);
     body.strokeRoundedRect(-s / 2, -s / 2, s, s, 22);
     body.fillStyle(this.accent, 0.9);
@@ -1318,12 +1375,13 @@ export class ConveyorScene extends Phaser.Scene {
     const plateInnerW = (s - 52) - 26;
     const plateInnerH = plateH - 18;
 
-    // SHIPPED stamp, hidden until a correct route.
+    // The stamp (copy.stamp: PACKED in Chapter 3), hidden until a correct route.
     const stamp = this.add.container(0, 0);
     const stampG = this.add.graphics();
     stampG.lineStyle(6, COLORS.success, 1);
     // Wide enough for the longest chapter stamp word ("ABSORBED"/"SALVAGED" ≈230px
-    // at 40px/900) to sit inside the frame with margin, not just "SHIPPED" (182px).
+    // at 40px/900) to sit inside the frame with margin; the six-letter "PACKED"
+    // and "PLACED" (about 156px) sit well inside it.
     stampG.strokeRoundedRect(-130, -34, 260, 68, 10);
     stamp.add(stampG);
     stamp.add(this.add.text(0, 0, this.copy.stamp, style('subhead', {
@@ -1360,9 +1418,9 @@ export class ConveyorScene extends Phaser.Scene {
     };
 
     c.stamp = () => {
-      // Punch the SHIPPED stamp in with an overshoot + settle, plus a quick white
-      // flare behind it — a correct route should land as a satisfying "ka-CHUNK",
-      // not a gentle fade-in.
+      // Punch the stamp in with an overshoot + settle, plus a quick white flare
+      // behind it: a correct route should land as a satisfying "ka-CHUNK", not a
+      // gentle fade-in.
       stamp.setAlpha(1);
       stamp.setScale(0);
       stamp.setAngle(-28);
@@ -1612,8 +1670,8 @@ export class ConveyorScene extends Phaser.Scene {
 
   // ── Shared answer-feedback juice (both input modes call these) ──────────────
 
-  // Green "shipped!" burst at a world point: an expanding ring + a scatter of
-  // neutral 4-point sparkles. Content-safe (a ring and star sparkles — no
+  // Green success burst at a world point: an expanding ring + a scatter of
+  // neutral 4-point sparkles. Content-safe (a ring and star sparkles, no
   // spirals/sigils). So a correct answer always lands with the same pop whether
   // the kid punched the keypad or tapped a dock.
   burstSuccess(x, y) {
@@ -1650,7 +1708,7 @@ export class ConveyorScene extends Phaser.Scene {
     }
   }
 
-  // Bump the SHIPPED tally so a correct answer visibly ticks the hero counter.
+  // Bump the stamp tally so a correct answer visibly ticks the hero counter.
   pulseShippedCounter() {
     if (!this.shippedText) return;
     this.tweens.killTweensOf(this.shippedText);
@@ -1676,8 +1734,8 @@ export class ConveyorScene extends Phaser.Scene {
     // summary panel (the summary draws its own celebratory pet).
     this.petTween?.stop();
     if (this.crate) this.tweens.killTweensOf(this.crate);
-    // Settle the SHIPPED counter — a correct-answer pulse mid-flight could
-    // otherwise freeze it scaled-up behind the summary panel.
+    // Settle the hero counter: a correct-answer pulse mid-flight could otherwise
+    // freeze it scaled-up behind the summary panel.
     if (this.shippedText) { this.tweens.killTweensOf(this.shippedText); this.shippedText.setScale(1); }
     // A food crate parked on the belt when the clock ran out: drop its tap target
     // and settle it, so an invisible hit-rect can't sit over the summary panel.
@@ -1692,10 +1750,10 @@ export class ConveyorScene extends Phaser.Scene {
     const remaining = this.roundEndsAt ? Math.max(0, this.roundEndsAt - this.time.now) : 0;
     const timeLeftRatio = this.duration > 0 ? remaining / (this.duration * 1000) : 0;
 
-    // The order is filled iff bossWon, regardless of WHICH callback reached here
+    // The quota is filled iff bossWon, regardless of WHICH callback reached here
     // first: if the round clock fires finishRound() (bossWin defaults false)
-    // during the quota crate's ship animation, the filled order must still score
-    // as a win. bossWon is the source of truth.
+    // during the quota crate's pack-off animation, the filled quota must still
+    // score as a win. bossWon is the source of truth.
     const isWin = bossWin || (this.isBoss && this.bossWon);
 
     // Boss = quota race: a WIN is the mastery demonstration (isRoundMastered),
@@ -1717,7 +1775,7 @@ export class ConveyorScene extends Phaser.Scene {
     progress.completeLevel(this.worldId, this.currentLevel, stars, mastered);
 
     // The Night Shift's trophy, granted once on the first clear: the cup of
-    // instant noodles you eat when you're the only one left in the shop. Guarded
+    // instant noodles you eat when you're the only one left in the store. Guarded
     // on the cleared flag rather than on clearHiddenWorld's return (it returns
     // nothing) so a replay can't silently re-equip over her chosen accessory.
     if (this.isNightShift && isWin && !progress.isHiddenWorldCleared(this.worldId)) {
@@ -1758,10 +1816,11 @@ export class ConveyorScene extends Phaser.Scene {
     // checkWorldUnlock), so this only gates the cosmetic celebration.
     if (worldJustMastered && this.isBoss && isWin) progress.setJustClearedWorld(this.worldId);
 
-    // Chapter 3 grand finale (W38 The Great Lighthouse): the first boss win that
-    // completes the world triggers the warm "homecoming" cinematic + credits
-    // instead of the normal summary — mirroring how GameScene routes the W11/W28
-    // finales. markFinale3Seen persists the flag EARLY (atomic) so a tab close
+    // Chapter 3 grand finale (W38, the mountain at dusk): the first boss win that
+    // completes the world triggers the "homecoming" cinematic + credits (the lights
+    // coming on for the ride down) instead of the normal summary, mirroring how
+    // GameScene routes the W11/W28 finales. markFinale3Seen persists the flag
+    // EARLY (atomic) so a tab close
     // mid-credits can't strand it; replays fall through to the normal boss flow.
     if (isWin && isChapter3FinaleWorld(this.worldId)
         && progress.isWorldFullyCleared(this.worldId) && !progress.finale3Seen) {
@@ -1785,7 +1844,7 @@ export class ConveyorScene extends Phaser.Scene {
       }
     };
 
-    // A boss WIN earns the Maker "big order complete" beat, then (if this run was
+    // A boss WIN earns the Home Ground "all packed" beat, then (if this run was
     // the one that mastered the whole world) the world-cleared banner, before the
     // summary. Everything else goes straight to the post-round flow.
     if (this.isBoss && isWin) {
@@ -1799,9 +1858,9 @@ export class ConveyorScene extends Phaser.Scene {
   }
 
   // Boss-win stars for the Conveyor. GameScene.calculateBossStars is damage-based
-  // (ship HP), which Maker Space has no analog for — a filled order is already a
-  // 100% quota, so stars grade how cleanly (accuracy) and how fast (time to
-  // spare) the kid packed it.
+  // (ship HP), which Home Ground has no analog for: a filled quota is already
+  // 100%, so stars grade how cleanly (accuracy) and how fast (time to spare) the
+  // kid packed it.
   calculateConveyorBossStars(accuracy, timeLeftRatio) {
     if (accuracy >= 90 && timeLeftRatio >= 0.2) return 3;
     if (accuracy >= 75 || timeLeftRatio >= 0.15) return 2;
@@ -1823,10 +1882,11 @@ export class ConveyorScene extends Phaser.Scene {
     bg.strokeRoundedRect(-panelW / 2, -panelH / 2, panelW, panelH, 32);
     panel.add(bg);
 
+    // Every boss string comes from the chapter's copy table (see CONVEYOR_CHAPTER).
     const title = this.isBoss
-      ? (bossWin ? 'Big Order Shipped!' : 'Order Unfinished')
+      ? (bossWin ? this.copy.summaryWin : this.copy.bossMiss)
       : (stars > 0 ? this.copy.summaryWin : "Time's Up!");
-    const modeLabel = this.isBoss ? 'RUSH ORDER' : (MODES[this.levelMode]?.label || 'Mixed').toUpperCase();
+    const modeLabel = this.isBoss ? this.copy.bossHeadline : (MODES[this.levelMode]?.label || 'Mixed').toUpperCase();
     panel.add(this.add.text(0, -panelH / 2 + 80, title, style('display', {
       fontSize: '60px'
     })).setOrigin(0.5));
@@ -1856,7 +1916,7 @@ export class ConveyorScene extends Phaser.Scene {
       panel.add(this.add.text(x, statY, value, style('display', { fontSize: '74px', fill: color })).setOrigin(0.5));
       panel.add(this.add.text(x, statY + 58, label, style('caption')).setOrigin(0.5));
     };
-    stat(-220, this.isBoss ? `${this.bossQuota}/${this.bossMaxQuota}` : this.shipped.toString(), this.isBoss ? 'ORDER' : this.copy.stamp, '#ffffff');
+    stat(-220, this.isBoss ? `${this.bossQuota}/${this.bossMaxQuota}` : this.shipped.toString(), this.isBoss ? this.copy.bossStat : this.copy.stamp, '#ffffff');
     stat(0, `${accuracy}%`, 'ACCURACY', hexStr(this.accent));
     stat(220, this.bestStreak.toString(), 'BEST STREAK', '#ff8b3d');
 
@@ -1972,10 +2032,10 @@ export class ConveyorScene extends Phaser.Scene {
     new TransitionManager(this).fadeToScene(sceneKey);
   }
 
-  // ── Boss "Rush Order" framing (Maker-native; NOT the GameScene monster intro) ──
+  // ── Boss "Rush Order" framing (Home Ground native; NOT the GameScene monster intro) ──
 
-  // Calm "a big order just came in" card. No monster, no red flash — a warm
-  // brief that sets the quota + clock, then rolls the belt. Tap to skip.
+  // Calm "a rush just came in" card. No monster, no red flash, a warm brief that
+  // sets the quota + clock, then rolls the belt. Tap to skip.
   playRushOrderIntro(onDone) {
     const root = this.add.container(0, 0).setDepth(80);
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1208, 0).setInteractive();
@@ -1986,13 +2046,13 @@ export class ConveyorScene extends Phaser.Scene {
     this.tweens.add({ targets: overlay, fillAlpha: brief ? 0.95 : 0.84, duration: 260 });
 
     // Lift the card when there's a brief so the whole block clears the keypad.
-    // Without one (Ch1/Ch2 conveyor pilot) the card sits exactly where it shipped.
+    // Without one (Ch1/Ch2 conveyor pilot) the card sits exactly where it always has.
     const card = this.add.container(W / 2, H / 2 - (brief ? 210 : 60));
     card.setScale(0.6);
     card.setAlpha(0);
     root.add(card);
 
-    // A neat stack of crates (plain rounded squares — no symbols).
+    // A neat stack of crates (plain rounded squares, no symbols).
     const stack = this.add.graphics();
     const cs = 64;
     const place = [[-cs, 20], [cs, 20], [0, -44]];
@@ -2004,19 +2064,24 @@ export class ConveyorScene extends Phaser.Scene {
     });
     card.add(stack);
 
-    card.add(this.add.text(0, 10, this.copy.bossHeadline || 'BIG ORDER INCOMING', style('display', {
-      fontSize: this.copy.bossHeadline ? '56px' : '64px',
+    // The headline is the chapter's bossIncoming. A room whose single headline does
+    // double duty (the Night Shift's AFTER HOURS) has none and shows bossHeadline
+    // instead, one step smaller.
+    const incoming = this.copy.bossIncoming || this.copy.bossHeadline;
+    card.add(this.add.text(0, 10, incoming, style('display', {
+      fontSize: this.copy.bossIncoming ? '64px' : '56px',
       fill: this.isNightShift ? '#8fd0ff' : '#ffb142', fontStyle: '900'
     })).setOrigin(0.5));
     card.add(this.add.text(0, 90, this.world.name, style('subhead', {
       fontSize: '40px', fill: hexStr(this.accent)
     })).setOrigin(0.5));
-    // Chapter 3 worlds carry a `bossBrief` — what this rush order is FIXING. It's
-    // how the authored `villain` finally surfaces in Maker Space: as a mess that
-    // happened to the shop, never a creature to fight. Ch1/Ch2 pilot worlds have
-    // no brief, so the card falls back to exactly the copy it always showed.
+    // Chapter 3 worlds carry a `bossBrief`: what this rush is FIXING. It's how the
+    // authored `villain` finally surfaces in Home Ground: as an everyday mess at
+    // the place (the tide over the towels, a tipped pallet), never a creature to
+    // fight. Ch1/Ch2 pilot worlds have no brief, so the card falls back to exactly
+    // the copy it always showed.
     // Flow top-down from under the world name. These are centre-origin by default,
-    // which made a tall multi-line brief grow UPWARDS over the name — so anchor the
+    // which made a tall multi-line brief grow UPWARDS over the name, so anchor the
     // brief by its TOP edge and derive the next line from its measured height.
     let briefY = 150;
     if (brief) {
@@ -2028,9 +2093,9 @@ export class ConveyorScene extends Phaser.Scene {
       card.add(bt);
       briefY += bt.height + 34;
     }
-    const quotaLine = this.copy.quotaLine
-      ? this.copy.quotaLine(this.bossMaxQuota)
-      : `Pack ${this.bossMaxQuota} crates before the truck leaves!`;
+    // The deadline sentence. Chapter 3 reads each place's own rushLine off the world
+    // ("Pack all 44 before dark."); the pilots and the Night Shift ignore the world.
+    const quotaLine = this.copy.quotaLine(this.bossMaxQuota, this.world);
     card.add(this.add.text(0, briefY, quotaLine, style('body', {
       fontSize: '32px', fill: '#e8e8f0', align: 'center', wordWrap: { width: W - 220 }
     })).setOrigin(0.5, 0));
@@ -2047,29 +2112,29 @@ export class ConveyorScene extends Phaser.Scene {
         onComplete: () => { root.destroy(); if (typeof onDone === 'function') onDone(); }
       });
     };
-    // Hold longer when there's a brief to actually read (W38's is three lines).
+    // Hold longer when there's a brief to actually read (W38's runs four short lines).
     const t = this.time.delayedCall(brief ? 4200 : 2100, finish);
     overlay.on('pointerdown', () => { t.remove(); finish(); });
   }
 
-  // Warm "order out the door" beat on a boss WIN (replaces the GameScene shatter
-  // cinematic — nothing is destroyed; the order simply ships). Tap to skip.
+  // Warm "all packed" beat on a boss WIN (replaces the GameScene shatter
+  // cinematic: nothing is destroyed; the rush is simply done). Tap to skip.
   playOrderCompleteCinematic(onDone) {
     const root = this.add.container(0, 0).setDepth(80);
     const overlay = this.add.rectangle(W / 2, H / 2, W, H, 0x0c2a14, 0).setInteractive();
     root.add(overlay);
     this.tweens.add({ targets: overlay, fillAlpha: 0.6, duration: 220 });
 
-    const txt = this.add.text(W / 2, H / 2 - 40, 'BIG ORDER\nSHIPPED!', style('display', {
+    const txt = this.add.text(W / 2, H / 2 - 40, this.copy.bossDone, style('display', {
       fontSize: '88px', fill: '#58d68d', align: 'center', fontStyle: '900', stroke: '#07120a', strokeThickness: 6
     })).setOrigin(0.5);
     txt.setScale(0);
     root.add(txt);
     this.tweens.add({ targets: txt, scale: 1, duration: 380, ease: 'Back.easeOut' });
 
-    // The world's authored victory beat — written long ago and, per GameData's own
-    // note, never surfaced anywhere in game. Chapter 3 has no combat drama, so
-    // these warm lines ARE its emotional payoff; this is the moment they land.
+    // The world's authored victory beat (flavorText). Chapter 3 has no combat
+    // drama, so these warm lines ARE its emotional payoff; this is the moment they
+    // land, once per rush cleared.
     const flavor = this.world.flavorText;
     if (flavor) {
       const ft = this.add.text(W / 2, H / 2 + 170, flavor, style('body', {

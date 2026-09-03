@@ -8,6 +8,7 @@ import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
 import { createStarfield } from '../starfieldHelper.js';
+import { getWorldBackground } from '../WorldBackgrounds.js';
 import { createIconButton, createProgressBar } from '../buttonHelper.js';
 import { style } from '../textStyles.js';
 import { drawWorldNode } from '../WorldNodeArt.js';
@@ -58,11 +59,26 @@ export class LevelSelectScene extends Phaser.Scene {
       this.events.off('resume', this.onSceneWake, this);
     });
 
-    createStarfield(this, {
-      width: W, height: H,
-      accentColor: this.world.accentColor,
-      accentStrength: 0.20
-    });
+    // Backdrop: Chapters 1 and 2 brief under the cosmic starfield, shooting
+    // stars and all. Chapter 3 "Home Ground" is one Saturday around the city, so
+    // its briefing shows that world's own sky instead: the bgTop to bgBottom pair
+    // from WorldBackgrounds (the same sky the belt and the map use), no stars.
+    // The world-accent glow along the bottom edge is kept in both branches.
+    if (this.world.chapter === 3) {
+      const sky = getWorldBackground(this.world.id);
+      const bg = this.add.graphics().setDepth(-10);
+      bg.fillGradientStyle(sky.bgTop, sky.bgTop, sky.bgBottom, sky.bgBottom, 1);
+      bg.fillRect(0, 0, W, H);
+      const glow = this.add.graphics().setDepth(-9);
+      glow.fillStyle(this.world.accentColor, 0.20);
+      glow.fillEllipse(W / 2, H + H * 0.3, W * 1.4, H * 0.85);
+    } else {
+      createStarfield(this, {
+        width: W, height: H,
+        accentColor: this.world.accentColor,
+        accentStrength: 0.20
+      });
+    }
 
     this.createTopBar();
     this.createWorldHero();
@@ -115,12 +131,22 @@ export class LevelSelectScene extends Phaser.Scene {
       ease: 'Sine.easeInOut'
     });
 
-    this.add.text(W / 2, 800, this.world.description, style('subhead', {
+    const desc = this.add.text(W / 2, 800, this.world.description, style('subhead', {
       fontSize: '40px',
       fill: '#e8e8f0',
       align: 'center',
       wordWrap: { width: W - 120 }
     })).setOrigin(0.5).setDepth(8);
+    this.inkForSky(desc);
+  }
+
+  // Home Ground briefings sit on the world's own sky, which runs from pale
+  // morning cream to dusk violet. The pale text the starfield chapters use
+  // washes out on the light skies, so Chapter 3 text gets a dark stroke that
+  // reads on every step of the day arc. No-op for Chapters 1 and 2.
+  inkForSky(t) {
+    if (this.world.chapter === 3) t.setStroke('#1c2733', 6);
+    return t;
   }
 
   createMissionCards() {
@@ -346,11 +372,11 @@ export class LevelSelectScene extends Phaser.Scene {
     }
     const avg = count > 0 ? Math.round(masterySum / count) : 0;
 
-    this.add.text(W / 2, y, 'FACT MASTERY', style('subhead', {
+    this.inkForSky(this.add.text(W / 2, y, 'FACT MASTERY', style('subhead', {
       fontSize: '44px',
       fill: '#cfcfe0',
       fontStyle: '900'
-    })).setOrigin(0.5).setDepth(11);
+    })).setOrigin(0.5).setDepth(11));
 
     const barW = 820;
     const barH = 56;
@@ -369,10 +395,10 @@ export class LevelSelectScene extends Phaser.Scene {
     });
 
     const totalStars = Object.values(this.worldProgress.levelStars).reduce((s, v) => s + v, 0);
-    this.add.text(W / 2, barY + barH / 2 + 60, `${totalStars} / 12 stars in ${this.world.name}`, style('subhead', {
+    this.inkForSky(this.add.text(W / 2, barY + barH / 2 + 60, `${totalStars} / 12 stars in ${this.world.name}`, style('subhead', {
       fontSize: '34px',
       fill: '#aaaac0'
-    })).setOrigin(0.5).setDepth(11);
+    })).setOrigin(0.5).setDepth(11));
 
     // Advance status — the brake made visible. While the next world is still
     // locked, show how many missions are mastered and what mastering them all
@@ -386,17 +412,17 @@ export class LevelSelectScene extends Phaser.Scene {
       // Raised a touch so the 2nd line (which wraps for long world names like
       // "The Singularity Cell") keeps a comfortable margin above the 1920 bottom.
       const ay = barY + barH / 2 + 112;
-      this.add.text(W / 2, ay, `${mastered} / ${need} missions mastered`, style('subhead', {
+      this.inkForSky(this.add.text(W / 2, ay, `${mastered} / ${need} missions mastered`, style('subhead', {
         fontSize: '38px',
         fill: mastered >= need ? '#9affc0' : '#ffd479',
         fontStyle: '900'
-      })).setOrigin(0.5).setDepth(11);
-      this.add.text(W / 2, ay + 50,
+      })).setOrigin(0.5).setDepth(11));
+      this.inkForSky(this.add.text(W / 2, ay + 50,
         `Master every mission to chart a course to ${nextWorld.name}`,
         style('subhead', {
           fontSize: '30px', fill: '#cfcfe0', align: 'center',
           wordWrap: { width: W - 160 }
-        })).setOrigin(0.5).setDepth(11);
+        })).setOrigin(0.5).setDepth(11));
     }
   }
 
@@ -405,9 +431,9 @@ export class LevelSelectScene extends Phaser.Scene {
     this.registry.set('currentLevel', levelNum);
     this.registry.set('levelMode', modeKey);
     this.input.enabled = false;
-    // Chapter 3 ("Maker Space", kind: 'sort') runs the Conveyor / Stamp & Ship
+    // Chapter 3 ("Home Ground", kind: 'sort') runs the Conveyor / Pack & Go
     // scene for every level. As an owner-gated pilot, the Ch1/Ch2 "mixed" level
-    // can also route there (reskinned to its chapter) — see usesConveyorScene.
+    // can also route there (reskinned to its chapter), see usesConveyorScene.
     const sceneKey = usesConveyorScene(this.world, modeKey) ? 'ConveyorScene' : 'GameScene';
     new TransitionManager(this).fadeToScene(sceneKey);
   }

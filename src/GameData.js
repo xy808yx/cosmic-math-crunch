@@ -5,9 +5,15 @@
 // 4 challenges of world N are cleared. See checkWorldUnlock() below.
 //
 // Each world also carries:
-//   - `villain`: the boss persona text (shown above the boss HP bar)
-//   - `flavorText`: a 1-line story beat per world. Authored but not yet
-//     surfaced in-game — kept as data for a future world-clear story card.
+//   - `villain`: the boss persona text (shown above the boss HP bar). In
+//     Chapter 3 the same field is the MESS headline on the level-select boss
+//     tile: an everyday event at the place, never a creature.
+//   - `flavorText`: a 1-line story beat per world. Chapters 1 and 2 keep it as
+//     data only; Chapter 3 shows it on the order-complete card after every boss
+//     win (ConveyorScene).
+//   - `rushLine` (Chapter 3 only): the tail of the boss quota line. ConveyorScene
+//     composes 'Pack all N ' + rushLine + '.', so it stays lowercase with no
+//     trailing period.
 
 export const WORLDS = [
   // ── Chapter 1 — "Outer Space" (the original campaign) ──────────────────────
@@ -227,122 +233,145 @@ export const WORLDS = [
     levelsRequired: 4,
     bigBoss: true
   },
-  // ── Chapter 3 — "Maker Space" (homecoming) ─────────────────────────────────
-  // The scale arc lands at human scale: Outer Space (cosmos) → Inner Space
-  // (body) → Maker Space (your own hands). You've stopped fighting threats and
-  // come home to MAKE things — so the mode of play changes too: no falling
-  // asteroids, a calm "Stamp & Ship" conveyor (kind: 'sort', runs ConveyorScene).
-  // Reached via the warp gate that opens beside the Singularity Cell once the
-  // grand finale (World 28) is cleared. Bosses here are "rush orders", not
-  // monsters. The grand finale is lighting the great Lighthouse (World 38).
+  // ── Chapter 3, "Home Ground" (homecoming) ──────────────────────────────────
+  // The scale arc lands at human scale: Outer Space (the cosmos), Inner Space
+  // (the body), Home Ground (the family's own city). The fighting is over, so
+  // the mode of play changes too: no falling asteroids, a calm "Pack & Go"
+  // conveyor (kind: 'sort', runs ConveyorScene). The eight worlds are one
+  // Saturday of errands, morning to dusk, in order: the grocery store, the big
+  // garden, the mall, the beach, the warehouse store, the bakery, the seawall
+  // and the mountain. Each world's sky steps later than the last. Reached via
+  // the warp gate that opens beside the Singularity Cell once the grand finale
+  // (World 28) is cleared. Bosses here are "rush orders", not monsters: an
+  // everyday mess at the place and a quota to pack before it is too late. The
+  // grand finale is dusk on the mountain (World 38): get everyone up and the
+  // lights on before dark.
+  //
+  // No real place, business or city name appears anywhere on screen or in code.
+  // The identity lives in the art and the recognition cues; the names are plain
+  // nouns the way the kids say them.
   {
     id: 31,
     chapter: 3,
-    name: 'Lantern Workshop',
-    color: 0xc8862e,
-    accentColor: 0xffd27a,
-    description: 'Home at last — a warm workshop, lanterns to light and ship.',
-    villain: 'The Tangle',
+    name: 'The Grocery Store',
+    color: 0x4f7f6a,
+    accentColor: 0xb8f0c8,
+    description: 'First stop. The checkout belt, and a cart to fill.',
+    villain: 'Saturday Rush',
     // Chapter 3 "rush order" briefs. Ch1/Ch2 surface their villain as a foe on the
-    // boss card; Maker Space has no foes, so the same field surfaces as a MESS to
-    // sort out: an event that happened to the shop, never a creature to fight.
-    bossBrief: 'The Tangle has knotted every wick in the shop.',
-    flavorText: 'Every lantern lit. The workshop glows warm against the dusk.',
+    // boss card; Home Ground has no foes, so the same field is the MESS headline
+    // on the boss tile: an everyday event at the place (the tide came in, the
+    // sprinklers came on early), never a creature to fight. bossBrief is the
+    // rush-order card's body; rushLine is the tail of its quota line.
+    bossBrief: 'Every lane is open and the line still reaches the bread aisle. Pack every bag before the cart rolls.',
+    flavorText: 'Bags packed, cart full. Out into the morning.',
+    rushLine: 'before the cart rolls',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 32,
     chapter: 3,
-    name: 'Seed Depot',
+    name: 'The Big Garden',
     color: 0x4f8a3a,
     accentColor: 0xa8e878,
-    description: 'Sort the seeds, share them out, and watch the garden grow.',
-    villain: 'Overgrowth',
-    bossBrief: 'Overgrowth is spilling out of every seed bin.',
-    flavorText: 'Seeds sorted, beds planted. Green rolls out across the depot.',
+    description: 'Hedges taller than Dad, a lake with stepping stones, and trays to pot.',
+    villain: 'Early Sprinklers',
+    bossBrief: 'The sprinklers came on early and every tray got shuffled. Pot them all before the beds dry out.',
+    flavorText: 'Trays potted, beds planted. The whole garden hums.',
+    rushLine: 'before the beds dry',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 33,
     chapter: 3,
-    name: 'Toy Railyard',
-    color: 0xb5523a,
-    accentColor: 0xff9a78,
-    description: 'A cheerful railyard — route every toy car to its track.',
-    villain: 'Switchsnarl',
-    bossBrief: 'Switchsnarl has crossed every track in the yard.',
-    flavorText: 'Every car on the right track. The little trains chuff home.',
+    name: 'The Mall',
+    color: 0x6a6fa8,
+    accentColor: 0xd8dcff,
+    description: 'Glass roof, long escalators, trees growing on top of the building.',
+    villain: 'Rain Day Rush',
+    bossBrief: 'It is pouring and the whole city came in to get dry. Pack every bag before the food hall closes.',
+    flavorText: 'Bags packed and the rain let up. Back out under the glass.',
+    rushLine: 'before the food hall closes',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 34,
     chapter: 3,
-    name: 'Kite Loft',
-    color: 0x3a7fb5,
-    accentColor: 0x9bd4ff,
-    description: 'High and bright — send each kite to the right open sky.',
-    villain: 'Gustfront',
-    bossBrief: 'Gustfront tangled every kite line at once.',
-    flavorText: 'The sky fills with kites. The wind settles into a friendly breeze.',
+    name: 'The Beach',
+    color: 0x3a8fb5,
+    accentColor: 0xffe08a,
+    description: 'Low tide for miles, a row of logs, and the snack window.',
+    villain: 'Tide Over the Towels',
+    bossBrief: 'The tide turned and came up over the towels. Everyone wants their order before the blanket moves again.',
+    flavorText: 'Every tray out, everyone fed. The tide goes back out for miles.',
+    rushLine: 'before the blanket moves',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 35,
     chapter: 3,
-    name: 'Clockwork Shop',
-    color: 0xb5893a,
-    accentColor: 0xffd86b,
-    description: 'Brass and gears — fit every cog into its proper place.',
-    villain: 'Gearjam',
-    bossBrief: 'Gearjam has frozen the whole clockwork floor.',
-    flavorText: 'The clockwork ticks true again. The whole shop keeps perfect time.',
+    name: 'The Big Store',
+    color: 0xb5623a,
+    accentColor: 0xffc27a,
+    description: 'Shelves to the ceiling, giant carts, and a hot dog at the end.',
+    villain: 'A Pallet Tipped',
+    bossBrief: 'A pallet tipped in the back and every giant box is loose. Get them on the flatbeds before the doors close.',
+    flavorText: 'Flatbeds loaded, hot dog in hand. That is the big shop done.',
+    rushLine: 'before the doors close',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 36,
     chapter: 3,
-    name: 'Crunch Cafe',
-    color: 0xc46a4a,
-    accentColor: 0xffc89a,
-    description: 'A cozy bakery — share each batch into the right number of boxes.',
-    villain: 'The Big Batch',
-    bossBrief: 'The Big Batch came in twice the size it should be.',
-    flavorText: 'Every order boxed and out the door. The cafe smells like home.',
+    name: 'The Bread Place',
+    color: 0xb87048,
+    accentColor: 0xffd1a8,
+    description: 'The bread place on the plaza. Get there before they close.',
+    villain: 'Oven All at Once',
+    bossBrief: 'Everything came out of the oven at once and the line is around the corner. Box them while they are warm.',
+    // The one and only line in the game that uses the family word. Never a
+    // label anyone must read, never a name.
+    flavorText: 'Last loaf boxed. One blueby bread saved for the littlest.',
+    rushLine: 'before they close',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 37,
     chapter: 3,
-    name: 'Harbor Bridgeworks',
-    color: 0x3a8a7a,
-    accentColor: 0x7fe0c8,
-    description: 'Ship the parts that build the bridges across the bright harbor.',
-    villain: 'Stormtide',
-    bossBrief: 'Stormtide knocked the bridge parts clean off the dock.',
-    flavorText: 'The bridges stand. Boats glide home under a clearing sky.',
+    name: 'The Seawall',
+    color: 0x3a8a8a,
+    accentColor: 0xffcf7a,
+    description: 'Bikes on the seawall, little ferries on the water, the dome across the way.',
+    villain: 'Sunset Crowd',
+    bossBrief: 'Everybody came out for the sunset and every little ferry is full. Get them across before the light goes.',
+    flavorText: 'Every ferry home. The water goes gold, then pink.',
+    rushLine: 'before the light goes',
     levelsRequired: 4,
     kind: 'sort'
   },
   {
     id: 38,
     chapter: 3,
-    name: 'The Great Lighthouse',
-    color: 0xc88a3a,
+    name: 'The Mountain',
+    color: 0x4a4f8a,
     accentColor: 0xfff3b8,
-    description: 'One last big order — light the great lighthouse and guide everyone home.',
-    villain: 'Nightfall',
+    description: 'One last ride up. Get the lights on before dark and bring everyone home.',
+    villain: 'Dusk on the Peak',
     // Closes the dark thread that opened in Chapter 1, WITHOUT reopening it: this
     // is not the Void come back (that let go for good inside the smallest cell).
-    // It's ordinary evening. The maker-register answer to dark is a built light,
-    // not a battle. Surfaced by ConveyorScene's rush-order intro (see bossBrief).
-    bossBrief: 'Not the old dark. Just night now,\nthe kind that comes every evening.\nYou never fight the night. You light a lamp,\nand everybody finds their way home.',
-    flavorText: 'The lighthouse blazes. Its beam reaches the cosmos, the body, and home.',
+    // It is ordinary evening at the top of the mountain. The Home Ground answer
+    // to dark is switching the lights on for the ride down, not a battle.
+    // Surfaced by ConveyorScene's rush-order intro (see bossBrief): four short
+    // lines, sized for the card's 4200ms hold.
+    bossBrief: 'Not the old dark. Just evening,\nthe kind that comes every day.\nGet everyone up before the light goes,\nand switch the mountain on for the ride down.',
+    flavorText: 'The lights come on. Below you, the whole city does too.',
+    rushLine: 'before dark',
     levelsRequired: 4,
     bigBoss: true,
     kind: 'sort'
@@ -411,16 +440,18 @@ export const WORLDS = [
     discoveredFrom: { worldId: 26, mode: 'div' },
     kind: 'exploration'
   },
-  // Chapter 3 secret — "Hot Pot Time": the self-serve, individual-bowl hot pot
-  // line the family actually eats at. Same real-place trick as Dad's Garage and
-  // the Playground, but it's also the chapter's OWN mechanic in real life: you
-  // walk a line filling a bowl, hand it over a counter, take a number, and it
-  // comes back made. Stamp & Ship, for dinner.
+  // Chapter 3 secret, "Hot Pot Time": the self-serve, individual-bowl hot pot
+  // line the family actually eats at. Same no-real-names rule as Dad's Garage,
+  // the Playground and every Home Ground world, and it is also the chapter's
+  // OWN mechanic in real life: you walk a line filling a bowl, hand it over a
+  // counter, take a number, and it comes back made. Pack & Go, for dinner.
   //
-  // Discovery is the one thing that couldn't be reused: warp asteroids only
+  // Discovery is the one thing that could not be reused: warp asteroids only
   // spawn in GameScene, and Chapter 3 runs ConveyorScene. So this world uses
-  // `discoveredFromCrate` instead — a rare food crate rides the Crunch Cafe
-  // (W36) belt (see getConveyorSecretForHost + ConveyorScene.spawnFoodCrate).
+  // `discoveredFromCrate` instead: a rare food crate rides the bakery counter
+  // (The Bread Place, W36; see getConveyorSecretForHost +
+  // ConveyorScene.spawnFoodCrate). The crate keeps its exact shipped look so
+  // it still reads as the odd one out among the bread boxes.
   {
     id: 19,
     chapter: 3,
@@ -435,20 +466,23 @@ export const WORLDS = [
     discoveredFromCrate: { worldId: 36 },
     kind: 'exploration'
   },
-  // Chapter 3 secret #2 — "The Night Shift": the HARD one. The same workshop the
-  // kid has been shipping orders from all chapter, after hours: lights down,
-  // nobody in, and the labels worn off the crates. So the crates arrive
-  // BACKWARDS — `? × 8 = 56` instead of `7 × 8` — and she has to work out which
-  // bin it belongs in. Quota 48, the highest in the game (King Coli 40, the
-  // Great Lighthouse 44), on the game's longest clock.
+  // Chapter 3 secret #2, "The Night Shift": the HARD one. The grocery store
+  // (World 31, the first stop of the day) after closing: lights down, nobody
+  // in, the fridge cases and the exit sign the brightest things left, and a
+  // restocking pallet with the labels worn off. So the crates arrive BACKWARDS
+  // (`? × 8 = 56` instead of `7 × 8`) and she has to work out which bin each
+  // one belongs in. Quota 48, the highest in the game (King Coli 40, The
+  // Mountain 44), on the game's longest clock. The room borrows W31's back
+  // wall under a night scrim (ConveyorScene NIGHT_SHIFT.bgWorldId), so it is a
+  // place she already knows, with the lights off.
   //
   // `belt: true` routes it to the ConveyorScene rather than GameScene (see
   // usesConveyorScene): it is a gauntlet, but Chapter 3's gauntlet is the belt.
-  // Crucially the belt SPEED is untouched — the difficulty is the thinking, not
+  // Crucially the belt SPEED is untouched: the difficulty is the thinking, not
   // the tempo, because a panic-fast belt manufactures taps the engine would
   // wrongly certify as automatic (see the floor in ConveyorScene).
   //
-  // No creatures, no villain. Nothing here is chasing her; it is just the shop
+  // No creatures, no villain. Nothing here is chasing her; it is just the store
   // at night and a stack of work.
   {
     id: 20,
@@ -486,7 +520,8 @@ export const DAD_NOTE_BOARDS = ['garage', 'playground', 'hotpot'];
 // beating World 28 is the true grand finale at the end of Chapter 2.
 export const CHAPTER1_FINAL_ID = 11;
 export const CHAPTER2_FINAL_ID = 28;
-// Chapter 3 ("Maker Space") finale — lighting the Great Lighthouse (World 38).
+// Chapter 3 ("Home Ground") finale: dusk on the mountain (World 38), where the
+// lights come on before dark and everyone rides down toward the city.
 export const CHAPTER3_FINAL_ID = 38;
 
 // True if this world is the Chapter 1 final boss (Void Devourer). Drives the
@@ -500,7 +535,7 @@ export function isFinaleWorld(worldId) {
   return worldId === CHAPTER2_FINAL_ID;
 }
 
-// True if this world is the Chapter 3 finale (the Great Lighthouse).
+// True if this world is the Chapter 3 finale (The Mountain, dusk on the peak).
 export function isChapter3FinaleWorld(worldId) {
   return worldId === CHAPTER3_FINAL_ID;
 }
@@ -566,7 +601,7 @@ export const MODES = {
   mixed: { label: 'Mixed',    symbol: '×÷', duration: 60, scoreThreshold: 16 }
 };
 
-// Per-LEVEL scene routing. Chapter 3 ("Maker Space", kind: 'sort') runs the
+// Per-LEVEL scene routing. Chapter 3 ("Home Ground", kind: 'sort') runs the
 // Conveyor for every level. As an owner-gated pilot, the Ch1/Ch2 "mixed" (×÷)
 // practice level can ALSO route into the Conveyor (reskinned to its own chapter)
 // so every world gets one "sort" level among its combat levels — behind
@@ -618,7 +653,7 @@ export function isRoundMastered({ isBoss, bossWin, score, accuracy, scoreThresho
 // GATE above (which advances the campaign): stars are only the best-result
 // record + reward tier shown on the summary. 3 stars wants both the full
 // 3-star volume AND high accuracy; 2 stars is "most of the volume OR accurate".
-// Shared by GameScene (falling asteroids) and ConveyorScene (Stamp & Ship) so
+// Shared by GameScene (falling asteroids) and ConveyorScene (Pack & Go) so
 // both modes score a round identically. NOTE the 85% accuracy here is the
 // 3-STAR bar, separate from MASTERY_ACCURACY (80%).
 export function calculateStars(score, accuracy, scoreThreshold) {
@@ -639,8 +674,8 @@ const WORLD_PROBLEM_SECONDS = {
   // from getAdaptiveProblemSeconds (scoped to chapter 2 + arcade), which these
   // values only serve as the cold-start fallback for.
   21: 4.5,  22: 4.3,  23: 4.1,  24: 4.0,  25: 3.9,  26: 3.8,  27: 3.6,  28: 3.5,
-  // Chapter 3 ("Maker Space") — the cold-start baseline for the Conveyor belt's
-  // active-crate window. The real per-kid pressure comes from
+  // Chapter 3 ("Home Ground"): the cold-start baseline for the Conveyor belt's
+  // active-item window. The real per-kid pressure comes from
   // getAdaptiveProblemSeconds (Conveyor opts in, like Chapter 2). Flat-ish, calm.
   31: 4.5,  32: 4.3,  33: 4.1,  34: 4.0,  35: 3.9,  36: 3.8,  37: 3.6,  38: 3.5,
   // Hidden worlds use their own pacing (read lazily). Glitch boss (15) gets a
@@ -755,8 +790,9 @@ const CHAPTER2_BOSS_HP = {
   21: 10, 22: 11, 23: 12, 24: 13, 25: 14, 26: 15, 27: 16, 28: 46
 };
 // Chapter 3 "rush order" bosses. The `8 + worldId*2` formula would give the
-// 30s brutal HP; the maker bosses sit ~10–18, and the Great Lighthouse (38) is
-// the grand finale tuned just under World 11's Void Devourer / Patient Zero.
+// 30s brutal HP; the Home Ground rush orders sit ~10 to 18, and The Mountain
+// (38) is the grand finale tuned just under World 11's Void Devourer / Patient
+// Zero.
 const CHAPTER3_BOSS_HP = {
   31: 10, 32: 11, 33: 12, 34: 13, 35: 14, 36: 15, 37: 16, 38: 44
 };
@@ -1218,16 +1254,21 @@ class PlayerProgress {
         // Cosmic/Arcade unlock and must NOT be reset).
         this.currentChapter = data.currentChapter || 1;
         this.finaleSeen = !!data.finaleSeen;
-        // Chapter 3 ("Maker Space") grand finale — World 38 (The Great Lighthouse).
+        // Chapter 3 ("Home Ground") grand finale: World 38 (The Mountain).
         // Separate from finaleSeen (W28) so the W28 grand finale still plays once
         // for players who reached it before Ch3 existed.
         this.finale3Seen = !!data.finale3Seen;
-        // One-shot: the "you've stopped fighting, now you build" arrival card that
-        // frames Maker Space. Shown once, the first time the player surfaces into
-        // Chapter 3, then never again (it's a premise beat, not a reminder).
+        // One-shot arrival card that frames Chapter 3 ("the fighting is over, this
+        // is home"). Shown once, the first time the player surfaces onto the
+        // Chapter 3 map, then never again (it is a premise beat, not a reminder).
+        // makerWelcomeSeen gated the first version of that card and stays in
+        // saves, unused, so nothing is renamed under existing kids.
+        // homeGroundWelcomeSeen gates the rewritten Home Ground card, so a kid who
+        // already entered Chapter 3 sees the new premise exactly once.
         this.makerWelcomeSeen = !!data.makerWelcomeSeen;
+        this.homeGroundWelcomeSeen = !!data.homeGroundWelcomeSeen;
         // Owner-only pilot: route the Ch1/Ch2 "mixed" level into the Conveyor
-        // (Stamp & Ship) mode. Per-browser (localStorage), default OFF.
+        // (Pack & Go) mode. Per-browser (localStorage), default OFF.
         this.conveyorMixedEnabled = !!data.conveyorMixedEnabled;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
         this.checkWorldUnlock(null);
@@ -1264,6 +1305,7 @@ class PlayerProgress {
     this.finaleSeen = false;
     this.finale3Seen = false;
     this.makerWelcomeSeen = false;
+    this.homeGroundWelcomeSeen = false;
     this.conveyorMixedEnabled = false;
     this.save();
   }
@@ -1506,6 +1548,7 @@ class PlayerProgress {
         finaleSeen: this.finaleSeen,
         finale3Seen: this.finale3Seen,
         makerWelcomeSeen: this.makerWelcomeSeen,
+        homeGroundWelcomeSeen: this.homeGroundWelcomeSeen,
         conveyorMixedEnabled: this.conveyorMixedEnabled
       }));
     } catch (e) {
@@ -1554,10 +1597,10 @@ class PlayerProgress {
     this.save();
   }
 
-  // Mark the Chapter 3 grand finale (World 38, The Great Lighthouse) as seen and
-  // persist — atomically, EARLY (before the homecoming credits roll) so closing
-  // the tab mid-cinematic can't strand the flag. Returns true on the first call.
-  // Idempotent. No trophy to grant (Maker Space ships no new reward system), so
+  // Mark the Chapter 3 grand finale (World 38, The Mountain) as seen and
+  // persist, atomically and EARLY (before the homecoming credits roll) so closing
+  // the tab mid-cinematic cannot strand the flag. Returns true on the first call.
+  // Idempotent. No trophy to grant (Home Ground ships no new reward system), so
   // unlike markFinaleSeen this only sets the flag.
   markFinale3Seen() {
     const firstTime = !this.finale3Seen;
@@ -1573,8 +1616,18 @@ class PlayerProgress {
     this.save();
   }
 
+  // Mark the Chapter 3 ("Home Ground") arrival card as seen and persist. The
+  // older makerWelcomeSeen flag never had a marker (WorldMapScene set it inline
+  // and saved); this one follows markTutorialSeen's shape so the scene only
+  // reads the flag and calls this. Idempotent.
+  markHomeGroundWelcomeSeen() {
+    if (this.homeGroundWelcomeSeen) return;
+    this.homeGroundWelcomeSeen = true;
+    this.save();
+  }
+
   // Owner-only pilot toggle (Dad's Menu) for routing the Ch1/Ch2 "mixed" level
-  // into the Conveyor "Stamp & Ship" mode. Routing is computed live from this flag
+  // into the Conveyor "Pack & Go" mode. Routing is computed live from this flag
   // (see usesConveyorScene), so there's nothing to recompute — just persist.
   setConveyorMixedEnabled(on) {
     this.conveyorMixedEnabled = !!on;
@@ -1968,9 +2021,9 @@ class PlayerProgress {
           // pulling the player inward. This matches the warp-gate reveal on the
           // map so the wormhole and the unlocked first world appear together.
           // Each chapter's first world gates on the PREVIOUS chapter's finale:
-          // Ch2 (Inner Space) opens after World 11; Ch3 (Maker Space) opens after
-          // the grand finale, World 28 — the same condition that reveals the
-          // Maker Space warp gate on the Chapter 2 map.
+          // Ch2 (Inner Space) opens after World 11; Ch3 (Home Ground) opens after
+          // the grand finale, World 28, the same condition that reveals the
+          // Home Ground warp gate on the Chapter 2 map.
           const entryOpen =
             chapter === 1 ? true :
             chapter === 2 ? this.isWorldFullyCleared(CHAPTER1_FINAL_ID) :
@@ -2249,16 +2302,17 @@ const WORLD_MUSIC_RATE = {
   26: 0.9719,  // immune front: -0.5 (tense)
   27: 0.9439,  // mitochondria core: -1 (furnace rumble)
   28: 0.9439,  // singularity cell: -1 (finale gravitas, kept clean)
-  // Chapter 3 — "Maker Space" reads warm + bright + daytime. Subtle per-world
-  // pitch (≤ ±1 semitone) over the bespoke maker level theme.
-  31: 1.0,     // lantern workshop: neutral, cozy
-  32: 1.0293,  // seed depot: +0.5 (a green lift)
-  33: 1.0595,  // toy railyard: +1 (bright, playful)
-  34: 1.0293,  // kite loft: +0.5 (airy)
-  35: 0.9719,  // clockwork shop: -0.5 (ticking, mechanical)
-  36: 1.0,     // crunch cafe: neutral, warm
-  37: 0.9439,  // harbor bridgeworks: -1 (broad, salt-air)
-  38: 1.0293,  // great lighthouse: +0.5 (finale shine, kept bright)
+  // Chapter 3, "Home Ground": one summer Saturday around the city, bright and
+  // unhurried. Subtle per-world pitch (within 1 semitone) over the bespoke Home
+  // Ground level theme, stepping with the time of day rather than with danger.
+  31: 1.0,     // the grocery store: neutral (morning routine)
+  32: 1.0293,  // the big garden: +0.5 (a green lift, late morning)
+  33: 1.0595,  // the mall: +1 (bright and busy, indoors out of the rain)
+  34: 1.0293,  // the beach: +0.5 (airy, full afternoon sun)
+  35: 0.9719,  // the big store: -0.5 (big boxes, low five o'clock light)
+  36: 1.0,     // the bread place: neutral, warm (early evening)
+  37: 0.9439,  // the seawall: -1 (broad, golden hour on the water)
+  38: 1.0293,  // the mountain: +0.5 (finale shine, the lights coming on)
 };
 export function getWorldMusicRate(worldId) {
   return WORLD_MUSIC_RATE[worldId] ?? 1.0;

@@ -34,12 +34,13 @@ export class BootScene extends Phaser.Scene {
     this.load.audio('innerSpaceLevel', 'audio/inner-space-level.mp3');
     this.load.audio('innerSpaceBoss',  'audio/inner-space-boss.mp3');
     this.load.audio('playgroundTheme', 'audio/playground.mp3');
-    // Chapter 3 "Maker Space" bespoke soundtrack — same fail-soft pattern: until
+    // Chapter 3 "Home Ground" bespoke soundtrack, same fail-soft pattern: until
     // these MP3s exist, MusicManager.resolveTrack falls back to the Chapter 1
-    // home/level/boss themes, so Maker Space is never silent.
-    this.load.audio('makerHome',  'audio/maker-home.mp3');
-    this.load.audio('makerLevel', 'audio/maker-level.mp3');
-    this.load.audio('makerBoss',  'audio/maker-boss.mp3');
+    // home/level/boss themes, so Home Ground is never silent. The three briefs
+    // live in public/audio/README.md; drop the files in and nothing else changes.
+    this.load.audio('homeGroundHome',  'audio/home-ground-home.mp3');
+    this.load.audio('homeGroundLevel', 'audio/home-ground-level.mp3');
+    this.load.audio('homeGroundBoss',  'audio/home-ground-boss.mp3');
     // Chapter 3 secret room ("Hot Pot Time", W19). Falls back to the garage
     // track — warm and intimate, and already shipped — rather than homeTheme.
     this.load.audio('hotPotTheme', 'audio/hot-pot.mp3');

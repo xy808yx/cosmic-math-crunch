@@ -1,9 +1,13 @@
 // Map ambience layers: starfield, drifting nebulae, shooting stars, and
 // per-world themed particles. Designed for the WorldMapScene. The starfield
-// helper already provides background stars; this module adds animated layers
-// on top of (but behind) the world nodes.
+// helper already provides the map base; this module adds animated layers
+// on top of (but behind) the world nodes. Chapter 1 gets the cosmic set,
+// Chapter 2 the living-vessel set, and Chapter 3 "Home Ground" a summer-day
+// set whose per-world emitters come from src/homeGround.
 //
 // All emission respects a scene-wide cap to keep mid-tier phones at 60fps.
+
+import { HOME_GROUND_WORLDS } from './homeGround/index.js';
 
 const SCENE_CAP = 60;
 const PER_WORLD_CAP = 4;
@@ -31,8 +35,9 @@ export function createMapAmbience(scene, opts) {
     scheduleConvectionMote(scene, state, width, height);
     buildVignette(scene, width, height);
   } else if (chapter === 3) {
-    // Maker Space: warm daytime workshop air — drifting sawdust/pollen motes and
-    // slow warm motes rising in the daylight. No white stars, no shooting stars.
+    // Home Ground: summer-day air over the family's city, drifting cream and
+    // sky-blue motes and slow motes rising in the daylight. No white stars, no
+    // shooting stars.
     for (let i = 0; i < 16; i++) buildDriftMote(scene, state, width, height);
     scheduleWarmMote(scene, state, width, height);
     buildVignette(scene, width, height);
@@ -43,9 +48,9 @@ export function createMapAmbience(scene, opts) {
     scheduleShootingStar(scene, state, width, height);
   }
 
-  // Theme particles per unlocked world (both chapters). Use the REAL world id at
-  // each node — Chapter 2's nodes are worlds 21-28, so the old `i + 1` silently
-  // gave them Chapter 1's emitters.
+  // Theme particles per unlocked world (every chapter). Use the REAL world id at
+  // each node: Chapter 2's nodes are worlds 21-28 and Chapter 3's are 31-38, so
+  // the old `i + 1` silently gave them Chapter 1's emitters.
   for (let i = 0; i <= furthestUnlocked; i++) {
     const pos = nodePositions[i];
     if (!pos) continue;
@@ -161,13 +166,15 @@ function scheduleConvectionMote(scene, state, W, H) {
   scene.time.delayedCall(2000 + Math.random() * 4000, fire);
 }
 
-// ── Chapter 3 "Maker Space" ambience builders ──────────────────────────────
+// ── Chapter 3 "Home Ground" ambience builders ──────────────────────────────
 
-// One drifting warm dust mote — the workshop-air replacement for stars/cells.
-// Bobs and drifts laterally (never falls); biased out of the centre label spine.
+// One drifting summer-day mote, the Home Ground replacement for stars/cells:
+// soft cream, pale sky blue, leaf green and warm sand, like seed fluff and
+// pollen on a Saturday. Bobs and drifts laterally (never falls); biased out of
+// the centre label spine.
 function buildDriftMote(scene, state, W, H) {
   const f = Math.random();
-  const colors = [0xffd27a, 0xffe6b0, 0xc8a060, 0xa8e878];
+  const colors = [0xfff4dc, 0xbfe3f7, 0x9ccf7a, 0xe6cfa0];
   const r = 2 + f * 3;
   const g = scene.add.circle(0, 0, r, colors[Math.floor(Math.random() * colors.length)], 0.5);
   const left = Math.random() < 0.5;
@@ -191,10 +198,11 @@ function buildDriftMote(scene, state, W, H) {
   });
 }
 
-// Slow warm motes rising in the daylight — the Maker replacement for shooting
-// stars. Self-rescheduling, capped against SCENE_CAP.
+// Slow motes rising in the daylight, the Home Ground replacement for shooting
+// stars: cream, pale sky blue and warm sand. Self-rescheduling, capped against
+// SCENE_CAP.
 function scheduleWarmMote(scene, state, W, H) {
-  const colors = [0xffe6b0, 0xffd27a, 0xc8a060];
+  const colors = [0xfff4dc, 0xbfe3f7, 0xe6cfa0];
   const fire = () => {
     if (state.activeParticles >= SCENE_CAP) {
       scene.time.delayedCall(2000, fire);
@@ -221,7 +229,7 @@ function scheduleWarmMote(scene, state, W, H) {
 }
 
 // Subtle peripheral vignette (depth 4, between ambience and nodes) so node
-// labels near the warm edges always stay readable.
+// labels near the screen edges always stay readable.
 function buildVignette(scene, W, H) {
   const v = scene.add.graphics().setDepth(4);
   v.fillStyle(0x000000, 0.18);
@@ -610,81 +618,12 @@ const THEME_EMITTERS = {
   });
   return p;
 },
-  // ── Chapter 3 "Maker Space" — warm rising / drifting motes per workshop ──
-  // 31 — Lantern Workshop: warm lantern-glow embers rising.
-  31: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0xffd27a, 0xffe6b0, 0xffc24a]),
-  // 32 — Seed Depot: green pollen drifting up.
-  32: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0x9be86b, 0xa8e878, 0x6fbf4a]),
-  // 33 — Toy Railyard: little steam puffs rising.
-  33: (scene, state, cx, cy) => {
-    const p = scene.add.circle(cx + (Math.random() - 0.5) * 50, cy + 18, 4 + Math.random() * 3, 0xeaf0f4, 0.7);
-    state.layers.add(p);
-    scene.tweens.add({
-      targets: p, y: '-=64', alpha: 0, scale: 1.7,
-      duration: 2000, ease: 'Sine.easeOut', onComplete: () => p.destroy()
-    });
-    return p;
-  },
-  // 34 — Kite Loft: bright sky sparkles drifting sideways on the breeze.
-  34: (scene, state, cx, cy) => {
-    const dir = Math.random() < 0.5 ? -1 : 1;
-    const p = scene.add.circle(cx - dir * 50, cy + (Math.random() - 0.5) * 50, 3, 0x9bd4ff, 0.9);
-    state.layers.add(p);
-    scene.tweens.add({
-      targets: p, x: cx + dir * 60, alpha: 0,
-      duration: 1600, ease: 'Sine.easeOut', onComplete: () => p.destroy()
-    });
-    return p;
-  },
-  // 35 — Clockwork Shop: brass glints twinkling near the gears.
-  35: (scene, state, cx, cy) => {
-    const a = Math.random() * Math.PI * 2;
-    const r = 56 + Math.random() * 20;
-    const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 2.5, 0xffd86b, 1);
-    state.layers.add(p);
-    scene.tweens.add({
-      targets: p, alpha: 0, scale: 1.7,
-      duration: 1100, ease: 'Sine.easeOut', onComplete: () => p.destroy()
-    });
-    return p;
-  },
-  // 36 — Crunch Cafe: warm crumbs / sweet steam rising.
-  36: (scene, state, cx, cy) => riseMote(scene, state, cx, cy, [0xffc89a, 0xffe0c2, 0xff9a78]),
-  // 37 — Harbor Bridgeworks: teal water sparkles bursting outward.
-  37: (scene, state, cx, cy) => {
-    const a = Math.random() * Math.PI * 2;
-    const p = scene.add.circle(cx, cy + 20, 3, 0x7fe0c8, 0.9);
-    state.layers.add(p);
-    scene.tweens.add({
-      targets: p, x: cx + Math.cos(a) * 70, y: cy + 20 + Math.sin(a) * 36, alpha: 0,
-      duration: 1300, ease: 'Quad.easeOut', onComplete: () => p.destroy()
-    });
-    return p;
-  },
-  // 38 — The Great Lighthouse: golden beacon sparkles twinkling around the lamp.
-  38: (scene, state, cx, cy) => {
-    const a = Math.random() * Math.PI * 2;
-    const r = 64 + Math.random() * 22;
-    const p = scene.add.circle(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3, 0xfff3b8, 1);
-    state.layers.add(p);
-    scene.tweens.add({
-      targets: p, alpha: 0, scale: 1.9,
-      duration: 1400, ease: 'Sine.easeOut', onComplete: () => p.destroy()
-    });
-    return p;
-  },
 };
 
-// Shared rising-mote emitter for the warm Maker worlds (pollen / embers / steam).
-function riseMote(scene, state, cx, cy, colors) {
-  const p = scene.add.circle(
-    cx + (Math.random() - 0.5) * 70, cy + 26,
-    3, colors[Math.floor(Math.random() * colors.length)], 0.85
-  );
-  state.layers.add(p);
-  scene.tweens.add({
-    targets: p, y: '-=64', alpha: 0,
-    duration: 2200, ease: 'Sine.easeOut', onComplete: () => p.destroy()
-  });
-  return p;
+// Chapter 3 "Home Ground": the eight per-world emitters (worlds 31 to 38) are
+// written by the world modules in src/homeGround and registered here so
+// buildWorldEmitter keeps counting and capping them exactly as before.
+for (const id of Object.keys(HOME_GROUND_WORLDS)) {
+  const world = HOME_GROUND_WORLDS[id];
+  THEME_EMITTERS[id] = (scene, state, cx, cy) => world.emit(scene, state, cx, cy);
 }

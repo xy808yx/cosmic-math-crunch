@@ -7,14 +7,19 @@
 // SHIP + PET as the hero, and a climax SHOCKWAVE — never a spiral, swirl, swept
 // arc, or ray-burst (per the project's no-spiral / no-sigil art policy).
 //
-//   playWormholeCinematic(scene, 'in',  onDone)  — Ch1 → Ch2: the ship dives
-//       INWARD, big→swallowed by the core; cold cosmic (indigo/teal/gold) morphs
-//       to warm living (violet/rose); ends on a low heartbeat thump.
-//   playWormholeCinematic(scene, 'out', onDone)  — Ch2 → Ch1: the ship BURSTS
-//       OUTWARD from the core toward the viewer, small→large; warm morphs back to
-//       cold; ends on a bright chime.
+//   playWormholeCinematic(scene, 'in',  onDone): Ch1 to Ch2, the ship dives
+//       INWARD, big to swallowed by the core; cold cosmic (indigo/teal/gold)
+//       morphs to warm living (violet/rose); ends on a low heartbeat thump.
+//   playWormholeCinematic(scene, 'out', onDone): Ch2 to Ch1, the ship BURSTS
+//       OUTWARD from the core toward the viewer, small to large; warm morphs back
+//       to cold; ends on a bright chime.
+//   playWormholeCinematic(scene, 'out', onDone, { palette: 'homecoming' }):
+//       Ch2 to Ch3 (Home Ground), the same outward burst recoloured as a morning:
+//       the body's warm end surfaces into pale blue, cream and soft warm yellow,
+//       because the dive lands on a Saturday morning at the grocery store.
+//       Leaving Ch3 back toward the body plays the default 'in' bridge.
 //
-// Both directions show the SAME ship+pet (their customization) as the clear hero,
+// Every route shows the SAME ship+pet (their customization) as the clear hero,
 // driven by the single master clock so it can never desync from the visuals.
 //
 // Handoff contract: onDone() (setCurrentChapter + scene.restart) is invoked
@@ -50,10 +55,13 @@ const SHOCK_MAX_R = 1500;  // shockwave rings expand to here at the climax
 // centre pivot: the one hue living in BOTH the cosmic and the body palettes, so
 // the eye never sees a hard seam.
 const GRAD_COSMIC = [0x4a4a8c, 0x6e7bd6, 0x4ecdc4, 0xfff3b8, 0xc77eff, 0xff7a8a];
-// Chapter 3 "homecoming" (Ch2 → Ch3): a warm DAYLIGHT bridge — teal sky → gold →
-// green land. Same teal pivot, so surfacing from the body into Maker Space reads
-// as "coming up into the light" (still the vetted ring tunnel — no spiral).
-const GRAD_HOMECOMING = [0x4ecdc4, 0x7fd8e0, 0xffe0a0, 0xfff3b8, 0x9be86b, 0x6fbf4a];
+// Chapter 3 "homecoming" (Ch2 to Ch3, Home Ground): a MORNING bridge. Index 0 is
+// the arrival end (the 'out' dive runs this gradient from the last stop back to
+// the first): pale morning blue, then cream, then a soft warm yellow, with the
+// same teal pivot at the far end so surfacing out of the body reads as "coming
+// up into the light" of a Saturday morning at the store (still the vetted ring
+// tunnel, no spiral).
+const GRAD_HOMECOMING = [0x9fd6ff, 0xbfe6ff, 0xfff8e7, 0xffe9a8, 0xffd66b, 0x4ecdc4];
 
 // Gradient sample over `grad` (allocation-free; called every frame).
 function sampleGrad(grad, p) {
@@ -68,8 +76,8 @@ export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
   const dirIn = direction !== 'out';
   const CLOCK_MS = 3400;
 
-  // Palette: 'homecoming' (entering Maker Space) recolors the whole dive warm
-  // daylight; otherwise the default cosmic↔body bridge. Structure is identical —
+  // Palette: 'homecoming' (entering Home Ground) recolors the whole dive as a
+  // morning; otherwise the default cosmic/body bridge. Structure is identical,
   // only the colours change.
   const homecoming = opts.palette === 'homecoming';
   const GRAD = homecoming ? GRAD_HOMECOMING : GRAD_COSMIC;
@@ -77,10 +85,13 @@ export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
   const root = scene.add.container(0, 0).setDepth(2000).setScrollFactor(0);
 
   // --- BACKDROP (normal blend, opaque from frame 0 so the live map is hidden) ---
-  // COLD_BG/WARM_BG are the two ends of the bg morph (homecoming surfaces from the
-  // body's warm maroon up into a green daylight). COVER_BG is the handoff colour —
-  // ALWAYS 0x0a0a1a so the rebuilt map's fadeIn (which starts there) is seamless.
-  const COLD_BG = homecoming ? 0x1a3a16 : 0x0a0a1a;
+  // COLD_BG/WARM_BG are the two ends of the bg morph. COLD_BG is the outer end:
+  // deep space by default, or a mid morning blue for the homecoming (the dive
+  // surfaces from the body's warm maroon up into the morning; kept mid-tone so
+  // the additive rings and streaks still read on top of it). COVER_BG is the
+  // handoff colour, ALWAYS 0x0a0a1a so the rebuilt map's fadeIn (which starts
+  // there) is seamless.
+  const COLD_BG = homecoming ? 0x2f5a80 : 0x0a0a1a;
   const WARM_BG = 0x2a0a14;
   const COVER_BG = 0x0a0a1a;
   const backdrop = scene.add.graphics();
@@ -169,7 +180,9 @@ export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
 
   function redraw() {
     const p = clock.p;
-    const mix = dirIn ? p : 1 - p;            // 0 = cold/cosmos, 1 = warm/body
+    // mix: 0 = the outer end (deep space, or the morning street for the
+    // homecoming palette), 1 = the body's warm end.
+    const mix = dirIn ? p : 1 - p;
 
     // Backdrop: morph cold↔warm, fully opaque.
     backdrop.clear();
@@ -209,9 +222,13 @@ export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
       streaks.lineBetween(CX + ca * r2, CY + sa * r2, CX + ca * r1, CY + sa * r1);
     }
 
-    // Core lens: stacked filled ellipses + hot pupil + orbiting sparks.
-    // Homecoming biases the warm end toward green (light → meadow) instead of rose.
-    const accent = lerpHex(0xfff3b8, homecoming ? 0x9be86b : 0xff7a8a, mix);
+    // Core lens: stacked filled ellipses + hot pupil + orbiting sparks. The
+    // default core goes cream at the cosmos end to rose at the body end; the
+    // homecoming core goes soft morning yellow at the arrival end to cream at
+    // the body end, so the light you surface into is the morning sun.
+    const accent = homecoming
+      ? lerpHex(0xffd66b, 0xfff3b8, mix)
+      : lerpHex(0xfff3b8, 0xff7a8a, mix);
     const baseScale = (dirIn ? 0.35 + 0.95 * p : 1.30 - 0.95 * p) * (1 + 0.07 * Math.sin(p * 20));
     const cs = Math.max(0.12, baseScale);
     core.clear();
@@ -269,7 +286,9 @@ export function playWormholeCinematic(scene, direction, onDone, opts = {}) {
   // `shockTween` so finish() can kill it, and the onUpdate no-ops if `shock` was
   // already torn down by the scene swap.
   function fireShockwave() {
-    const tint = homecoming ? (dirIn ? 0xffe0a0 : 0x9be86b) : (dirIn ? 0xff9ec7 : 0xbcd4ff);
+    // Homecoming rings burst in morning colours: soft warm yellow when surfacing
+    // into Home Ground, pale blue on the (unused today) inward variant.
+    const tint = homecoming ? (dirIn ? 0x9fd6ff : 0xffd66b) : (dirIn ? 0xff9ec7 : 0xbcd4ff);
     const RING_MS = 460, GAP_MS = 90, N = 3;
     const total = RING_MS + GAP_MS * (N - 1);   // last ring still expanding here
     const wave = { ms: 0 };

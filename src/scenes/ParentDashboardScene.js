@@ -207,12 +207,12 @@ export class ParentDashboardScene extends Phaser.Scene {
       { id: 'analytics', label: 'Analytics' },
       { id: 'settings', label: 'Settings' }
     ];
-    // Stamp & Ship (Conveyor) timing tab — only shown once Chapter 3 has been
+    // Pack & Go (Conveyor) timing tab, only shown once Chapter 3 has been
     // played, so the dashboard stays uncluttered for players who haven't reached
     // it. Inserted before Settings.
     const cs = records.getConveyorStats();
     if (cs.production.count + cs.recognition.count > 0) {
-      tabs.splice(3, 0, { id: 'conveyor', label: 'Stamp & Ship' });
+      tabs.splice(3, 0, { id: 'conveyor', label: 'Pack & Go' });
     }
 
     const gap = 16;
@@ -484,7 +484,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     }
   }
 
-  // ----- STAMP & SHIP (Conveyor timing) -----
+  // ----- PACK & GO (Conveyor timing) -----
   // Surfaces the Chapter-3 instrumentation so the owner can resolve the
   // production-vs-recognition A/B and check that fast times reflect real recall
   // (not a position-guessing shortcut). One panel per input mode: the
@@ -493,7 +493,7 @@ export class ParentDashboardScene extends Phaser.Scene {
   showConveyorTab() {
     const cs = records.getConveyorStats();
     let y = 296;
-    this.contentContainer.add(this.add.text(W / 2, y, 'Stamp & Ship — Recall Timing', style('subhead', {
+    this.contentContainer.add(this.add.text(W / 2, y, 'Pack & Go: Recall Timing', style('subhead', {
       fontSize: '32px', fill: '#ffd86b'
     })).setOrigin(0.5));
     y += 46;
@@ -527,7 +527,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       fontSize: '28px', fill: '#ffffff'
     })).setOrigin(0, 0.5));
     card.add(this.add.text(w / 2 - 28, -panelH / 2 + 34,
-      hasData ? `${m.count} shipped · avg ${(m.avgMs / 1000).toFixed(1)}s · ${m.fastPct}% under 2.5s` : 'no rounds yet',
+      hasData ? `${m.count} packed · avg ${(m.avgMs / 1000).toFixed(1)}s · ${m.fastPct}% under 2.5s` : 'no rounds yet',
       style('caption', { fontSize: '22px', fill: '#cfcfe0' })).setOrigin(1, 0.5));
 
     if (!hasData) {
