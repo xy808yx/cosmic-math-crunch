@@ -128,9 +128,45 @@ const ENTRY_PLATE_H = 120;        // readout plate height (kept clear of the top
 const MAX_ANSWER_DIGITS = 3;      // products top out at 12×12 = 144
 // Keypad entry hold: once the first digit of an answer is punched, the crate's
 // ride-off clock pauses so the belt never tips a crate into the chute under a
-// half-typed number. The hold is capped at this much per crate in total, after
-// which the clock runs again even mid-entry, so a stalled entry still resolves.
+// half-typed number. The hold is capped at this much of actual hold time per
+// crate (see holdBelt), after which the clock runs again even mid-entry, so a
+// stalled entry still resolves.
 const ENTRY_HOLD_MS = 4000;
+
+// Status bars (the round's time bar, and under it the rush quota bar). The
+// stack is anchored at BAR_TOP_Y and each chapter's skin says how it looks, so
+// the two bars can never drift apart and a chapter restyles them by swapping
+// tokens rather than by adding a branch to buildStatusBars.
+const BAR_W = 760;
+const BAR_TOP_Y = 379;            // top edge of the first bar
+
+// Chapters 1 and 2 (and the Night Shift) play against dark backdrops, where a
+// near-black track and a bare capsule read fine.
+const BARS_DARK = {
+  height: 26,
+  gap: 40,                        // center-to-center between the two bars
+  track: COLORS.bgTrack,
+  trackAlpha: 1,
+  plate: null,
+  outline: null
+};
+
+// Home Ground plays in daylight, and the dark treatment failed there twice
+// over: every Chapter 3 accent is a pastel, so the fill washed out against a
+// pale sky, and the near-black track read as a slab dropped on the art. The
+// bars are pinned to a paper label instead, the same cutout idiom as the
+// chapter's own scenery and its tourist map. The ink outline is what keeps a
+// pale fill legible whatever colour the place happens to use, and the track is
+// a warm mid-brown so the boundary between spent and remaining stays obvious
+// against every one of those pastels.
+const BARS_PAPER = {
+  height: 32,
+  gap: 42,
+  track: 0xa8977a,
+  trackAlpha: 1,
+  plate: { fill: 0xf6ecd6, radius: 18, padX: 18, padY: 20, shadow: { dx: 5, dy: 7, alpha: 0.18 } },
+  outline: { color: 0x2c2418, width: 4 }
+};
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -165,7 +201,7 @@ function shuffle(arr) {
 export const CONVEYOR_CHAPTER = {
   1: {
     levelTrack: 'levelTheme',
-    skin: { liftTop: 0.0,  liftBottom: 0.0,  pool: { tint: 0x6f7ec4, alpha: 0.06 }, halo: false, floorDarken: 0.55, beltBody: 0.62, beltSlat: 0.40 }, // cold metal salvage
+    skin: { liftTop: 0.0,  liftBottom: 0.0,  pool: { tint: 0x6f7ec4, alpha: 0.06 }, halo: false, floorDarken: 0.55, beltBody: 0.62, beltSlat: 0.40, bars: BARS_DARK }, // cold metal salvage
     copy: {
       title: 'SORT & SHIP', stamp: 'SALVAGED', chute: 'recheck', summaryWin: 'Cargo Sorted!',
       // Boss strings exactly as the pilot belt has always shown them. A Ch1/Ch2 boss
@@ -178,7 +214,7 @@ export const CONVEYOR_CHAPTER = {
   },
   2: {
     levelTrack: 'innerSpaceLevel',
-    skin: { liftTop: 0.0,  liftBottom: 0.04, pool: { tint: 0xff7a8a, alpha: 0.10 }, halo: false, floorDarken: 0.42, beltBody: 0.55, beltSlat: 0.34 }, // warm-red membrane
+    skin: { liftTop: 0.0,  liftBottom: 0.04, pool: { tint: 0xff7a8a, alpha: 0.10 }, halo: false, floorDarken: 0.42, beltBody: 0.55, beltSlat: 0.34, bars: BARS_DARK }, // warm-red membrane
     copy: {
       title: 'SORT & SEND', stamp: 'ABSORBED', chute: 'reflux',  summaryWin: 'Nutrients Sent!',
       bossHeadline: 'RUSH ORDER', bossIncoming: 'BIG ORDER INCOMING', bossMiss: 'Order Unfinished',
@@ -188,7 +224,7 @@ export const CONVEYOR_CHAPTER = {
   },
   3: {
     levelTrack: 'homeGroundLevel',
-    skin: { liftTop: 0.10, liftBottom: 0.28, pool: { tint: null,     alpha: 0.16 }, halo: true,  floorDarken: 0.45, beltBody: 0.62, beltSlat: 0.40 }, // daylight around town
+    skin: { liftTop: 0.10, liftBottom: 0.28, pool: { tint: null,     alpha: 0.16 }, halo: true,  floorDarken: 0.45, beltBody: 0.62, beltSlat: 0.40, bars: BARS_PAPER }, // daylight around town
     copy: {
       title: 'PACK & GO', stamp: 'PACKED', chute: 'recheck', summaryWin: 'All Packed!',
       bossHeadline: 'RUSH ORDER', bossIncoming: 'BIG RUSH INCOMING', bossMiss: 'Rush Unfinished',
@@ -224,7 +260,9 @@ const NIGHT_SHIFT = {
     liftTop: 0, liftBottom: 0,
     pool: { tint: 0x8fd0ff, alpha: 0.05 },
     halo: true,             // one cool night light left on over the belt
-    floorDarken: 0.72, beltBody: 0.72, beltSlat: 0.52
+    floorDarken: 0.72, beltBody: 0.72, beltSlat: 0.52,
+    // The lights are off: the paper label would glow. Back to the dark bars.
+    bars: BARS_DARK
   },
   copy: {
     title: 'NIGHT SHIFT',
@@ -514,51 +552,85 @@ export class ConveyorScene extends Phaser.Scene {
       fontSize: '40px', fill: '#ff8b3d', fontStyle: '900'
     })).setOrigin(1, 0.5).setDepth(20);
 
-    // Time bar.
-    this.timeBarX = W / 2;
-    this.timeBarY = 392;
-    this.timeBarW = 760;
-    this.timeBarH = 26;
-    const track = this.add.graphics().setDepth(19);
-    track.fillStyle(COLORS.bgTrack, 1);
-    track.fillRoundedRect(this.timeBarX - this.timeBarW / 2, this.timeBarY - this.timeBarH / 2, this.timeBarW, this.timeBarH, this.timeBarH / 2);
-    this.timeBarFill = this.add.graphics().setDepth(20);
-    this.drawTimeBar(1);
+    // Status bars: the time bar, and under it the rush quota bar. Both are
+    // built and drawn through one skin-driven path (see BARS_DARK / BARS_PAPER),
+    // so a chapter changes their look by changing its tokens, not by growing a
+    // second copy of this code.
+    this.buildStatusBars();
+  }
 
-    // Boss quota bar: sits under the time bar and fills as the rush is packed.
-    if (this.isBoss) {
-      this.quotaBarX = W / 2;
-      this.quotaBarY = 432;
-      this.quotaBarW = 760;
-      this.quotaBarH = 26;
-      const qtrack = this.add.graphics().setDepth(19);
-      qtrack.fillStyle(COLORS.bgTrack, 1);
-      qtrack.fillRoundedRect(this.quotaBarX - this.quotaBarW / 2, this.quotaBarY - this.quotaBarH / 2, this.quotaBarW, this.quotaBarH, this.quotaBarH / 2);
-      this.quotaBarFill = this.add.graphics().setDepth(20);
-      this.drawQuotaBar();
+  // Lay out the bar stack and paint everything static about it: the plate the
+  // bars sit on (if the skin uses one), each bar's empty track, and each bar's
+  // outline. Only the fills redraw during play.
+  buildStatusBars() {
+    const bars = this.skin.bars || BARS_DARK;
+    const h = bars.height;
+    const r = h / 2;
+    const x0 = W / 2 - BAR_W / 2;
+
+    this.barStyle = bars;
+    this.timeBarH = h;
+    this.timeBarY = BAR_TOP_Y + h / 2;
+    if (this.isBoss) this.quotaBarY = this.timeBarY + bars.gap;
+
+    const ys = this.isBoss ? [this.timeBarY, this.quotaBarY] : [this.timeBarY];
+
+    // The plate. Home Ground pins its bars to a paper label so they stop
+    // competing with a bright sky; the dark chapters skip it.
+    if (bars.plate) {
+      const p = bars.plate;
+      const top = ys[0] - h / 2 - p.padY;
+      const ph = ys[ys.length - 1] + h / 2 + p.padY - top;
+      const g = this.add.graphics().setDepth(18);
+      if (p.shadow) {
+        g.fillStyle(0x000000, p.shadow.alpha);
+        g.fillRoundedRect(x0 - p.padX + p.shadow.dx, top + p.shadow.dy, BAR_W + p.padX * 2, ph, p.radius);
+      }
+      g.fillStyle(p.fill, 1);
+      g.fillRoundedRect(x0 - p.padX, top, BAR_W + p.padX * 2, ph, p.radius);
     }
+
+    const track = this.add.graphics().setDepth(19);
+    track.fillStyle(bars.track, bars.trackAlpha);
+    for (const y of ys) track.fillRoundedRect(x0, y - h / 2, BAR_W, h, r);
+
+    this.timeBarFill = this.add.graphics().setDepth(20);
+    if (this.isBoss) this.quotaBarFill = this.add.graphics().setDepth(20);
+
+    // The outline rides ABOVE the fills so a pale fill on a pale ground still
+    // reads as a bar with an edge, whatever colour it is that second.
+    if (bars.outline) {
+      const o = this.add.graphics().setDepth(21);
+      o.lineStyle(bars.outline.width, bars.outline.color, 1);
+      for (const y of ys) o.strokeRoundedRect(x0, y - h / 2, BAR_W, h, r);
+    }
+
+    this.drawTimeBar(1);
+    if (this.isBoss) this.drawQuotaBar();
+  }
+
+  // Paint one bar's fill to `ratio` of its width. Shared by both bars: the only
+  // difference between them is the colour and how the ratio is worked out.
+  drawBarFill(g, y, ratio, color) {
+    if (!g) return;
+    const h = this.timeBarH;
+    const fw = Math.max(0, Math.round(BAR_W * Math.max(0, Math.min(1, ratio))));
+    g.clear();
+    if (fw <= 2) return;
+    g.fillStyle(color, 1);
+    g.fillRoundedRect(W / 2 - BAR_W / 2, y - h / 2, fw, h, h / 2);
   }
 
   drawQuotaBar() {
     if (!this.quotaBarFill) return;
-    const r = this.bossMaxQuota > 0 ? Math.max(0, Math.min(1, this.bossQuota / this.bossMaxQuota)) : 0;
-    const fw = Math.max(0, Math.round(this.quotaBarW * r));
-    this.quotaBarFill.clear();
-    if (fw > 2) {
-      this.quotaBarFill.fillStyle(COLORS.success, 1);
-      this.quotaBarFill.fillRoundedRect(this.quotaBarX - this.quotaBarW / 2, this.quotaBarY - this.quotaBarH / 2, fw, this.quotaBarH, this.quotaBarH / 2);
-    }
+    const r = this.bossMaxQuota > 0 ? this.bossQuota / this.bossMaxQuota : 0;
+    this.drawBarFill(this.quotaBarFill, this.quotaBarY, r, COLORS.success);
   }
 
   drawTimeBar(ratio) {
     const r = Math.max(0, Math.min(1, ratio));
-    const fw = Math.max(0, Math.round(this.timeBarW * r));
-    this.timeBarFill.clear();
-    if (fw > 2) {
-      const color = r > 0.35 ? this.accent : (r > 0.15 ? COLORS.warning : COLORS.error);
-      this.timeBarFill.fillStyle(color, 1);
-      this.timeBarFill.fillRoundedRect(this.timeBarX - this.timeBarW / 2, this.timeBarY - this.timeBarH / 2, fw, this.timeBarH, this.timeBarH / 2);
-    }
+    const color = r > 0.35 ? this.accent : (r > 0.15 ? COLORS.warning : COLORS.error);
+    this.drawBarFill(this.timeBarFill, this.timeBarY, r, color);
   }
 
   buildBelt() {
@@ -768,44 +840,50 @@ export class ConveyorScene extends Phaser.Scene {
 
     // Ride-off-the-end timer: unanswered → requeue (no record).
     this.crateTimer = this.time.delayedCall(this.problemSeconds * 1000, () => this.timeoutCrate());
-    // A fresh entry-hold budget for this crate (see holdBelt).
-    this.entryHoldTimer?.remove();
-    this.entryHoldTimer = null;
-    this.entryHoldSpent = false;
+    this.dropEntryHold();   // a fresh entry-hold budget for this crate (see holdBelt)
   }
 
   // Pause the crate's ride-off clock while an answer is being typed. Called on
-  // the first digit of an entry; releaseBelt() lets the clock run again when
-  // the entry empties (backspace, or a wrong answer clearing it). The budget
-  // timer starts on the first hold and is never restarted for the same crate,
-  // so a crate can be held for at most ENTRY_HOLD_MS in total no matter how
-  // the kid types, deletes and retypes. Response time is measured from reveal
-  // to submit (startedAtMs), so none of this touches the recorded timing.
+  // every digit (a no-op once the hold is on); releaseBelt() lets the clock run
+  // again when the entry empties (backspace, or a wrong answer clearing it).
+  // The hold budget is a second timer that only runs while the belt is held:
+  // it pauses on every release and resumes on the next hold, so a crate can be
+  // held for at most ENTRY_HOLD_MS of actual hold time no matter how the kid
+  // types, deletes and retypes. Once it has fired (hasDispatched) the clock
+  // runs even mid-entry, so a stalled entry still resolves. Response time is
+  // measured from reveal to submit (startedAtMs), so none of this touches the
+  // recorded timing.
   holdBelt() {
-    if (!this.crateTimer || this.entryHoldSpent) return;
+    if (!this.crateTimer || this.entryHoldTimer?.hasDispatched) return;
     this.crateTimer.paused = true;
-    if (!this.entryHoldTimer) {
-      this.entryHoldTimer = this.time.delayedCall(ENTRY_HOLD_MS, () => {
-        this.entryHoldSpent = true;
-        this.entryHoldTimer = null;
-        this.releaseBelt();
-      });
-    }
+    if (this.entryHoldTimer) this.entryHoldTimer.paused = false;
+    else this.entryHoldTimer = this.time.delayedCall(ENTRY_HOLD_MS, () => this.releaseBelt());
   }
 
   releaseBelt() {
     if (this.crateTimer) this.crateTimer.paused = false;
+    if (this.entryHoldTimer) this.entryHoldTimer.paused = true;
   }
 
-  // Take the crate clock out of the scene clock for good. TimerEvent.remove()
-  // only flags the event and relies on the next Clock update to drop it, and
-  // that update skips paused events, so a timer removed while held would sit
-  // in the clock's active list until the scene shuts down. removeEvent splices
-  // it out directly, paused or not.
+  // Take the crate clock (and its hold budget) out of the scene clock for good.
+  // TimerEvent.remove() only flags the event and relies on the next Clock
+  // update to drop it, and that update skips paused events, so a timer removed
+  // while held would sit in the clock's active list until the scene shuts
+  // down. removeEvent splices it out directly, paused or not.
   dropCrateTimer() {
+    this.dropEntryHold();
     if (!this.crateTimer) return;
     this.time.removeEvent(this.crateTimer);
     this.crateTimer = null;
+  }
+
+  // The hold budget can be paused too (see releaseBelt), so it leaves the same
+  // way. Every path that ends a crate goes through here, via dropCrateTimer or
+  // directly (spawnCrate, timeoutCrate).
+  dropEntryHold() {
+    if (!this.entryHoldTimer) return;
+    this.time.removeEvent(this.entryHoldTimer);
+    this.entryHoldTimer = null;
   }
 
   // The single resolution path for BOTH input modes — the only difference is
@@ -820,8 +898,6 @@ export class ConveyorScene extends Phaser.Scene {
     if (correct) {
       this.acceptingInput = false;
       this.dropCrateTimer();
-      this.entryHoldTimer?.remove();
-      this.entryHoldTimer = null;
       this.bobTween?.stop();
       // Kill any in-flight crate tween (e.g. a lingering shakeCrate from a wrong
       // retry on THIS crate) before the ship tween, so its onComplete can't snap
@@ -902,8 +978,11 @@ export class ConveyorScene extends Phaser.Scene {
   timeoutCrate() {
     if (this.ended || !this.acceptingInput) return;
     this.acceptingInput = false;
-    this.entryHoldTimer?.remove();
-    this.entryHoldTimer = null;
+    this.dropEntryHold();
+    // A stalled partial answer must not ride through the tip-off and the next
+    // crate's slide-in on the readout: clear it the way a wrong answer does.
+    this.entry = '';
+    this.updateEntry();
     this.bobTween?.stop();
     this.tweens.killTweensOf(this.crate); // drop any lingering shake before the tip-off
     this.setDocksEnabled(false);
@@ -1661,12 +1740,11 @@ export class ConveyorScene extends Phaser.Scene {
   pressDigit(d) {
     if (!this.acceptingInput || this.ended) return;
     if (this.entry.length >= MAX_ANSWER_DIGITS) return;
-    const firstDigit = this.entry.length === 0;
     this.entry += d;
     this.updateEntry();
     audio.playClick?.();
     // The belt waits while the answer is being typed (capped, see holdBelt).
-    if (firstDigit) this.holdBelt();
+    this.holdBelt();
     // Auto-submit only at the universal max digit count (no more digits are
     // possible) — never at the answer's own length, which would leak it.
     if (this.entry.length >= MAX_ANSWER_DIGITS) this.submitProduction();
@@ -1782,8 +1860,6 @@ export class ConveyorScene extends Phaser.Scene {
     this.ended = true;
     this.acceptingInput = false;
     this.dropCrateTimer();
-    this.entryHoldTimer?.remove();
-    this.entryHoldTimer = null;
     this.roundTimer?.remove();
     this.bobTween?.stop();
     // Settle the belt pet to its rest pose so it doesn't keep bobbing behind the
@@ -2277,7 +2353,6 @@ export class ConveyorScene extends Phaser.Scene {
 
   teardown() {
     this.dropCrateTimer();
-    this.entryHoldTimer?.remove();
     this.roundTimer?.remove();
     this.bobTween?.stop();
     this.arrivalTween?.stop();

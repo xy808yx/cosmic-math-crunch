@@ -8,6 +8,12 @@
 
 import Phaser from 'phaser';
 
+// The world map's header strip: WorldMapScene.createHeader paints the bar over
+// y 0 to MAP_HEADER_H and fades it out by MAP_HEADER_FADE_END. Anything drawn
+// under the header (the Home Ground tourist map's peaks) keeps below the fade.
+export const MAP_HEADER_H = 220;
+export const MAP_HEADER_FADE_END = 260;
+
 const POSITIONS_CH1 = [
   // 11 hand-tuned points to feel like a meandering S-curve.
   { x: 240,  y: 1500 },  // 1 — bottom-left

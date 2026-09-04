@@ -30,17 +30,18 @@ genre), lo-fi (as a word), muffled, driving beat, and any "no ..." negation (neg
 go in Exclude Styles only). Real game, composer, place and business names can hard-fail
 moderation; "SNES" has passed every time so far.
 
-## File spec (matches the nine shipped tracks)
+## File spec (matches the shipped tracks)
 
 Stereo MP3, 44.1 or 48 kHz, 128 to 200 kbps, 60 to 110 s. Starts at full level on the
 downbeat (every scene restarts the file from sample 0 under a 500 ms fade-in). Ends
 clean with at most a 1 to 2 s ring-out (Phaser loops sample-to-sample with no
 crossfade). Loudness about -13.5 LUFS integrated, true peak at or below -1.5 dBFS,
 loudness range 2 to 4 LU: the game plays music at 0.35 and ducks it 25% on every
-answer, so quiet passages vanish. None of the nine shipped files were trimmed in an
+answer, so quiet passages vanish. None of the shipped files were trimmed in an
 editor; they went in as downloaded. Plan on the same.
 
-Two sound worlds, measured on the shipped files. The intense group (boss-fight,
+Two sound worlds, measured on the first nine shipped files (Chapters 1 and 2; the
+Chapter 3 briefs below were written to land in the same two groups). The intense group (boss-fight,
 levels, dads-garage, credits, inner-space-*) is bright and full-band out to 8 kHz at
 roughly 140 to 150 BPM. The cozy group (home-theme, playground) is heavily rolled off,
 99% of its energy below about 1.5 kHz, sparse and slow at 72 to 76 BPM. Cozy in this
@@ -78,13 +79,14 @@ Style box:
 
 > King Coli (secret boss, W17) needs no track, it reuses `inner-space-boss` pitched up.
 
-## Chapter 3 "Home Ground" → STILL NEEDED (4 tracks)
+## Chapter 3 "Home Ground" (present, all four shipped 2026-09-04)
 
 Setting: one family Saturday of errands around the family's city, morning to dusk. No
 enemies. The "bosses" are rush orders (a tipped pallet, early sprinklers, the tide over
 the towels), a deadline, not a battle. Same 16-bit idiom as Ch1/Ch2, pushed toward the
 owner's stated target: JRPG chiptune with SNES action-game energy in the fast tracks.
-Fallbacks until each file exists: home → `home-theme`, level → `levels`,
+The four boxes below are the final prompts on file for these tracks. If a file ever
+goes missing the engine falls back to home → `home-theme`, level → `levels`,
 boss → `boss-fight`, hot-pot → `dads-garage`.
 
 All four share one timbre spine, byte for byte, so they read as one soundtrack:
@@ -119,7 +121,7 @@ Style box:
 ### 4. `hot-pot.mp3` → key `hotPotTheme`  (Hot Pot Time, W19; never pitch-shifted; crossfades into #1 in 500 ms)
 The third secret room. A family at a table, Dad asking the kids questions, steam under
 amber lamps. Intimate, not bustling, and audibly different from `dads-garage` (bright,
-fast), which is what the room plays until this file lands. Dark and rounded like
+fast), the room's fallback track. Dark and rounded like
 home-theme and playground: every instrument named is inherently soft, and there is no
 hi-hat, shaker or celesta. One restrained Chinese colour is right here and only here.
 Same key as #1 for the crossfade.
@@ -132,4 +134,5 @@ music, move the guzheng tag to the very end. If it is simply too bright, a low-p
 match home-theme's rolloff (about 1.5 kHz) is a five-second ffmpeg job.
 
 > The W38 finale and the W20 Night Shift reuse `home-ground-boss` (pitched per world). The
-> homecoming credits reuse `creditsSong`. King Coli (W17) reuses `inner-space-boss`.
+> homecoming credits reuse `creditsSong` for the recap cards and the hero card, then hand
+> off to `home-ground-home` under the dusk outro. King Coli (W17) reuses `inner-space-boss`.

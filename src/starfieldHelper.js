@@ -171,9 +171,10 @@ export function createInnerSpaceBase(scene, opts = {}) {
 // node labels keep their dark stroke, which is what carries them on a light
 // ground; the map's ink stays low-contrast for the same reason.
 export function createHomeGroundBase(scene, opts = {}) {
-  const { width = W_DEFAULT, height = H_DEFAULT, mapInk = 0.34, wash = 0.15 } = opts;
+  const { width = W_DEFAULT, height = H_DEFAULT, mapInk, wash = 0.15 } = opts;
 
-  // B0: the paper map, the sheet everything else sits on.
+  // B0: the paper map, the sheet everything else sits on. Its ink strength
+  // defaults inside drawTouristMap (MAP_INK); mapInk only overrides it.
   const map = drawTouristMap(scene.add.graphics().setDepth(-10), { height, ink: mapInk });
 
   // B1: the sky wash, in two stacked bands so it reads as a real one. Morning

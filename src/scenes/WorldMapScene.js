@@ -21,6 +21,7 @@ import { ship } from '../ShipManager.js';
 import { drawShip } from '../ShipRenderer.js';
 import {
   buildMapPath, getNodePositions, drawPath, tForNodeIndex,
+  MAP_HEADER_H, MAP_HEADER_FADE_END,
   HIDDEN_NODE_POSITIONS, HIDDEN_HOST_INDEX,
   hiddenBranchControlPoint, sampleHiddenBranch
 } from '../MapPath.js';
@@ -155,22 +156,25 @@ export class WorldMapScene extends Phaser.Scene {
   // ============================================================
   createHeader() {
     const bg = this.add.graphics().setDepth(10);
-    // Layered gradient strip — three bands of decreasing opacity for depth
+    // Layered gradient strip, three bands of decreasing opacity for depth. The
+    // bar's height and the end of its fade are shared with the Home Ground
+    // tourist map, which keeps its peaks below them (MapPath.js).
     bg.fillStyle(COLORS.bgPanel, 0.96);
-    bg.fillRect(0, 0, W, 220);
+    bg.fillRect(0, 0, W, MAP_HEADER_H);
     bg.fillStyle(COLORS.bgDark, 0.45);
-    bg.fillRect(0, 0, W, 220);
+    bg.fillRect(0, 0, W, MAP_HEADER_H);
     // Soft top accent glow
     bg.fillStyle(COLORS.accentTeal, 0.05);
     bg.fillRect(0, 0, W, 90);
     // Bottom hairline
     bg.fillStyle(COLORS.accentTeal, 0.30);
-    bg.fillRect(0, 218, W, 2);
+    bg.fillRect(0, MAP_HEADER_H - 2, W, 2);
     // Soft fade below the bar
+    const fadeSplit = MAP_HEADER_H + 24;
     bg.fillStyle(COLORS.bgDark, 0.50);
-    bg.fillRect(0, 220, W, 24);
+    bg.fillRect(0, MAP_HEADER_H, W, fadeSplit - MAP_HEADER_H);
     bg.fillStyle(COLORS.bgDark, 0.20);
-    bg.fillRect(0, 244, W, 16);
+    bg.fillRect(0, fadeSplit, W, MAP_HEADER_FADE_END - fadeSplit);
 
     const title = this.add.text(W / 2, 90, 'COSMIC MATH', style('display', {
       fontSize: '54px',

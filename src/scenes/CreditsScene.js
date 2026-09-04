@@ -18,7 +18,7 @@
 // clears justClearedWorld so the auto-advance doesn't run on top of the finale.
 
 import Phaser from 'phaser';
-import { progress } from '../GameData.js';
+import { progress, getChapterWorlds } from '../GameData.js';
 import { audio } from '../AudioManager.js';
 import { music } from '../MusicManager.js';
 import { TransitionManager } from '../TransitionManager.js';
@@ -129,14 +129,6 @@ export class CreditsScene extends Phaser.Scene {
     this.cards = this.mode === 'cliffhanger' ? CLIFFHANGER_CARDS
       : this.mode === 'homecoming' ? HOMECOMING_CARDS
       : FINALE_CARDS;
-
-    // The scene instance is reused across starts (dev-menu replays), so the
-    // hero card's per-run state must not leak from a previous run: a stale
-    // _leavingHero would make the next run's Onward button a no-op.
-    this._leavingHero = false;
-    this._heroWash = this._heroContainer = this._shipContainer = this._heroButton = null;
-    this._heroRingSpawner = this._driftStars = this._worldsSpawner = null;
-    this._worldNodes = [];
 
     // Credits soundtrack: plays once (not looped) under whichever beats the
     // mode runs (the cards, then the mode's outro; the hero card sits between
@@ -257,14 +249,12 @@ export class CreditsScene extends Phaser.Scene {
       return;
     }
     if (this.mode === 'cliffhanger') {
-      this._afterPetMoment = () => this.showCliffhangerOutro();
-      this.playPetEvolutionMoment();
+      this.playPetEvolutionMoment(() => this.showCliffhangerOutro());
     } else {
       // Chapter 2 finale: straight to the homeward coda (which also names the
       // Nanocraft reward). The hero card moved to the homecoming.
-      this._afterPetMoment = () => this.showHomewardOutro();
       if (companion.hasStarter() && !progress.companion?.cosmicForm) {
-        this.playPetEvolutionMoment();
+        this.playPetEvolutionMoment(() => this.showHomewardOutro());
       } else {
         this.showHomewardOutro();
       }
@@ -272,10 +262,10 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // PART B — Pet evolution moment (cosmic-tier glow)
+  // PART B: Pet evolution moment (cosmic-tier glow)
+  // Calls `done` when the beat is over (straight away without a pet).
   // ============================================================
-  playPetEvolutionMoment() {
-    const done = this._afterPetMoment || (() => this.showCliffhangerOutro());
+  playPetEvolutionMoment(done) {
     if (!companion.hasStarter()) {
       done();
       return;
@@ -617,6 +607,8 @@ export class CreditsScene extends Phaser.Scene {
   // ============================================================
   // Pet + ship gently choreograph around the hero card. Looped paths,
   // slow and soft so they read as background motion behind the names.
+  // Returns the ship container (the card fades it out on the way off) and
+  // the pet riding in the cockpit (the drifting worlds make it wave).
   // ============================================================
   startChronoChoreography() {
     const shipContainer = this.add.container(-200, H * 0.85).setDepth(65);
@@ -634,20 +626,14 @@ export class CreditsScene extends Phaser.Scene {
       shipG.add(petInCockpit);
     }
 
-    this._cockpitPet = petInCockpit;
-    this._shipContainer = shipContainer;
-
-    // Home Ground has no combat, so the ship's playful laser zap stays out of
-    // the homecoming credits; the pet's wave is kept.
-    const allowZap = this.mode !== 'homecoming';
-
-    // Soft figure-8-ish loop staying out of the central hero text area.
+    // Soft figure-8-ish loop staying out of the central hero text area. The
+    // pet waves on one leg; there is no laser zap, Home Ground has no combat.
     const stages = [
       { x: 220,       y: H * 0.85, rot: 0,     dur: 4200, ease: 'Sine.easeInOut' },
       { x: W - 220,   y: H * 0.75, rot: 0.18,  dur: 5200, ease: 'Sine.easeInOut' },
       { x: W - 140,   y: H * 0.92, rot: -0.10, dur: 4400, ease: 'Sine.easeInOut' },
       { x: 180,       y: H * 0.78, rot: 0.20,  dur: 5400, ease: 'Sine.easeInOut', wave: true },
-      { x: W * 0.5,   y: H * 0.95, rot: 0,     dur: 4400, ease: 'Sine.easeInOut', zap: true }
+      { x: W * 0.5,   y: H * 0.95, rot: 0,     dur: 4400, ease: 'Sine.easeInOut' }
     ];
 
     const loop = (i) => {
@@ -670,51 +656,36 @@ export class CreditsScene extends Phaser.Scene {
             });
             audio.playPetChirp?.();
           }
-          if (stage.zap && allowZap) {
-            for (let s = 0; s < 6; s++) {
-              const star = this.add.graphics().setDepth(66);
-              star.fillStyle(0xfbbf24, 1);
-              star.fillCircle(0, 0, 4);
-              star.x = shipContainer.x;
-              star.y = shipContainer.y;
-              const dx = (Math.random() - 0.5) * 300;
-              const dy = (Math.random() - 0.5) * 200;
-              this.tweens.add({
-                targets: star,
-                x: shipContainer.x + dx,
-                y: shipContainer.y + dy,
-                alpha: 0,
-                duration: 600,
-                onComplete: () => star.destroy()
-              });
-            }
-            audio.playLaser?.();
-          }
           loop(i + 1);
         }
       });
     };
     loop(0);
+
+    return { shipContainer, cockpitPet: petInCockpit };
   }
 
-  // The whole journey drifts past behind the names: every visible world of all
-  // three chapters, in the order the kid played them.
-  startWorldsParallax() {
-    this._worldNodes = [];
-    this._worldIdx = 0;
-    const journey = [
-      ...Array.from({ length: 11 }, (_, i) => i + 1),   // Outer Space 1 to 11
-      ...Array.from({ length: 8 }, (_, i) => i + 21),   // Inner Space 21 to 28
-      ...Array.from({ length: 8 }, (_, i) => i + 31)    // Home Ground 31 to 38
-    ];
+  // The journey drifts past behind the names, in six stops: where each chapter
+  // began and where it ended. Nodes spawn 6.5 s apart, so about five have
+  // appeared by the time the Onward button lands at 33 s; walking every world
+  // in play order at that cadence never gets past Chapter 1, while the bookends
+  // walk all three chapters inside the window. Returns the spawner and the
+  // live nodes so the card can stop and fade them.
+  startWorldsParallax(cockpitPet) {
+    const nodes = [];
+    let idx = 0;
+    const journey = [1, 2, 3].flatMap(ch => {
+      const worlds = getChapterWorlds(ch);
+      return [worlds[0].id, worlds[worlds.length - 1].id];
+    });
 
     const spawnOne = () => {
-      const worldId = journey[this._worldIdx++ % journey.length];
+      const worldId = journey[idx++ % journey.length];
       const y = Phaser.Math.Between(H * 0.06, H * 0.18);
       const node = drawWorldNode(this, W + 120, y, worldId, { scale: 0.5 });
       node.setDepth(62);
       node.alpha = 0.5;
-      this._worldNodes.push(node);
+      nodes.push(node);
 
       const driftDur = 14000;
       this.tweens.add({
@@ -723,8 +694,8 @@ export class CreditsScene extends Phaser.Scene {
         duration: driftDur,
         ease: 'Linear',
         onComplete: () => {
-          const i = this._worldNodes.indexOf(node);
-          if (i >= 0) this._worldNodes.splice(i, 1);
+          const i = nodes.indexOf(node);
+          if (i >= 0) nodes.splice(i, 1);
           node.destroy();
         }
       });
@@ -737,9 +708,9 @@ export class CreditsScene extends Phaser.Scene {
         ease: 'Sine.easeInOut'
       });
       this.time.delayedCall(driftDur / 2, () => {
-        if (!this._cockpitPet || !this._cockpitPet.active) return;
+        if (!cockpitPet || !cockpitPet.active) return;
         this.tweens.add({
-          targets: this._cockpitPet,
+          targets: cockpitPet,
           scaleX: 0.45,
           scaleY: 0.35,
           duration: 220,
@@ -751,43 +722,51 @@ export class CreditsScene extends Phaser.Scene {
     };
 
     this.time.delayedCall(2000, spawnOne);
-    this._worldsSpawner = this.time.addEvent({
+    const spawner = this.time.addEvent({
       delay: 6500,
       loop: true,
       startAt: -2000,
       callback: spawnOne
     });
+    return { spawner, nodes };
   }
 
   // ============================================================
-  // PART C — Personalized hero shout-out (long, slow, the magic moment)
+  // PART C: Personalized hero shout-out (long, slow, the magic moment)
   // Names reveal one at a time, then the message. Ship choreographs in
   // the background. Gold sparkles drift. Holds long before "Onward".
   // Plays at the end of the whole game (homecoming, World 38), between the
-  // recap cards and the dusk-on-the-mountain outro.
+  // recap cards and the dusk-on-the-mountain outro. Everything the card puts
+  // on stage stays local to this call: `leave` below closes over it, so there
+  // is no per-run scene state to reset when the dev menu replays the scene.
   // ============================================================
   showHeroCard() {
-    // Kick off the pet+ship choreography in the background (they orbit the
-    // bottom of the screen, behind the hero text).
-    this.startChronoChoreography();
-    this.startWorldsParallax();
+    // Kick off the pet+ship choreography and the drifting worlds in the
+    // background (they orbit the bottom of the screen, behind the hero text).
+    const { shipContainer, cockpitPet } = this.startChronoChoreography();
+    const parallax = this.startWorldsParallax(cockpitPet);
+
+    // Every sparkle and ring registers here while it is in flight, so leave()
+    // can fade the whole stage together instead of letting gold specks rise
+    // over the dusk reveal for up to nine seconds after the tap.
+    const inFlight = new Set();
+    const track = (obj) => { inFlight.add(obj); return obj; };
+    const untrack = (obj) => { inFlight.delete(obj); obj.destroy(); };
 
     // Slow dark wash, a quiet stage for the hero text: night falling over the
-    // dusk sky (deep violet), plain black on the starfield. Paced to the 52s
-    // credits song: cards (~14s) + this hero card (~34s) ≈ 48s, with the
-    // Onward button landing as the song resolves.
-    const washColor = this.mode === 'homecoming' ? 0x1a1030 : 0x000000;
-    const wash = this.add.rectangle(W / 2, H / 2, W, H, washColor, 1).setDepth(60);
+    // dusk sky, deep violet. Paced to the 52 s credits song: the cards take
+    // ~13 s and the Onward button lands 33 s into this card, a few seconds
+    // before the song ends. The outro after it plays on the map theme, which
+    // leave() brings in as the song goes out.
+    const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1030, 1).setDepth(60);
     wash.alpha = 0;
     this.tweens.add({
       targets: wash, alpha: 0.92,
       duration: 3000, ease: 'Quad.easeIn'
     });
-    this._heroWash = wash;
 
     // Soft gold halo backdrop behind where the names will appear.
     const heroContainer = this.add.container(W / 2, H * 0.42).setDepth(70);
-    this._heroContainer = heroContainer;
     const halo = this.add.graphics();
     halo.fillStyle(0xfbbf24, 0.10);
     halo.fillCircle(0, 0, 600);
@@ -838,7 +817,7 @@ export class CreditsScene extends Phaser.Scene {
         const cx = W / 2 + (nameStartX + idx * nameSpacing);
         const cy = H * 0.42 - 100;
         for (let s = 0; s < 14; s++) {
-          const star = this.add.graphics().setDepth(69);
+          const star = track(this.add.graphics().setDepth(69));
           star.fillStyle(0xfff3b8, 1);
           star.fillCircle(0, 0, 3 + Math.random() * 3);
           star.x = cx; star.y = cy;
@@ -851,7 +830,7 @@ export class CreditsScene extends Phaser.Scene {
             alpha: 0,
             duration: 900 + Math.random() * 400,
             ease: 'Quad.easeOut',
-            onComplete: () => star.destroy()
+            onComplete: () => untrack(star)
           });
         }
         audio.playMatch?.();
@@ -880,7 +859,7 @@ export class CreditsScene extends Phaser.Scene {
         alpha: 1, scale: 1,
         duration: 2200, ease: 'Back.easeOut',
         onComplete: () => {
-          // Heartbeat pulse — slow, twice.
+          // Heartbeat pulse: slow, twice.
           this.tweens.add({
             targets: msg,
             scaleX: 1.08, scaleY: 1.08,
@@ -891,13 +870,14 @@ export class CreditsScene extends Phaser.Scene {
       });
     });
 
-    // Slow expanding gold rings around the message — repeats forever, the
-    // visual hum of the moment.
+    // Slow expanding gold rings around the message, repeating for as long as
+    // the card holds: the visual hum of the moment.
+    let ringSpawner = null;
     this.time.delayedCall(20500, () => {
-      const ringSpawner = this.time.addEvent({
+      ringSpawner = this.time.addEvent({
         delay: 2400, loop: true,
         callback: () => {
-          const ring = this.add.graphics().setDepth(68);
+          const ring = track(this.add.graphics().setDepth(68));
           ring.lineStyle(4, 0xfbbf24, 0.5);
           ring.strokeCircle(0, 0, 80);
           ring.x = W / 2;
@@ -906,19 +886,17 @@ export class CreditsScene extends Phaser.Scene {
             targets: ring,
             scaleX: 5, scaleY: 5, alpha: 0,
             duration: 3200, ease: 'Quad.easeOut',
-            onComplete: () => ring.destroy()
+            onComplete: () => untrack(ring)
           });
         }
       });
-      this._heroRingSpawner = ringSpawner;
     });
 
-    // Continuous gentle gold star drift — adds atmosphere over the whole
-    // hold time.
+    // Continuous gentle gold star drift, atmosphere over the whole hold time.
     const driftStars = this.time.addEvent({
       delay: 400, loop: true,
       callback: () => {
-        const s = this.add.graphics().setDepth(69);
+        const s = track(this.add.graphics().setDepth(69));
         s.fillStyle(0xfbbf24, 0.85);
         s.fillCircle(0, 0, 1.5 + Math.random() * 2.5);
         s.x = Math.random() * W;
@@ -929,55 +907,66 @@ export class CreditsScene extends Phaser.Scene {
           alpha: { from: 0, to: 0.9 },
           duration: 6000 + Math.random() * 3000,
           ease: 'Linear',
-          onComplete: () => s.destroy()
+          onComplete: () => untrack(s)
         });
       }
     });
-    this._driftStars = driftStars;
 
-    // "Onward" button arrives at ~33s, landing right as the 52s song
-    // resolves (cards 14s + this 33s ≈ 47s).
+    // Clear the stage so the next beat plays on the sky beneath it: stop the
+    // spawners, fade the wash, names, ship, button, drifting worlds and every
+    // sparkle still in flight out together, then hand off.
+    let button = null;
+    let leaving = false;
+    const leave = (next) => {
+      if (leaving) return;   // createButton fires onClick on every pointerdown
+      leaving = true;
+      ringSpawner?.remove();
+      driftStars.remove();
+      parallax.spawner.remove();
+      this.handOffToMapTheme();
+
+      const bits = [wash, heroContainer, shipContainer, button, ...parallax.nodes, ...inFlight]
+        .filter(o => o && o.active);
+      parallax.nodes.length = 0;
+      inFlight.clear();
+      bits.forEach(o => this.tweens.killTweensOf(o));
+      this.tweens.add({
+        targets: bits, alpha: 0, duration: 700, ease: 'Quad.easeIn',
+        onComplete: () => {
+          bits.forEach(o => o.destroy());
+          next();
+        }
+      });
+    };
+
+    // "Onward" arrives at 33 s. The hero card is not the last beat: the
+    // dusk-on-the-mountain outro follows it (see showHomecomingOutro), which
+    // closes the game.
     this.time.delayedCall(33000, () => {
-      // The hero card is not the last beat: the dusk-on-the-mountain outro
-      // follows it (see showHomecomingOutro), which closes the game.
-      const btn = createButton(this, {
+      button = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100,
         color: 0xfbbf24,
-        onClick: () => this.leaveHeroCard(() => this.showHomecomingOutro())
+        onClick: () => leave(() => this.showHomecomingOutro())
       });
-      btn.setDepth(75);
-      btn.alpha = 0;
-      this._heroButton = btn;
-      this.tweens.add({ targets: btn, alpha: 1, duration: 800 });
+      button.setDepth(75);
+      button.alpha = 0;
+      this.tweens.add({ targets: button, alpha: 1, duration: 800 });
     });
   }
 
-  // Clear the hero card's stage so the next beat can play on the sky beneath
-  // it: stop the spawners, fade the wash, names, ship, button and drifting
-  // worlds out together, then hand off. The few sparkles and rings already in
-  // flight finish on their own (they destroy themselves within seconds).
-  leaveHeroCard(next) {
-    if (this._leavingHero) return;
-    this._leavingHero = true;
-    if (this._heroRingSpawner) { this._heroRingSpawner.remove(); this._heroRingSpawner = null; }
-    if (this._driftStars) { this._driftStars.remove(); this._driftStars = null; }
-    if (this._worldsSpawner) { this._worldsSpawner.remove(); this._worldsSpawner = null; }
-
-    const bits = [
-      this._heroWash, this._heroContainer, this._shipContainer, this._heroButton,
-      ...(this._worldNodes || [])
-    ].filter(o => o && o.active);
-    this._worldNodes = [];
-    bits.forEach(o => this.tweens.killTweensOf(o));
-    this.tweens.add({
-      targets: bits, alpha: 0, duration: 700, ease: 'Quad.easeIn',
-      onComplete: () => {
-        bits.forEach(o => o.destroy());
-        this._heroWash = this._heroContainer = this._shipContainer = this._heroButton = null;
-        next();
-      }
-    });
+  // The credits song plays once and runs out within seconds of the Onward
+  // tap, which used to leave the homecoming outro (the lit mountain, the
+  // message, the Home button) in silence. Fade it out and bring the Home
+  // Ground map theme up under the outro instead; WorldMapScene asks for the
+  // same track on the way out, so the music carries straight through.
+  handOffToMapTheme() {
+    const song = this._creditsSong;
+    this._creditsSong = null;
+    if (song && song.isPlaying) {
+      this.tweens.add({ targets: song, volume: 0, duration: 1200, onComplete: () => song.stop() });
+    }
+    music.fadeToTrack(this, music.resolveTrack(this, 'homeGroundHome'), 1500);
   }
 
   exitFinale() {
@@ -991,15 +980,6 @@ export class CreditsScene extends Phaser.Scene {
       progress.markFinaleSeen();
     }
     progress.consumeJustClearedWorld(); // Clear any stale flag.
-
-    // Stop the ambient spawners so they don't keep firing after we leave.
-    if (this._heroRingSpawner) this._heroRingSpawner.remove();
-    if (this._driftStars) this._driftStars.remove();
-    if (this._worldsSpawner) this._worldsSpawner.remove();
-    (this._worldNodes || []).forEach(c => {
-      this.tweens.killTweensOf(c);
-      c.destroy();
-    });
 
     if (this._creditsSong && this._creditsSong.isPlaying) {
       this.tweens.add({
