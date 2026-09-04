@@ -75,7 +75,7 @@ export const SPECIES = {
         name: 'Cosmic Tidalord',
         type: 'Aqua / Cosmic',
         tier: 'cosmic',
-        lore: "Drifting between currents we'll never see — translucent, listening."
+        lore: "Drifting between currents we'll never see. Translucent, listening."
       }
     }
   },

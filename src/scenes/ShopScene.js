@@ -480,7 +480,7 @@ export class ShopScene extends Phaser.Scene {
     if (equipped && isDefault) { badgeText = 'EQUIPPED'; badgeColor = COLORS.success; }
     else if (equipped) { badgeText = 'TAP TO UNEQUIP'; badgeColor = COLORS.success; }
     else if (owned) { badgeText = 'TAP TO EQUIP'; badgeColor = COLORS.accentTeal; }
-    else if (item.unlock_only) { badgeText = '??? — UNLOCK BY PLAYING'; badgeColor = 0x3a3a4a; badgeFill = '#7a7a90'; }
+    else if (item.unlock_only) { badgeText = '??? · UNLOCK BY PLAYING'; badgeColor = 0x3a3a4a; badgeFill = '#7a7a90'; }
     else if (item.price === 0) { badgeText = 'FREE'; badgeColor = COLORS.accentPurple; }
     else { badgeText = `${item.price} STARDUST`; badgeColor = canAfford ? COLORS.accentPurple : 0x3a3a4a; if (!canAfford) badgeFill = '#7a7a90'; }
 

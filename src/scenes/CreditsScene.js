@@ -2,14 +2,17 @@
 //
 //   'cliffhanger' (Chapter 1 / World 11): cards, then the pet evolves to Cosmic,
 //      then a light teaser outro pointing at the warp gate. Keeps endingSeen
-//      (Cosmic pet + Arcade unlock). NO hero card, that moves to the true finale.
+//      (Cosmic pet + Arcade unlock). NO hero card, that plays at the homecoming
+//      (World 38).
 //   'finale' (Chapter 2 / World 28): cards, then (evolve only if not already
-//      Cosmic) the prominent 中文 hero shout-out for the three kids + the
-//      Nanocraft reward reveal, then a short homeward coda that points at the
-//      gate into Chapter 3. Sets finaleSeen.
+//      Cosmic) a short homeward coda that names the Nanocraft reward and points
+//      at the gate into Chapter 3. Sets finaleSeen. The hero card used to play
+//      here; it now closes the whole game at World 38 instead.
 //   'homecoming' (Chapter 3 / World 38, Home Ground): cards over the dusk sky,
-//      then the lit mountain and the city lights coming on below, closing on the
-//      personal message. No pet beat (the pet is already Cosmic). Sets finale3Seen.
+//      then the prominent 中文 hero shout-out for the three kids (names one at a
+//      time, then the message), then the lit mountain and the city lights coming
+//      on below, closing on the personal message once more. No pet beat (the pet
+//      is already Cosmic). Sets finale3Seen.
 //
 // On exit, returns to WorldMapScene parked on the chapter's final world and
 // clears justClearedWorld so the auto-advance doesn't run on top of the finale.
@@ -39,14 +42,14 @@ const HERO_MESSAGE = '爸爸爱你';
 // gone but SHRUNK into a scale you can't see (the cliffhanger); Chapter 2 ends
 // with the last shadow letting go inside the smallest cell, healing outward.
 const CLIFFHANGER_CARDS = [
-  'The Void Devourer dims… then folds inward — smaller, and smaller.',
+  'The Void Devourer dims… then folds inward. Smaller, and smaller.',
   'Across the galaxy, worlds remember what light feels like.',
   'But the dark did not leave. It SHRANK.',
-  'Something is wrong now — at a scale far too small to see…'
+  'Something is wrong now, at a scale far too small to see…'
 ];
 
 const FINALE_CARDS = [
-  'Patient Zero — the very first germ of all — goes still.',
+  'Patient Zero, the very first germ of all, goes still.',
   'Deep inside the smallest cell, the last shadow lets go.',
   'From the bloodstream to the stars, every world breathes easy.',
   'You did it, pilot. Outer space AND inner space are yours.'
@@ -127,9 +130,18 @@ export class CreditsScene extends Phaser.Scene {
       : this.mode === 'homecoming' ? HOMECOMING_CARDS
       : FINALE_CARDS;
 
-    // Credits soundtrack — plays once (not looped) under the cinematic cards
-    // + pet evolution + roll + hero. Falls back silently if file is missing.
-    // Respect the Music toggle — creditsSong is played directly (not via
+    // The scene instance is reused across starts (dev-menu replays), so the
+    // hero card's per-run state must not leak from a previous run: a stale
+    // _leavingHero would make the next run's Onward button a no-op.
+    this._leavingHero = false;
+    this._heroWash = this._heroContainer = this._shipContainer = this._heroButton = null;
+    this._heroRingSpawner = this._driftStars = this._worldsSpawner = null;
+    this._worldNodes = [];
+
+    // Credits soundtrack: plays once (not looped) under whichever beats the
+    // mode runs (the cards, then the mode's outro; the hero card sits between
+    // them at the homecoming). Falls back silently if the file is missing.
+    // Respect the Music toggle: creditsSong is played directly (not via
     // MusicManager), so it must check music.enabled itself or it would play
     // through a muted setting.
     if (music.enabled && this.cache.audio.exists('creditsSong')) {
@@ -235,23 +247,26 @@ export class CreditsScene extends Phaser.Scene {
 
   // Route past the cards depending on mode. The pet's Cosmic evolution beat is
   // the Chapter 1 (cliffhanger) payoff; in the finale the pet is already Cosmic
-  // (unless a player skipped World 11 entirely — then show it once here too).
+  // (unless a player skipped World 11 entirely, then show it once here too).
   afterCards() {
     if (this.mode === 'homecoming') {
       // Home Ground: the pet is already Cosmic by Chapter 3, so skip the evolution
-      // beat and go straight to the dusk-on-the-mountain homecoming reveal.
-      this.showHomecomingOutro();
+      // beat. The hero card (the three names and the message) plays here, at the
+      // end of the whole game, and hands off to the dusk-on-the-mountain reveal.
+      this.showHeroCard();
       return;
     }
     if (this.mode === 'cliffhanger') {
       this._afterPetMoment = () => this.showCliffhangerOutro();
       this.playPetEvolutionMoment();
     } else {
-      this._afterPetMoment = () => this.showHeroCard();
+      // Chapter 2 finale: straight to the homeward coda (which also names the
+      // Nanocraft reward). The hero card moved to the homecoming.
+      this._afterPetMoment = () => this.showHomewardOutro();
       if (companion.hasStarter() && !progress.companion?.cosmicForm) {
         this.playPetEvolutionMoment();
       } else {
-        this.showHeroCard();
+        this.showHomewardOutro();
       }
     }
   }
@@ -260,7 +275,7 @@ export class CreditsScene extends Phaser.Scene {
   // PART B — Pet evolution moment (cosmic-tier glow)
   // ============================================================
   playPetEvolutionMoment() {
-    const done = this._afterPetMoment || (() => this.showHeroCard());
+    const done = this._afterPetMoment || (() => this.showCliffhangerOutro());
     if (!companion.hasStarter()) {
       done();
       return;
@@ -423,16 +438,19 @@ export class CreditsScene extends Phaser.Scene {
   }
 
   // ============================================================
-  // HOMEWARD OUTRO (after the Chapter 2 hero card): the on-ramp into Chapter 3,
-  // Home Ground. Plays unconditionally now that the chapter is always on.
+  // HOMEWARD OUTRO (the Chapter 2 finale's closing beat): the on-ramp into
+  // Chapter 3, Home Ground. Plays unconditionally now that the chapter is
+  // always on.
   //
   // This is deliberately NOT a cliffhanger. Chapter 1 ended by opening a threat
   // ("the dark did not leave. It SHRANK") because Chapter 2 was more story. The
-  // story is DONE here: Patient Zero is beaten, the last shadow let go, and the
-  // hero card has already landed. So this coda closes the conflict out loud
-  // ("nothing left to fight") and opens a DOOR instead of a wound: the journey
-  // home. Home Ground is where you've stopped fighting, not where you fight next.
-  // The two payoff lines below stay exactly as shipped; they still fit.
+  // story is DONE here: Patient Zero is beaten and the last shadow let go. So
+  // this coda closes the conflict out loud ("nothing left to fight") and opens
+  // a DOOR instead of a wound: the journey home. Home Ground is where you've
+  // stopped fighting, not where you fight next. The two payoff lines below stay
+  // exactly as shipped; they still fit. The Nanocraft reward banner lands here
+  // too (the hull itself was granted by markFinaleSeen in GameScene), since the
+  // hero card that used to name it now plays at the end of Chapter 3.
   // ============================================================
   showHomewardOutro() {
     const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x1a1208, 1).setDepth(80);
@@ -443,7 +461,7 @@ export class CreditsScene extends Phaser.Scene {
       { t: 'And that was the last of it.', size: 42, fill: '#fff3b8', y: 0.26, delay: 700 },
       { t: 'Nothing left to fight.\nNot out in the stars. Not down in the smallest cell.', size: 34, fill: '#ffe0a0', y: 0.38, delay: 2600 },
       { t: 'But you are a long way from home,\nand the light you switched back on\nis waiting for you there.', size: 36, fill: '#ffd27a', y: 0.55, delay: 5000 },
-      { t: 'Find the WARM GATE beside THE SINGULARITY CELL\nand take the long way home.', size: 30, fill: '#9be86b', y: 0.72, delay: 7800 }
+      { t: 'Find the WARP GATE beside THE SINGULARITY CELL\nand take the long way home to HOME GROUND.', size: 30, fill: '#9be86b', y: 0.72, delay: 7800 }
     ];
     lines.forEach(l => {
       const txt = this.add.text(W / 2, H * l.y, l.t, style('display', {
@@ -477,6 +495,10 @@ export class CreditsScene extends Phaser.Scene {
       });
     });
 
+    // Nanocraft reward reveal: the hull is already equipped, this banner just
+    // names the trophy. Sits between the last line and the button.
+    this.time.delayedCall(9000, () => this.showNanocraftBanner(H - 330, 86));
+
     this.time.delayedCall(10200, () => {
       const btn = createButton(this, {
         x: W / 2, y: H - 180, label: 'Head home',
@@ -488,16 +510,37 @@ export class CreditsScene extends Phaser.Scene {
     });
   }
 
+  // The "★ NANOCRAFT HULL UNLOCKED ★" banner (Chapter 2 finale reward).
+  showNanocraftBanner(y, depth) {
+    const rc = this.add.container(W / 2, y).setDepth(depth);
+    const rg = this.add.graphics();
+    rg.fillStyle(0x0a0a1a, 0.92); rg.fillRoundedRect(-300, -46, 600, 92, 18);
+    rg.lineStyle(3, 0x4ecdc4, 1); rg.strokeRoundedRect(-300, -46, 600, 92, 18);
+    rc.add(rg);
+    rc.add(this.add.text(0, -16, '★ NANOCRAFT HULL UNLOCKED ★', style('caption', {
+      fontSize: '26px', fill: '#4ecdc4', fontStyle: '900'
+    })).setOrigin(0.5));
+    rc.add(this.add.text(0, 18, 'Equipped! Build out the rest in the Shop.', style('caption', {
+      fontSize: '20px', fill: '#cfcfe0'
+    })).setOrigin(0.5));
+    rc.alpha = 0;
+    audio.playStardustChime?.();
+    this.tweens.add({ targets: rc, alpha: 1, duration: 700, ease: 'Quad.easeOut' });
+    return rc;
+  }
+
   // ============================================================
   // HOMECOMING OUTRO (Chapter 3 / World 38): dusk on the mountain, the payoff.
-  // After the cards, the dusk wash (violet overhead, afterglow, warm cream low
-  // down) settles in as a plain gradient reveal, NO spiral/wormhole, per the
-  // content rule. The lit mountain rises, the city lights come on below it, and
-  // the journey closes on the personal message.
+  // After the hero card fades out (leaveHeroCard), the dusk wash (violet
+  // overhead, afterglow, warm cream low down) settles in as a plain gradient
+  // reveal, NO spiral/wormhole, per the content rule. The lit mountain rises,
+  // the city lights come on below it, and the journey closes on the personal
+  // message once more.
   // ============================================================
   showHomecomingOutro() {
-    // Dusk wash: the same sky the recap cards played over, settling in on top of
-    // them so the stage is clean. Violet down to afterglow down to warm cream.
+    // Dusk wash: the same sky the recap cards and the hero card played over,
+    // settling in on top so the stage is clean. Violet down to afterglow down
+    // to warm cream.
     const day = paintDuskSky(this, 60);
     day.alpha = 0;
     this.tweens.add({ targets: day, alpha: 1, duration: 1800, ease: 'Quad.easeIn' });
@@ -592,6 +635,11 @@ export class CreditsScene extends Phaser.Scene {
     }
 
     this._cockpitPet = petInCockpit;
+    this._shipContainer = shipContainer;
+
+    // Home Ground has no combat, so the ship's playful laser zap stays out of
+    // the homecoming credits; the pet's wave is kept.
+    const allowZap = this.mode !== 'homecoming';
 
     // Soft figure-8-ish loop staying out of the central hero text area.
     const stages = [
@@ -622,7 +670,7 @@ export class CreditsScene extends Phaser.Scene {
             });
             audio.playPetChirp?.();
           }
-          if (stage.zap) {
+          if (stage.zap && allowZap) {
             for (let s = 0; s < 6; s++) {
               const star = this.add.graphics().setDepth(66);
               star.fillStyle(0xfbbf24, 1);
@@ -649,12 +697,19 @@ export class CreditsScene extends Phaser.Scene {
     loop(0);
   }
 
+  // The whole journey drifts past behind the names: every visible world of all
+  // three chapters, in the order the kid played them.
   startWorldsParallax() {
     this._worldNodes = [];
     this._worldIdx = 0;
+    const journey = [
+      ...Array.from({ length: 11 }, (_, i) => i + 1),   // Outer Space 1 to 11
+      ...Array.from({ length: 8 }, (_, i) => i + 21),   // Inner Space 21 to 28
+      ...Array.from({ length: 8 }, (_, i) => i + 31)    // Home Ground 31 to 38
+    ];
 
     const spawnOne = () => {
-      const worldId = (this._worldIdx++ % 11) + 1;
+      const worldId = journey[this._worldIdx++ % journey.length];
       const y = Phaser.Math.Between(H * 0.06, H * 0.18);
       const node = drawWorldNode(this, W + 120, y, worldId, { scale: 0.5 });
       node.setDepth(62);
@@ -708,6 +763,8 @@ export class CreditsScene extends Phaser.Scene {
   // PART C — Personalized hero shout-out (long, slow, the magic moment)
   // Names reveal one at a time, then the message. Ship choreographs in
   // the background. Gold sparkles drift. Holds long before "Onward".
+  // Plays at the end of the whole game (homecoming, World 38), between the
+  // recap cards and the dusk-on-the-mountain outro.
   // ============================================================
   showHeroCard() {
     // Kick off the pet+ship choreography in the background (they orbit the
@@ -715,18 +772,22 @@ export class CreditsScene extends Phaser.Scene {
     this.startChronoChoreography();
     this.startWorldsParallax();
 
-    // Slow dark wash — gives the hero text a quiet stage. Paced to the 52s
-    // credits song: cards (~14s) + evolution (~4s) + this hero card (~34s)
-    // ≈ 52s, with the Onward button landing as the song resolves.
-    const wash = this.add.rectangle(W / 2, H / 2, W, H, 0x000000, 1).setDepth(60);
+    // Slow dark wash, a quiet stage for the hero text: night falling over the
+    // dusk sky (deep violet), plain black on the starfield. Paced to the 52s
+    // credits song: cards (~14s) + this hero card (~34s) ≈ 48s, with the
+    // Onward button landing as the song resolves.
+    const washColor = this.mode === 'homecoming' ? 0x1a1030 : 0x000000;
+    const wash = this.add.rectangle(W / 2, H / 2, W, H, washColor, 1).setDepth(60);
     wash.alpha = 0;
     this.tweens.add({
       targets: wash, alpha: 0.92,
       duration: 3000, ease: 'Quad.easeIn'
     });
+    this._heroWash = wash;
 
     // Soft gold halo backdrop behind where the names will appear.
     const heroContainer = this.add.container(W / 2, H * 0.42).setDepth(70);
+    this._heroContainer = heroContainer;
     const halo = this.add.graphics();
     halo.fillStyle(0xfbbf24, 0.10);
     halo.fillCircle(0, 0, 600);
@@ -874,40 +935,48 @@ export class CreditsScene extends Phaser.Scene {
     });
     this._driftStars = driftStars;
 
-    // Nanocraft reward reveal (~30s). The hull is already equipped (granted by
-    // markFinaleSeen in GameScene), so it's literally flying in the choreography
-    // above — this banner just names the trophy.
-    this.time.delayedCall(30000, () => {
-      const rc = this.add.container(W / 2, H - 330).setDepth(74);
-      const rg = this.add.graphics();
-      rg.fillStyle(0x0a0a1a, 0.92); rg.fillRoundedRect(-300, -46, 600, 92, 18);
-      rg.lineStyle(3, 0x4ecdc4, 1); rg.strokeRoundedRect(-300, -46, 600, 92, 18);
-      rc.add(rg);
-      rc.add(this.add.text(0, -16, '★ NANOCRAFT HULL UNLOCKED ★', style('caption', {
-        fontSize: '26px', fill: '#4ecdc4', fontStyle: '900'
-      })).setOrigin(0.5));
-      rc.add(this.add.text(0, 18, 'Equipped! Build out the rest in the Shop.', style('caption', {
-        fontSize: '20px', fill: '#cfcfe0'
-      })).setOrigin(0.5));
-      rc.alpha = 0;
-      audio.playStardustChime?.();
-      this.tweens.add({ targets: rc, alpha: 1, duration: 700, ease: 'Quad.easeOut' });
-    });
-
     // "Onward" button arrives at ~33s, landing right as the 52s song
-    // resolves (cards 14s + evolution 4s + this 33s ≈ 51s).
+    // resolves (cards 14s + this 33s ≈ 47s).
     this.time.delayedCall(33000, () => {
-      // The hero card is not the last beat: a short homeward coda follows it
-      // (see showHomewardOutro), which is the on-ramp into Home Ground.
+      // The hero card is not the last beat: the dusk-on-the-mountain outro
+      // follows it (see showHomecomingOutro), which closes the game.
       const btn = createButton(this, {
         x: W / 2, y: H - 200, label: 'Onward',
         width: 360, height: 100,
         color: 0xfbbf24,
-        onClick: () => this.showHomewardOutro()
+        onClick: () => this.leaveHeroCard(() => this.showHomecomingOutro())
       });
       btn.setDepth(75);
       btn.alpha = 0;
+      this._heroButton = btn;
       this.tweens.add({ targets: btn, alpha: 1, duration: 800 });
+    });
+  }
+
+  // Clear the hero card's stage so the next beat can play on the sky beneath
+  // it: stop the spawners, fade the wash, names, ship, button and drifting
+  // worlds out together, then hand off. The few sparkles and rings already in
+  // flight finish on their own (they destroy themselves within seconds).
+  leaveHeroCard(next) {
+    if (this._leavingHero) return;
+    this._leavingHero = true;
+    if (this._heroRingSpawner) { this._heroRingSpawner.remove(); this._heroRingSpawner = null; }
+    if (this._driftStars) { this._driftStars.remove(); this._driftStars = null; }
+    if (this._worldsSpawner) { this._worldsSpawner.remove(); this._worldsSpawner = null; }
+
+    const bits = [
+      this._heroWash, this._heroContainer, this._shipContainer, this._heroButton,
+      ...(this._worldNodes || [])
+    ].filter(o => o && o.active);
+    this._worldNodes = [];
+    bits.forEach(o => this.tweens.killTweensOf(o));
+    this.tweens.add({
+      targets: bits, alpha: 0, duration: 700, ease: 'Quad.easeIn',
+      onComplete: () => {
+        bits.forEach(o => o.destroy());
+        this._heroWash = this._heroContainer = this._shipContainer = this._heroButton = null;
+        next();
+      }
     });
   }
 

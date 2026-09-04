@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { drawTouristMap } from './homeGround/touristMap.js';
 
 // Drop a parallax starfield + gradient background into a scene.
 // Optional accentColor tints the bottom of the gradient (the world's accent).
@@ -157,25 +158,33 @@ export function createInnerSpaceBase(scene, opts = {}) {
 
 // Chapter 3 "Home Ground" map base: one summer Saturday, the daytime
 // replacement for the cosmic starfield and the living-body interior.
-// Deliberately NO white stars and NO shooting stars: a soft sky gradient (pale
-// morning blue up top, warm cream down at the ground), a warm glow welling up
-// from the bottom like sunlit pavement, a soft sun cast from the upper corner,
-// and one slow drifting pool of daylight that gently breathes. Plain soft
-// shapes only, no rays or sunburst (content rule). Drawn behind everything
-// (depth -10 / -9); the warm drifting motes and the edge vignette are layered
-// on top by WorldAmbience.createMapAmbience. The 28px node labels keep their
-// dark stroke, which is what carries them on a light ground.
+// Deliberately NO white stars and NO shooting stars. The ground is a paper
+// tourist map of the family's city (src/homeGround/touristMap.js: cream paper,
+// faint water, parks, streets, the mountains along the top and the day's route
+// dashed across it), and over that sheet lies the day's light: a translucent
+// sky wash (pale morning blue up top, warm cream down at the ground), a warm
+// glow welling up from the bottom like sunlit pavement, a soft sun cast from
+// the upper corner, and one slow drifting pool of daylight that gently
+// breathes. Plain soft shapes only, no rays or sunburst (content rule). Drawn
+// behind everything (depth -10 / -9); the warm drifting motes and the edge
+// vignette are layered on top by WorldAmbience.createMapAmbience. The 28px
+// node labels keep their dark stroke, which is what carries them on a light
+// ground; the map's ink stays low-contrast for the same reason.
 export function createHomeGroundBase(scene, opts = {}) {
-  const { width = W_DEFAULT, height = H_DEFAULT } = opts;
+  const { width = W_DEFAULT, height = H_DEFAULT, mapInk = 0.34, wash = 0.15 } = opts;
 
-  // B1: the sky, in two stacked bands so it reads as a real one. Morning blue
-  // at the top fades to a pale haze around the middle of the map, and the haze
-  // warms to cream at the bottom, where the day's first stops sit.
-  const base = scene.add.graphics().setDepth(-10);
+  // B0: the paper map, the sheet everything else sits on.
+  const map = drawTouristMap(scene.add.graphics().setDepth(-10), { height, ink: mapInk });
+
+  // B1: the sky wash, in two stacked bands so it reads as a real one. Morning
+  // blue at the top fades to a pale haze around the middle of the map, and the
+  // haze warms to cream at the bottom, where the day's first stops sit. Laid
+  // translucent over the paper so the map shows through the day's light.
+  const base = scene.add.graphics().setDepth(-9);
   const split = Math.round(height * 0.55);
-  base.fillGradientStyle(0x9ccfee, 0x9ccfee, 0xd2e8f3, 0xd2e8f3, 1);
+  base.fillGradientStyle(0x9ccfee, 0x9ccfee, 0xd2e8f3, 0xd2e8f3, wash);
   base.fillRect(0, 0, width, split);
-  base.fillGradientStyle(0xd2e8f3, 0xd2e8f3, 0xf4e3c4, 0xf4e3c4, 1);
+  base.fillGradientStyle(0xd2e8f3, 0xd2e8f3, 0xf4e3c4, 0xf4e3c4, wash);
   base.fillRect(0, split, width, height - split);
 
   // B2: warm ground glow welling up from the bottom edge, plus a soft sun cast
@@ -202,7 +211,7 @@ export function createHomeGroundBase(scene, opts = {}) {
     duration: 9000, yoyo: true, repeat: -1, ease: 'Sine.easeInOut',
   });
 
-  return { base, glow, daylight };
+  return { map, base, glow, daylight };
 }
 
 const W_DEFAULT = 1080;

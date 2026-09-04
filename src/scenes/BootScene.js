@@ -45,7 +45,7 @@ export class BootScene extends Phaser.Scene {
     // track — warm and intimate, and already shipped — rather than homeTheme.
     this.load.audio('hotPotTheme', 'audio/hot-pot.mp3');
     this.load.on('loaderror', (file) => {
-      console.info(`[boot] optional audio "${file?.key}" unavailable — skipped`);
+      console.info(`[boot] optional audio "${file?.key}" unavailable, skipped`);
     });
 
     // Only visible if preload runs long; create() destroys it on entry.

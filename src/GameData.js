@@ -23,7 +23,7 @@ export const WORLDS = [
     name: 'Moon Base',
     color: 0x6f7ec4,
     accentColor: 0xb5e6ff,
-    description: 'Where it all begins — your first hop into the dark.',
+    description: 'Where it all begins: your first hop into the dark.',
     villain: 'Cratershade',
     flavorText: 'Moon Base reclaimed. The Void recoils into deeper space.',
     levelsRequired: 4
@@ -122,7 +122,7 @@ export const WORLDS = [
     name: 'Parallel Dimension',
     color: 0x55858a,
     accentColor: 0xa6f0e8,
-    description: 'Familiar yet strange — the rules feel sideways.',
+    description: 'Familiar yet strange. The rules feel sideways.',
     villain: 'Mirrorshade',
     flavorText: 'Parallel Dimension snaps back. The rules feel right again.',
     levelsRequired: 4
@@ -135,7 +135,7 @@ export const WORLDS = [
     accentColor: 0xfff3b8,
     description: 'The last horizon. The final stand against the Void.',
     villain: 'The Void Devourer',
-    flavorText: 'The Void cracks open — and something pulls you inward, smaller and smaller…',
+    flavorText: 'The Void cracks open, and something pulls you inward, smaller and smaller…',
     levelsRequired: 4,
     bigBoss: true
   },
@@ -150,7 +150,7 @@ export const WORLDS = [
     name: 'Bloodstream',
     color: 0x8a2b3a,
     accentColor: 0xff7a8a,
-    description: 'Shrunk to a speck — riding the warm red rivers within.',
+    description: 'Shrunk to a speck, riding the warm red rivers within.',
     villain: 'Sneezel',
     flavorText: 'The Bloodstream runs clear. The current carries you deeper.',
     levelsRequired: 4
@@ -227,7 +227,7 @@ export const WORLDS = [
     name: 'The Singularity Cell',
     color: 0x6a6ab0,
     accentColor: 0xfff3b8,
-    description: 'The very first cell of all — where the smallest war ends.',
+    description: 'The very first cell of all, where the smallest war ends.',
     villain: 'Patient Zero',
     flavorText: 'The Singularity Cell goes quiet. From the smallest speck, everything heals.',
     levelsRequired: 4,

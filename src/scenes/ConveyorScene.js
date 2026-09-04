@@ -126,6 +126,11 @@ const KEYPAD_COL0 = W / 2 - (KEYPAD_BTN_W + KEYPAD_GAP_X); // center x of left c
 const ENTRY_Y = 1090;             // recalled-answer readout, between belt and pad
 const ENTRY_PLATE_H = 120;        // readout plate height (kept clear of the top keypad row)
 const MAX_ANSWER_DIGITS = 3;      // products top out at 12×12 = 144
+// Keypad entry hold: once the first digit of an answer is punched, the crate's
+// ride-off clock pauses so the belt never tips a crate into the chute under a
+// half-typed number. The hold is capped at this much per crate in total, after
+// which the clock runs again even mid-entry, so a stalled entry still resolves.
+const ENTRY_HOLD_MS = 4000;
 
 function shuffle(arr) {
   const a = arr.slice();
@@ -763,6 +768,44 @@ export class ConveyorScene extends Phaser.Scene {
 
     // Ride-off-the-end timer: unanswered → requeue (no record).
     this.crateTimer = this.time.delayedCall(this.problemSeconds * 1000, () => this.timeoutCrate());
+    // A fresh entry-hold budget for this crate (see holdBelt).
+    this.entryHoldTimer?.remove();
+    this.entryHoldTimer = null;
+    this.entryHoldSpent = false;
+  }
+
+  // Pause the crate's ride-off clock while an answer is being typed. Called on
+  // the first digit of an entry; releaseBelt() lets the clock run again when
+  // the entry empties (backspace, or a wrong answer clearing it). The budget
+  // timer starts on the first hold and is never restarted for the same crate,
+  // so a crate can be held for at most ENTRY_HOLD_MS in total no matter how
+  // the kid types, deletes and retypes. Response time is measured from reveal
+  // to submit (startedAtMs), so none of this touches the recorded timing.
+  holdBelt() {
+    if (!this.crateTimer || this.entryHoldSpent) return;
+    this.crateTimer.paused = true;
+    if (!this.entryHoldTimer) {
+      this.entryHoldTimer = this.time.delayedCall(ENTRY_HOLD_MS, () => {
+        this.entryHoldSpent = true;
+        this.entryHoldTimer = null;
+        this.releaseBelt();
+      });
+    }
+  }
+
+  releaseBelt() {
+    if (this.crateTimer) this.crateTimer.paused = false;
+  }
+
+  // Take the crate clock out of the scene clock for good. TimerEvent.remove()
+  // only flags the event and relies on the next Clock update to drop it, and
+  // that update skips paused events, so a timer removed while held would sit
+  // in the clock's active list until the scene shuts down. removeEvent splices
+  // it out directly, paused or not.
+  dropCrateTimer() {
+    if (!this.crateTimer) return;
+    this.time.removeEvent(this.crateTimer);
+    this.crateTimer = null;
   }
 
   // The single resolution path for BOTH input modes — the only difference is
@@ -776,7 +819,9 @@ export class ConveyorScene extends Phaser.Scene {
 
     if (correct) {
       this.acceptingInput = false;
-      this.crateTimer?.remove();
+      this.dropCrateTimer();
+      this.entryHoldTimer?.remove();
+      this.entryHoldTimer = null;
       this.bobTween?.stop();
       // Kill any in-flight crate tween (e.g. a lingering shakeCrate from a wrong
       // retry on THIS crate) before the ship tween, so its onComplete can't snap
@@ -841,10 +886,12 @@ export class ConveyorScene extends Phaser.Scene {
       if (this.inputMode === 'recognition') {
         this.rejectDock(dockIndex);
       } else {
-        // Clear the wrong entry so the kid can re-punch; keypad stays open.
+        // Clear the wrong entry so the kid can re-punch; keypad stays open. The
+        // entry is empty again, so the belt clock runs until the next digit.
         this.entry = '';
         this.updateEntry();
         this.flashEntryWrong();
+        this.releaseBelt();
       }
       this.crate?.flashWrong();
       if (this.crate) this.burstReject(this.crate.x, this.crate.y);
@@ -855,6 +902,8 @@ export class ConveyorScene extends Phaser.Scene {
   timeoutCrate() {
     if (this.ended || !this.acceptingInput) return;
     this.acceptingInput = false;
+    this.entryHoldTimer?.remove();
+    this.entryHoldTimer = null;
     this.bobTween?.stop();
     this.tweens.killTweensOf(this.crate); // drop any lingering shake before the tip-off
     this.setDocksEnabled(false);
@@ -1612,9 +1661,12 @@ export class ConveyorScene extends Phaser.Scene {
   pressDigit(d) {
     if (!this.acceptingInput || this.ended) return;
     if (this.entry.length >= MAX_ANSWER_DIGITS) return;
+    const firstDigit = this.entry.length === 0;
     this.entry += d;
     this.updateEntry();
     audio.playClick?.();
+    // The belt waits while the answer is being typed (capped, see holdBelt).
+    if (firstDigit) this.holdBelt();
     // Auto-submit only at the universal max digit count (no more digits are
     // possible) — never at the answer's own length, which would leak it.
     if (this.entry.length >= MAX_ANSWER_DIGITS) this.submitProduction();
@@ -1625,6 +1677,8 @@ export class ConveyorScene extends Phaser.Scene {
     this.entry = this.entry.slice(0, -1);
     this.updateEntry();
     audio.playClick?.();
+    // Deleted back to nothing: no longer mid-entry, so the belt clock runs.
+    if (!this.entry.length) this.releaseBelt();
   }
 
   submitProduction() {
@@ -1727,7 +1781,9 @@ export class ConveyorScene extends Phaser.Scene {
     if (this.ended) return;
     this.ended = true;
     this.acceptingInput = false;
-    this.crateTimer?.remove();
+    this.dropCrateTimer();
+    this.entryHoldTimer?.remove();
+    this.entryHoldTimer = null;
     this.roundTimer?.remove();
     this.bobTween?.stop();
     // Settle the belt pet to its rest pose so it doesn't keep bobbing behind the
@@ -2220,7 +2276,8 @@ export class ConveyorScene extends Phaser.Scene {
   }
 
   teardown() {
-    this.crateTimer?.remove();
+    this.dropCrateTimer();
+    this.entryHoldTimer?.remove();
     this.roundTimer?.remove();
     this.bobTween?.stop();
     this.arrivalTween?.stop();

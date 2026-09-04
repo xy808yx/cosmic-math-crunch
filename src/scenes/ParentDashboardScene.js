@@ -378,7 +378,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     const stats = progress.getAutomaticityStats();
     const pace = records.getPaceMs();
     const summary = stats.attempted === 0
-      ? 'No data yet — keep playing!'
+      ? 'No data yet. Keep playing!'
       : `${stats.automatic} of ${stats.totalFacts} facts automatic`
         + (pace > 0 ? `   ·   typical recall ${(pace / 1000).toFixed(1)}s` : '');
     this.contentContainer.add(this.add.text(W / 2, startY + 46, summary, style('body', {
@@ -399,7 +399,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     y += 42;
     const slow = progress.getSlowFacts(4);
     if (slow.length === 0) {
-      this.contentContainer.add(this.add.text(W / 2, y, stats.attempted ? 'Nothing slow right now — nice!' : '—', style('caption', {
+      this.contentContainer.add(this.add.text(W / 2, y, stats.attempted ? 'Nothing slow right now. Nice!' : '–', style('caption', {
         fontSize: '22px', fill: '#7a7a90'
       })).setOrigin(0.5));
       y += 40;
@@ -586,7 +586,7 @@ export class ParentDashboardScene extends Phaser.Scene {
         : Math.abs(m.posRepeatPct - chance) <= 12 ? '#7ee08a'
         : m.posRepeatPct > chance ? '#ff6b6b' : '#f7dc6f';
       const txt = m.posTotal === 0
-        ? 'Dock-position repeat: — (need more crates)'
+        ? 'Dock-position repeat: not yet (need more crates)'
         : `Dock-position repeat: ${m.posRepeatPct}%  (random ≈ ${chance}%)`;
       card.add(this.add.text(0, repeatY, txt, style('body', { fontSize: '22px', fill: col })).setOrigin(0.5));
     }
@@ -611,7 +611,7 @@ export class ParentDashboardScene extends Phaser.Scene {
     })).setOrigin(0.5));
     y += 50;
     this.contentContainer.add(this.add.text(W / 2, y,
-      'The game adapts to your child automatically — facts they miss\nresurface more often, and timing scales with the world they\'re in.',
+      'The game adapts to your child automatically: facts they miss\nresurface more often, and timing scales with the world they\'re in.',
       style('body', {
         fontSize: '22px',
         fill: '#cfcfe0',
@@ -728,7 +728,7 @@ export class ParentDashboardScene extends Phaser.Scene {
       fill: '#ff6b6b'
     })).setOrigin(0.5));
     c.add(this.add.text(0, 0,
-      'This will delete ALL game progress —\nlevels, stars, pet, ship, and learning data.\n\nThis cannot be undone.',
+      'This will delete ALL game progress:\nlevels, stars, pet, ship, and learning data.\n\nThis cannot be undone.',
       style('body', {
         fontSize: '24px',
         fill: '#cfcfe0',

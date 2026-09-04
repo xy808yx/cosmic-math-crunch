@@ -88,7 +88,7 @@ export class RecordsScene extends Phaser.Scene {
         label: "TODAY'S AVG",
         value: records.getTodayAvgMs() > 0
           ? `${(records.getTodayAvgMs() / 1000).toFixed(2)}s`
-          : '—',
+          : '–',
         sub: records.getTodaySamples() > 0 ? `${records.getTodaySamples()} answers` : 'No plays today',
         accent: COLORS.accentPurple
       }
@@ -232,7 +232,7 @@ export class RecordsScene extends Phaser.Scene {
 
     const top = records.getTopFastFacts(5);
     if (top.length === 0) {
-      this.add.text(W / 2, sectionY + 60, 'No records yet — keep playing!', style('caption', {
+      this.add.text(W / 2, sectionY + 60, 'No records yet. Keep playing!', style('caption', {
         fontSize: '20px',
         fill: '#7a7a90'
       })).setOrigin(0.5).setDepth(11);

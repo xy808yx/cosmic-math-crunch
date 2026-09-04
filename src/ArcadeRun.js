@@ -40,7 +40,7 @@ export function showArcadeResults(scene, opts) {
     accent = 0xfbbf24;
     lines = [
       `Facts refreshed: ${score}`,
-      rustyLeft > 0 ? `${rustyLeft} still need a tune-up` : 'All facts fresh — nice!'
+      rustyLeft > 0 ? `${rustyLeft} still need a tune-up` : 'All facts fresh. Nice!'
     ];
     launcherKey = 'ReviewScene';
     doneScene = 'WorldMapScene';

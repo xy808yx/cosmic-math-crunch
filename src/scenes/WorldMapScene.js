@@ -295,7 +295,7 @@ export class WorldMapScene extends Phaser.Scene {
           accent: COLORS.warning,
           drawIcon: (g, size) => drawStarIcon(g, 0, 0, size),
           title: 'STARS',
-          body: 'You earn up to 3 stars on every mission — more answers right, more stars. They track how well you\'re mastering each math fact.'
+          body: 'You earn up to 3 stars on every mission: more answers right, more stars. They track how well you\'re mastering each math fact.'
         })
       },
       {
@@ -1722,7 +1722,7 @@ export class WorldMapScene extends Phaser.Scene {
       fontSize: '60px',
       fill: '#ffffff',
     })).setOrigin(0.5));
-    card.add(this.add.text(0, -ch / 2 + 175, 'Tap a friend to bring them out — then pick their form.', style('body', {
+    card.add(this.add.text(0, -ch / 2 + 175, 'Tap a friend to bring them out, then pick their form.', style('body', {
       fontSize: '28px',
       fill: '#cfcfe0',
       align: 'center',
@@ -1912,7 +1912,7 @@ export class WorldMapScene extends Phaser.Scene {
         fill: '#ffffff',
       })).setOrigin(0.5));
 
-      pane.add(this.add.text(0, nameY + 60, `— ${stage.toUpperCase()} —`, style('caption', {
+      pane.add(this.add.text(0, nameY + 60, `· ${stage.toUpperCase()} ·`, style('caption', {
         fontSize: '30px',
         fill: '#' + sp.accent.toString(16).padStart(6, '0'),
       })).setOrigin(0.5));

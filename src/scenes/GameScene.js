@@ -2453,8 +2453,9 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
-    // Chapter 2 finale (W28 The Singularity Cell): first clear triggers the true
-    // GRAND finale — credits + the personalized hero card + the Nanocraft reward.
+    // Chapter 2 finale (W28 The Singularity Cell): first clear triggers the
+    // GRAND finale: credits, the homeward coda and the Nanocraft reward banner.
+    // The personalized hero card plays at the Chapter 3 homecoming (World 38).
     // markFinaleSeen persists the flag AND grants the rewards early (atomic), so
     // closing the tab mid-credits can't strand the trophy.
     if (bossWin && isFinaleWorld(this.worldId) && worldFullyCleared && !progress.finaleSeen) {
@@ -2675,7 +2676,7 @@ export class GameScene extends Phaser.Scene {
       banner.add(bg2);
       const sp = companion.getSpecies();
       const lore = sp.stages[evolvedTo];
-      banner.add(this.add.text(0, 0, `EVOLVED — ${lore.name.toUpperCase()}!`, style('subhead', {
+      banner.add(this.add.text(0, 0, `EVOLVED: ${lore.name.toUpperCase()}!`, style('subhead', {
         fontSize: '26px',
         fill: '#1a0a26',
         fontStyle: '900'
