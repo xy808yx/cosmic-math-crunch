@@ -1065,7 +1065,7 @@ export class WorldMapScene extends Phaser.Scene {
     root.add(card);
 
     // Paper-cutout gondola cabin hanging from a short wire: the chapter's one
-    // big image (the ride up the mountain at dusk) in plain shapes. A rounded
+    // big image (the ride down the mountain at dusk) in plain shapes. A rounded
     // rect body in awning red, a darker roof cap, a pale window strip, and the
     // same shapes drawn first in black at 0.22, pushed down and right, for the
     // hard paper shadow. Plain shapes only, no rays, no spiral.
@@ -1094,10 +1094,12 @@ export class WorldMapScene extends Phaser.Scene {
     card.add(this.add.text(0, -105, 'You made it home.', style('subhead', {
       fontSize: '38px', fill: '#9be86b'
     })).setOrigin(0.5));
-    // Narrator placeholder for J's words: second person, three short lines,
-    // each under 40 characters so nothing wraps at 34px inside 860px.
+    // The owner's own words. Three short lines, each under 40 characters so
+    // nothing wraps at 34px inside 860px. This is the whole point of the card:
+    // it names the change of genre out loud (no more fighting) before she meets
+    // the first calm belt, so the quiet reads as the story and not as a bug.
     card.add(this.add.text(0, 12,
-      'No more fighting. No more dark to chase.\nJust one Saturday, close to home,\nand a ride up the mountain by dark.',
+      'Time to relax. Time to enjoy.\nNo more fighting, no more dark.\nJust exploring the city together.',
       style('body', {
         fontSize: '34px', fill: '#fff3b8', align: 'center',
         lineSpacing: 12, wordWrap: { width: W - 220 }

@@ -54,13 +54,14 @@ const FINALE_CARDS = [
 
 // Chapter 3 (World 38, The Mountain): the homecoming. The scale arc lands at
 // human scale: one Saturday around the family's own city, morning to dusk, and
-// the last stop is the ride up the mountain as the lights come on. No void.
+// the last stop is the climb up the mountain on your own legs and the ride back
+// down as the city lights come on. No void.
 // Card four and the World 38 description are near-twins on purpose.
 const HOMECOMING_CARDS = [
   'You journeyed to the edge of the cosmos. Then into the smallest cell.',
   'And now the long way around brings you somewhere new: home.',
   'A whole Saturday of it. The store, the garden, the beach, the bread place.',
-  'One last ride up the mountain, and the lights come on for everyone.'
+  'You walked all the way up. The lights came on for the ride down.'
 ];
 
 // Home Ground finale sky: dusk on the mountain. Violet overhead, afterglow at
@@ -457,7 +458,7 @@ export class CreditsScene extends Phaser.Scene {
     });
 
     // A small red gondola cabin on its cable (paper cutout, plain shapes, no
-    // rays / spiral / sigil): the first glimpse of the ride up the mountain that
+    // rays / spiral / sigil): the first glimpse of the ride down the mountain that
     // ends the chapter, and the daylight answer to the cliffhanger outro's cold
     // portal rings. The cable is its own static graphic so the cabin can sway
     // from the wheel without dragging the cable with it.
@@ -518,14 +519,16 @@ export class CreditsScene extends Phaser.Scene {
       this.tweens.add({ targets: lh, scale: 2.4, alpha: 1, duration: 900, ease: 'Back.easeOut' });
     });
 
-    // The two payoff lines (coming home, and the lights coming on below) are a
-    // NARRATOR fallback in second person, holding the spot for J's own words.
+    // The payoff. The first two lines are the owner's own words, said to the kid
+    // who walked up this mountain herself; the third is the picture they land on.
+    // Shape is small setter-up, big landing line, quieter closing image, timed so
+    // each one gets its own beat before the personal message at 8800ms.
     // The headline sits in the violet band, so it gets a cream fill on a dusk
     // stroke; the lower lines sit on the afterglow and cream and keep dark fills.
     const lines = [
       { t: 'CHAPTER 3 COMPLETE', size: 58, fill: '#ffe9a8', stroke: '#3a2a50', y: 0.14, delay: 800 },
-      { t: 'From the far stars, and the deep cell,', size: 36, fill: '#5a4410', y: 0.62, delay: 2600 },
-      { t: 'you took the long way home.', size: 42, fill: '#4a3568', y: 0.69, delay: 4400 },
+      { t: 'You made it!', size: 36, fill: '#5a4410', y: 0.62, delay: 2600 },
+      { t: 'You got to the very top!', size: 42, fill: '#4a3568', y: 0.69, delay: 4400 },
       { t: 'The mountain is lit for the ride down.\nBelow you, one by one, the city lights come on.', size: 32, fill: '#1f5a6a', y: 0.78, delay: 6600 },
     ];
     lines.forEach(l => {

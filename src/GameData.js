@@ -361,15 +361,18 @@ export const WORLDS = [
     name: 'The Mountain',
     color: 0x4a4f8a,
     accentColor: 0xfff3b8,
-    description: 'One last ride up. Get the lights on before dark and bring everyone home.',
-    villain: 'Dusk on the Peak',
+    description: 'You walked all the way up. Now get everyone down before dark.',
+    villain: 'Everyone Still Up Top',
     // Closes the dark thread that opened in Chapter 1, WITHOUT reopening it: this
     // is not the Void come back (that let go for good inside the smallest cell).
     // It is ordinary evening at the top of the mountain. The Home Ground answer
     // to dark is switching the lights on for the ride down, not a battle.
+    // You WALK up this mountain and ride the cabin down, which is how the
+    // family actually does it. That is why the copy says climbed, not rode, and
+    // why the finale's reward line is the ride down rather than the ride up.
     // Surfaced by ConveyorScene's rush-order intro (see bossBrief): four short
     // lines, sized for the card's 4200ms hold.
-    bossBrief: 'Not the old dark. Just evening,\nthe kind that comes every day.\nGet everyone up before the light goes,\nand switch the mountain on for the ride down.',
+    bossBrief: 'Not the old dark. Just evening,\nthe kind that comes every day.\nYou climbed all the way up here.\nNow light it up for the ride down.',
     flavorText: 'The lights come on. Below you, the whole city does too.',
     rushLine: 'before dark',
     levelsRequired: 4,
