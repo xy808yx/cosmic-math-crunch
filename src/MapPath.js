@@ -42,23 +42,23 @@ const POSITIONS_CH2 = [
 ];
 
 const POSITIONS_CH3 = [
-  // 8 hand-tuned points that read as one Saturday out. A near-flat sweep east
-  // along the bottom for the morning stops, a switchback west for the
-  // afternoon, a second run east to the water for the evening, then the
-  // longest leg of all, straight up to the peak at the top of the map for the
-  // ride at dusk. Rules this layout keeps: every x stays between 240 and 860 so
-  // the 28px labels never clip (about 440px of room at x 860, 480px at x 240);
-  // the lowest node stays at y 1480 because the Tune-Up pill band in
-  // WorldMapScene is derived from it; and every neighbouring pair is at least
-  // as far apart as the Chapter 2 curve kept them.
+  // 8 hand-tuned points that read as one Saturday out. Every stop sits roughly
+  // where the real place does, which is what the kids recognise: the beach out
+  // on the point's coast, the big store downtown, the seawall at the inlet's
+  // east end across from the dome, the mountain over on the right. Rules this
+  // layout keeps: every x stays between 240 and 860 so the 28px labels never
+  // clip; the lowest node stays at y 1480 because the Tune-Up pill band in
+  // WorldMapScene is derived from it; every neighbouring pair is at least as
+  // far apart as the Chapter 2 curve kept them; and the drawn route never
+  // crosses itself (154px of clearance between non-adjacent legs).
   { x: 240,  y: 1480 },  // 31 The Grocery Store: bottom-left, 9 in the morning
-  { x: 585,  y: 1460 },  // 32 The Big Garden: east along the bottom, late morning
+  { x: 530,  y: 1290 },  // 32 The Big Garden: up into its own garden, late morning
   { x: 860,  y: 1300 },  // 33 The Mall: the east edge, midday rain
-  { x: 620,  y: 1120 },  // 34 The Beach: cut back west and up, mid-afternoon
-  { x: 260,  y: 960  },  // 35 The Big Store: the west edge, 5 in the afternoon (a step up so the return gate clears its label)
-  { x: 540,  y: 830  },  // 36 The Bread Place: back to the centre, 6 in the evening
-  { x: 860,  y: 680  },  // 37 The Seawall: the east edge again, golden hour by the water
-  { x: 560,  y: 380  }   // 38 The Mountain: top of the map at dusk, the ride up
+  { x: 250,  y: 810 },  // 34 The Beach: out on the point's north coast, mid-afternoon
+  { x: 690,  y: 600 },  // 35 The Big Store: downtown among the blocks, 5 in the afternoon
+  { x: 560,  y: 820 },  // 36 The Bread Place: back down to the water's south shore, 6 in the evening
+  { x: 850,  y: 780 },  // 37 The Seawall: the inlet's east end, golden hour, the dome across the way
+  { x: 860,  y: 380 },  // 38 The Mountain: top-right at dusk, under the tallest peak, the ride down
 ];
 
 function positionsFor(chapter) {
@@ -145,17 +145,15 @@ export const HIDDEN_NODE_POSITIONS = {
   18: { x: 230, y: 700 },  // Recess — branches up-left of its host Immune Front
                            // (560, 720), into the open left pocket below Marrow Caverns.
   // --- Chapter 3 secrets (positions are on the CH3 map) ---
-  20: { x: 948, y: 920 },  // The Night Shift: branches down-right of its host
-                           // The Seawall (860, 680), into the open right pocket
-                           // between the seawall and The Mall (860, 1300). Its
-                           // 24px label lands at y 1004, clear of the seawall
-                           // label (y 770) above it and of The Beach node
-                           // (620, 1120) to its left. Kept in from the canvas
-                           // edge because the name is long: at x 975 the label
-                           // once ran 2px off screen. The label clamp in
-                           // WorldMapScene is the real guard; this keeps the
+  20: { x: 955, y: 962 },  // The Night Shift: branches down-right of its host
+                           // The Seawall, into the open right pocket between the
+                           // seawall and The Mall. Kept in from the canvas edge
+                           // because the name is long; the label clamp in
+                           // WorldMapScene is the real guard, this keeps the
                            // label naturally centred under its node.
-  19: { x: 240, y: 720 }   // Hot Pot Time: branches up-left of its host The Bread
+  19: { x: 415, y: 1071 }  // Hot Pot Time: branches down-left of its host The
+                           // Bread Place, into the open pocket the beach left
+                           // behind when it moved out to the coast   // Hot Pot Time: branches up-left of its host The Bread
                            // Place (540, 830), into the open left pocket above
                            // The Big Store (260, 1000). Its label (y 804) clears
                            // the big-store node top (about y 910) and never meets
