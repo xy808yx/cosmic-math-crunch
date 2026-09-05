@@ -51,14 +51,17 @@ const POSITIONS_CH3 = [
   // WorldMapScene is derived from it; every neighbouring pair is at least as
   // far apart as the Chapter 2 curve kept them; and the drawn route never
   // crosses itself (154px of clearance between non-adjacent legs).
-  { x: 240,  y: 1480 },  // 31 The Grocery Store: bottom-left, 9 in the morning
-  { x: 530,  y: 1290 },  // 32 The Big Garden: up into its own garden, late morning
-  { x: 860,  y: 1300 },  // 33 The Mall: the east edge, midday rain
-  { x: 250,  y: 810 },  // 34 The Beach: out on the point's north coast, mid-afternoon
-  { x: 690,  y: 600 },  // 35 The Big Store: downtown among the blocks, 5 in the afternoon
-  { x: 560,  y: 820 },  // 36 The Bread Place: back down to the water's south shore, 6 in the evening
-  { x: 850,  y: 780 },  // 37 The Seawall: the inlet's east end, golden hour, the dome across the way
-  { x: 860,  y: 380 },  // 38 The Mountain: top-right at dusk, under the tallest peak, the ride down
+  // NB: index i pairs with getChapterWorlds(3)[i], so this table is in PLAY
+  // order, not id order. The coordinates below are unchanged; only their
+  // sequence follows the day.
+  { x: 240,  y: 1480 },  // 31 The Grocery Store: bottom-left, first stop
+  { x: 530,  y: 1290 },  // 32 The Big Garden: up into its own garden
+  { x: 860,  y: 1300 },  // 33 The Mall: the east edge, the rain
+  { x: 850,  y: 780 },   // 37 The Seawall: the inlet's east end, the dome across the way
+  { x: 560,  y: 820 },   // 36 The Bread Place: the water's south shore
+  { x: 250,  y: 810 },   // 34 The Beach: out on the point's north coast
+  { x: 690,  y: 600 },   // 35 The Big Store: downtown among the blocks
+  { x: 860,  y: 380 },   // 38 The Mountain: top-right, under the tallest peak, the ride down
 ];
 
 function positionsFor(chapter) {
@@ -170,8 +173,8 @@ export const HIDDEN_HOST_INDEX = {
   16: 8,  // W9  (CH1 index 8)
   17: 3,  // W24 Neuron Forest (CH2 index 3)
   18: 5,  // W26 Immune Front  (CH2 index 5)
-  19: 5,  // W36 The Bread Place (CH3 index 5)
-  20: 6   // W37 The Seawall     (CH3 index 6)
+  19: 4,  // W36 The Bread Place (CH3 index 4)
+  20: 3   // W37 The Seawall     (CH3 index 3)
 };
 
 // Control point for the quadratic-Bezier arc that connects a host world to a

@@ -298,6 +298,36 @@ export const WORLDS = [
     kind: 'sort'
   },
   {
+    id: 37,
+    chapter: 3,
+    name: 'The Seawall',
+    color: 0x3a8a8a,
+    accentColor: 0xffcf7a,
+    description: 'Bikes on the seawall, little ferries on the water, the dome across the way.',
+    villain: 'Sunset Crowd',
+    bossBrief: 'Everybody came out for the sunset and every little ferry is full. Get them across before the light goes.',
+    flavorText: 'Every ferry home. The water goes gold, then pink.',
+    rushLine: 'before the light goes',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
+    id: 36,
+    chapter: 3,
+    name: 'The Bread Place',
+    color: 0xb87048,
+    accentColor: 0xffd1a8,
+    description: 'The bread place on the plaza. Get there before they close.',
+    villain: 'Oven All at Once',
+    bossBrief: 'Everything came out of the oven at once and the line is around the corner. Box them while they are warm.',
+    // The one and only line in the game that uses the family word. Never a
+    // label anyone must read, never a name.
+    flavorText: 'Last loaf boxed. One blueby bread saved for the littlest.',
+    rushLine: 'before they close',
+    levelsRequired: 4,
+    kind: 'sort'
+  },
+  {
     id: 34,
     chapter: 3,
     name: 'The Beach',
@@ -322,36 +352,6 @@ export const WORLDS = [
     bossBrief: 'A pallet tipped in the back and every giant box is loose. Get them on the flatbeds before the doors close.',
     flavorText: 'Flatbeds loaded, hot dog in hand. That is the big shop done.',
     rushLine: 'before the doors close',
-    levelsRequired: 4,
-    kind: 'sort'
-  },
-  {
-    id: 36,
-    chapter: 3,
-    name: 'The Bread Place',
-    color: 0xb87048,
-    accentColor: 0xffd1a8,
-    description: 'The bread place on the plaza. Get there before they close.',
-    villain: 'Oven All at Once',
-    bossBrief: 'Everything came out of the oven at once and the line is around the corner. Box them while they are warm.',
-    // The one and only line in the game that uses the family word. Never a
-    // label anyone must read, never a name.
-    flavorText: 'Last loaf boxed. One blueby bread saved for the littlest.',
-    rushLine: 'before they close',
-    levelsRequired: 4,
-    kind: 'sort'
-  },
-  {
-    id: 37,
-    chapter: 3,
-    name: 'The Seawall',
-    color: 0x3a8a8a,
-    accentColor: 0xffcf7a,
-    description: 'Bikes on the seawall, little ferries on the water, the dome across the way.',
-    villain: 'Sunset Crowd',
-    bossBrief: 'Everybody came out for the sunset and every little ferry is full. Get them across before the light goes.',
-    flavorText: 'Every ferry home. The water goes gold, then pink.',
-    rushLine: 'before the light goes',
     levelsRequired: 4,
     kind: 'sort'
   },
@@ -527,6 +527,12 @@ export const CHAPTER2_FINAL_ID = 28;
 // lights come on before dark and everyone rides down toward the city.
 export const CHAPTER3_FINAL_ID = 38;
 
+// Chapter 3 day-order revision. Bumped whenever the Home Ground stops are
+// re-sequenced. Saves carry the revision they were written under; anything
+// lower gets migrateChapter3Order() exactly once, on load. Rev 1 is the
+// original day; rev 2 is the re-sequenced one.
+export const CH3_ORDER_REV = 2;
+
 // True if this world is the Chapter 1 final boss (Void Devourer). Drives the
 // Cosmic-form unlock + the cliffhanger cinematic. Named for back-compat.
 export function isFinalVisibleWorld(worldId) {
@@ -680,7 +686,7 @@ const WORLD_PROBLEM_SECONDS = {
   // Chapter 3 ("Home Ground"): the cold-start baseline for the Conveyor belt's
   // active-item window. The real per-kid pressure comes from
   // getAdaptiveProblemSeconds (Conveyor opts in, like Chapter 2). Flat-ish, calm.
-  31: 4.5,  32: 4.3,  33: 4.1,  34: 4.0,  35: 3.9,  36: 3.8,  37: 3.6,  38: 3.5,
+  31: 4.5,  32: 4.3,  33: 4.1,  37: 4.0,  36: 3.9,  34: 3.8,  35: 3.6,  38: 3.5,
   // Hidden worlds use their own pacing (read lazily). Glitch boss (15) gets a
   // touch more time: its problems are visually corrupted and it's a 22-hit
   // gauntlet, so 4.5s base (+1.0s boss = 5.5s) keeps a 3-star run attainable.
@@ -797,7 +803,9 @@ const CHAPTER2_BOSS_HP = {
 // (38) is the grand finale tuned just under World 11's Void Devourer / Patient
 // Zero.
 const CHAPTER3_BOSS_HP = {
-  31: 10, 32: 11, 33: 12, 34: 13, 35: 14, 36: 15, 37: 16, 38: 44
+  // Keyed by world id but the ramp belongs to the SLOT in the day, so these
+  // are written in play order: 31, 32, 33, 37, 36, 34, 35, then the finale.
+  31: 10, 32: 11, 33: 12, 37: 13, 36: 14, 34: 15, 35: 16, 38: 44
 };
 export function getBossHpForWorld(worldId) {
   if (worldId === 11) return 48;       // Void Devourer — 4 phases of ~12 hp each.
@@ -1261,6 +1269,9 @@ class PlayerProgress {
         // Separate from finaleSeen (W28) so the W28 grand finale still plays once
         // for players who reached it before Ch3 existed.
         this.finale3Seen = !!data.finale3Seen;
+        // Which Chapter 3 day-order this save was written under. Absent means
+        // rev 1, which is what triggers the one-time migration below.
+        this.ch3OrderRev = data.ch3OrderRev || 1;
         // One-shot arrival card that frames Chapter 3 ("the fighting is over, this
         // is home"). Shown once, the first time the player surfaces onto the
         // Chapter 3 map, then never again (it is a premise beat, not a reminder).
@@ -1274,7 +1285,11 @@ class PlayerProgress {
         // (Pack & Go) mode. Per-browser (localStorage), default OFF.
         this.conveyorMixedEnabled = !!data.conveyorMixedEnabled;
         if (this.currentWorld >= 12 && this.currentWorld <= 14) this.currentWorld = 11;
+        // Runs BEFORE checkWorldUnlock so the frontier is re-derived from the
+        // migrated flags rather than the stale ones.
+        const ch3Migrated = this.migrateChapter3Order();
         this.checkWorldUnlock(null);
+        if (ch3Migrated) this.save();
       } else {
         this.reset();
       }
@@ -1307,6 +1322,7 @@ class PlayerProgress {
     this.currentChapter = 1;
     this.finaleSeen = false;
     this.finale3Seen = false;
+    this.ch3OrderRev = CH3_ORDER_REV;   // a new save is born on the current day order
     this.makerWelcomeSeen = false;
     this.homeGroundWelcomeSeen = false;
     this.conveyorMixedEnabled = false;
@@ -1550,6 +1566,7 @@ class PlayerProgress {
         currentChapter: this.currentChapter,
         finaleSeen: this.finaleSeen,
         finale3Seen: this.finale3Seen,
+        ch3OrderRev: this.ch3OrderRev,
         makerWelcomeSeen: this.makerWelcomeSeen,
         homeGroundWelcomeSeen: this.homeGroundWelcomeSeen,
         conveyorMixedEnabled: this.conveyorMixedEnabled
@@ -2000,6 +2017,24 @@ class PlayerProgress {
     this.save();
   }
 
+  // One-time Chapter 3 re-order migration. `unlocked` is sticky, so a save
+  // written under the old day order can carry an unlocked stop that now sits
+  // late in the array, and the map's frontier (the LAST unlocked index opens
+  // every node before it) would hand a kid stops they never earned. Fix, once:
+  // drop `unlocked` on any Chapter 3 stop the kid never actually played, then
+  // let checkWorldUnlock re-derive the chain under the new order. A stop with
+  // even one star is left alone, so nothing anyone reached is taken away.
+  migrateChapter3Order() {
+    if (this.ch3OrderRev >= CH3_ORDER_REV) return false;
+    for (const w of getChapterWorlds(3)) {
+      const wp = this.worldProgress[w.id];
+      if (!wp || !wp.unlocked) continue;
+      if (Object.keys(wp.levelStars || {}).length === 0) wp.unlocked = false;
+    }
+    this.ch3OrderRev = CH3_ORDER_REV;
+    return true;
+  }
+
   checkWorldUnlock(_completedWorldId) {
     // Sequential unlock WITHIN each chapter: world N+1 unlocks when world N has
     // all its challenges cleared. Each chapter's FIRST world has its own gate:
@@ -2042,7 +2077,16 @@ class PlayerProgress {
         // below means tightening this gate never re-locks a world a kid already
         // reached — it only adds friction to worlds not yet unlocked.
         const prevCleared = prevWp && Object.keys(prevWp.levelMastered || {}).length >= prev.levelsRequired;
-        if (prevCleared && !wp.unlocked) {
+        // The Chapter 3 finale needs the WHOLE day behind it, not just the stop
+        // before it. For anyone playing the day in order this is the identical
+        // condition, so it changes nothing for a new player or for anyone who
+        // has already finished. It is what stops a save written under the old
+        // Chapter 3 order from opening the mountain, and rolling the homecoming
+        // credits, with a stop still unplayed.
+        const gateOpen = world.id === CHAPTER3_FINAL_ID
+          ? worlds.every(w => w.id === CHAPTER3_FINAL_ID || this.isWorldMastered(w.id))
+          : prevCleared;
+        if (gateOpen && !wp.unlocked) {
           wp.unlocked = true;
         }
       }
